@@ -49,7 +49,7 @@ async function api(method, path, body) {
   }
   return j;
 }
-async function load() { S = await api('GET', 'state'); }
+async function load() { S = await api('GET', 'state'); UI.loadedAt = Date.now(); }
 
 /* ===== Componentes de tela ===== */
 const stChip=r=>{const s=STAT[r.status];return '<span class="st '+s[1]+'">'+s[0]+'</span>'};
@@ -76,53 +76,159 @@ function filtered(list){const f=UI.filt;return list.filter(r=>(!f.unit||r.unit==
 function filterBar(u){
   const uopt=(u.papel==='csgr'||u.papel==='cgge')?'<select data-filter="unit" aria-label="Coordenadoria"><option value="">Todas as coordenadorias</option>'+UNITS.map(x=>'<option'+(UI.filt.unit===x?' selected':'')+'>'+x+'</option>').join('')+'</select>':'';
   return '<div class="row" style="align-items:center">'+uopt+'<select data-filter="nv" aria-label="Nível"><option value="">Todos os níveis</option>'+LV.map((l,i)=>'<option value="'+i+'"'+(String(UI.filt.nv)===String(i)?' selected':'')+'>'+l+'</option>').join('')+'</select><select data-filter="st" aria-label="Situação"><option value="">Todas as situações</option>'+Object.keys(STAT).map(k=>'<option value="'+k+'"'+(UI.filt.st===k?' selected':'')+'>'+STAT[k][0]+'</option>').join('')+'</select>'+(UI.filt.cell?'<span class="st info">Célula '+UI.filt.cell.p+'×'+UI.filt.cell.i+'</span>':'')+((UI.filt.unit||UI.filt.nv!==''||UI.filt.st||UI.filt.cell)?'<button class="btn sm" data-act="clearfilt">Limpar filtros</button>':'')+'</div>'}
+const phaseCell=r=>{const c=curPhase(r),done=r.status==='encerrado';return '<div class="ph" data-tip="'+esc('Fase '+c+' de 5 · '+PHASES[c-1][0]+': '+PHASES[c-1][1])+'"><span class="ph-bar">'+[1,2,3,4,5].map(k=>'<i class="'+(k<c||done?'on':k===c?'cur':'')+'"></i>').join('')+'</span><span class="small">'+PHASES[c-1][0]+'</span></div>'};
 function tableRisks(list){
   if(!list.length)return '<div class="empty">Nenhum risco com esses filtros.</div>';
-  const rows=list.slice().sort((a,b)=>nivel(b)-nivel(a)).map(r=>'<tr class="click" data-open="'+r.id+'"><td class="mono">'+r.id+'</td><td><b>'+esc(r.titulo)+'</b><div class="muted small">'+r.unit+' · '+esc(r.criadoPor)+'</div></td><td>'+lvc(nivel(r))+'</td><td>'+stChip(r)+'</td><td>'+metChip(r)+'</td><td>'+prazoCell(r)+'</td></tr>').join('');
-  return '<div class="scroll"><table class="tbl"><thead><tr><th>ID</th><th>Risco</th><th>Nível</th><th>Situação</th><th>Métrica</th><th>Prazo da ação</th></tr></thead><tbody>'+rows+'</tbody></table></div>'}
+  const rows=list.slice().sort((a,b)=>nivel(b)-nivel(a)).map(r=>'<tr class="click" data-open="'+r.id+'"><td class="mono">'+r.id+'</td><td><b>'+esc(r.titulo)+'</b><div class="muted small">'+r.unit+' · '+esc(r.criadoPor)+'</div></td><td>'+lvc(nivel(r))+'</td><td>'+phaseCell(r)+'</td><td>'+stChip(r)+'</td><td>'+metChip(r)+'</td><td>'+prazoCell(r)+'</td></tr>').join('');
+  return '<div class="scroll"><table class="tbl"><thead><tr><th>ID</th><th>Risco</th><th>Nível</th><th>Fase</th><th>Situação</th><th>Métrica</th><th>Prazo da ação</th></tr></thead><tbody>'+rows+'</tbody></table></div>'}
 function pendingFor(u){const l=scope(u);
   if(u.papel==='cadastrador')return l.filter(r=>['devolvido','rascunho','avaliado'].includes(r.status)).map(r=>({r,txt:r.status==='devolvido'?'PRR devolvido pela CSGR: ajustar e reenviar':r.status==='rascunho'?'Rascunho: complete a avaliação e o PRR':'Avaliado: falta elaborar o PRR',crit:r.status==='devolvido'}));
   if(u.papel==='gestor')return l.filter(r=>r.status==='ag_gestor').map(r=>({r,txt:'PRR aguardando sua validação',crit:false}));
   if(u.papel==='csgr')return l.filter(r=>r.status==='ag_csgr').map(r=>({r,txt:'PRR aguardando aprovação da CSGR',crit:false}));
   return []}
+/* ===== Painéis: peças comuns ===== */
+// Ícones de estado: a cor nunca aparece sozinha, sempre com ícone e texto.
+const ICO={
+  crit:'<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7"/><path class="k" d="M8 4.6v4.2M8 11.4v.1"/></svg>',
+  warn:'<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.4 15.3 14.3H.7z"/><path class="k" d="M8 6.1v3.6M8 12.1v.1"/></svg>',
+  ok:'<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7"/><path class="k" d="m4.9 8.2 2.1 2.1 4.2-4.4"/></svg>',
+  info:'<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7"/><path class="k" d="M8 7.4v4M8 4.7v.1"/></svg>'};
+const TONE={crit:'Crítico',warn:'Atenção',ok:'Em dia',info:'Ação'};
+const fnum=n=>Number(n).toLocaleString('pt-BR');
+const pct=(a,b)=>(b?Math.round(a/b*100):0);
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const ratioTxt=x=>x.toFixed(1).replace('.',',')+'×';
+const toneTag=(t,txt)=>'<span class="tone t-'+t+'">'+ICO[t]+(txt||TONE[t])+'</span>';
+// Barra de magnitude dentro da tabela, com o valor na ponta.
+const inbar=(v,max)=>'<div class="inbar"><span class="inbar-t"><i style="width:'+pct(v,max)+'%"></i></span><span class="inbar-v">'+brlc(v)+'</span></div>';
+const cardH=(title,sub,extra)=>'<div class="card-h"><div><h3>'+title+'</h3>'+(sub?'<p>'+sub+'</p>':'')+'</div>'+(extra||'')+'</div>';
+function tile(label,value,foot,tone,meter){
+  return '<div class="tile"><div class="tile-h"><span>'+label+'</span>'+(tone?toneTag(tone):'')+'</div><b class="tile-v">'+value+'</b>'
+    +(meter!=null?'<div class="meter t-'+(tone||'info')+'"><i style="width:'+meter+'%"></i></div>':'')+'<span class="tile-f">'+foot+'</span></div>'}
+function panelHead(u){
+  const op=UI.panel==='op',when=UI.loadedAt?new Date(UI.loadedAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  return '<div class="dash-head"><div class="dash-title"><span class="eyebrow">'+(u.unit?'Coordenadoria '+u.unit:'SETIC · todas as coordenadorias')+'</span><h2>'+(op?'Painel Operacional':'Painel Alta Gestão')+'</h2><p class="muted">'
+    +(op?'O que exige ação agora: pendências, prazos e métricas fora do ideal.':'Quanto cada risco custa, quanto custa tratá-lo e o que se ganha. Base para decidir investimento e prestar contas ao TCE.')+'</p></div>'
+    +'<div class="dash-tools">'+(when?'<span class="small muted">Dados de '+when+'</span>':'')+'<button class="btn sm" data-act="dl-csv">Exportar CSV</button>'
+    +'<div class="seg" role="group" aria-label="Escolher painel"><button data-panel="op" aria-pressed="'+op+'">Operacional · TI</button><button data-panel="alta" aria-pressed="'+!op+'">Alta gestão</button></div></div></div>'}
 /* ===== Painel Operacional (profissional de TI) ===== */
+function heat(counts,ids,sel){
+  let h='<div class="heat" role="group" aria-label="Mapa de calor: impacto por probabilidade"><div class="heat-y" aria-hidden="true">Impacto</div><div class="heat-grid">';
+  for(let i=5;i>=1;i--){
+    h+='<div class="hy"><b>'+i+'</b><span>'+IMPS[i-1][0]+'</span></div>';
+    for(let p=1;p<=5;p++){
+      const n=p*i,b=band(n),k=p+'-'+i,c=counts[k]||0,on=!!(sel&&sel.p===p&&sel.i===i),st='style="--hb:var(--l'+b+');--hf:var(--f'+b+')"';
+      const tip='Probabilidade '+p+' ('+PROB[p-1][0]+') × impacto '+i+' ('+IMPS[i-1][0]+')\nNível '+n+' · '+LV[b]+'\n'+(c?c+(c>1?' riscos: ':' risco: ')+ids[k].map(r=>r.id).join(', '):'Nenhum risco nesta célula');
+      h+=c?'<button class="hc on'+(on?' sel':'')+'" '+st+' data-cell="'+k+'" data-tip="'+esc(tip)+'" aria-pressed="'+on+'" aria-label="'+esc(tip.replace(/\n/g,'. '))+'"><b>'+c+'</b><small>nível '+n+'</small></button>'
+        :'<div class="hc" '+st+' data-tip="'+esc(tip)+'"><small>'+n+'</small></div>';
+    }
+  }
+  h+='<div></div>';
+  for(let p=1;p<=5;p++)h+='<div class="hx"><b>'+p+'</b><span>'+PROB[p-1][0]+'</span></div>';
+  return h+'</div><div class="heat-x" aria-hidden="true">Probabilidade</div></div>'
+    +'<ul class="legend">'+LV.map((l,i)=>'<li><i style="background:var(--l'+i+')"></i>'+l+' <span class="muted">'+['1–2','3–5','6–10','12–16','20–25'][i]+'</span></li>').join('')+'</ul>'}
+function levelStack(aval,semAval){
+  const parts=[4,3,2,1,0].map(b=>({b,n:aval.filter(r=>band(nivel(r))===b).length}));
+  const bar=aval.length?parts.filter(p=>p.n).map(p=>'<i style="flex:'+p.n+';background:var(--s'+p.b+')" data-tip="'+esc(LV[p.b]+': '+p.n+' de '+aval.length+' riscos avaliados ('+pct(p.n,aval.length)+'%)')+'"></i>').join(''):'<i style="flex:1;background:var(--surface2)"></i>';
+  return '<div class="stack">'+bar+'</div><ul class="legend">'+parts.map(p=>'<li><i style="background:var(--s'+p.b+')"></i>'+LV[p.b]+' <b>'+p.n+'</b></li>').join('')+(semAval?'<li class="muted">Sem avaliação <b>'+semAval+'</b></li>':'')+'</ul>'}
+function flow(all){
+  const n=s=>all.filter(r=>r.status===s).length,main=['rascunho','avaliado','ag_gestor','ag_csgr','em_tratamento'],mx=Math.max(1,...main.map(n));
+  const pr=s=>' data-stfilt="'+s+'" aria-pressed="'+(UI.filt.st===s)+'"';
+  return '<div class="flow">'+main.map((s,i)=>'<button class="fstep'+(UI.filt.st===s?' on':'')+'"'+pr(s)+' data-tip="'+esc(STAT[s][0]+': '+n(s)+' risco(s). Clique para filtrar a lista.')+'"><span class="fstep-n">'+(i+1)+'</span><b>'+n(s)+'</b><span>'+STAT[s][0]+'</span><i style="width:'+pct(n(s),mx)+'%"></i></button>').join('')+'</div>'
+    +'<div class="flow-side"><span class="small muted">Fora do fluxo</span>'+['devolvido','ocorrido','encerrado'].map(s=>'<button class="chip"'+pr(s)+'>'+STAT[s][0]+' <b>'+n(s)+'</b></button>').join('')+'</div>'}
+function actionQueue(u,list){
+  const items=pendingFor(u).map(p=>({r:p.r,kind:'Pendência',tone:p.crit?'crit':'info',txt:p.txt}));
+  derived(u).forEach(d=>{const r=rk(d.riskId);if(!r)return;
+    if(d.tipo==='prazo'){const dd=daysTo(r.prr.prazo);items.push({r,kind:'Prazo',tone:d.crit?'crit':'warn',txt:dd<0?'Prazo da ação vencido há '+(-dd)+' dia(s)':dd===0?'Prazo da ação vence hoje':'Prazo da ação vence em '+dd+' dia(s)'});}
+    else items.push({r,kind:'Métrica',tone:d.crit?'crit':'warn',txt:'"'+r.prr.metrica+'" em '+(d.crit?'nível crítico':'alerta')+': '+fnum(lastMed(r).valor)+' '+r.prr.unidadeMetrica});});
+  const rank={crit:0,warn:1,info:2};items.sort((a,b)=>rank[a.tone]-rank[b.tone]);
+  const shown=items.slice(0,6),more=items.length-shown.length;
+  const body=shown.length?'<ul class="queue">'+shown.map(q=>'<li><button class="qi" data-open="'+q.r.id+'"><span class="qi-ico t-'+q.tone+'" title="'+TONE[q.tone]+'">'+ICO[q.tone]+'</span><span class="qi-b"><span class="qi-k">'+q.kind+' · '+q.r.id+' · '+q.r.unit+'</span><b>'+esc(q.r.titulo)+'</b><span class="qi-t">'+esc(q.txt)+'</span></span><span class="qi-go" aria-hidden="true">›</span></button></li>').join('')+'</ul>'
+    +(more?'<button class="btn sm link" data-nav="alertas">Ver mais '+more+' item(ns) em Alertas</button>':'')
+    :'<div class="empty">'+ICO.ok+'<p>Nada pendente agora. Prazos e métricas que exigirem ação aparecem aqui.</p></div>';
+  return '<section class="card span-7">'+cardH('Fila de ação','Ordenada por gravidade: crítico, atenção e pendências do seu perfil.','<span class="count">'+items.length+'</span>')+body+'</section>'}
+function metricRow(r){
+  const p=r.prr,m=lastMed(r),ms=metricSt(r),v=Number(m.valor),c=Number(p.critico),a=Number(p.alerta),i=Number(p.ideal),menor=p.sentido==='menor';
+  // Eixo orientado de "pior" (esquerda) para "melhor" (direita), com as faixas nos limites reais do PRR.
+  const worst=menor?Math.max(v,c+(c-a)):Math.min(v,c-(a-c)),best=menor?Math.min(v,i):Math.max(v,i),span=Math.abs(worst-best);
+  const x=n=>(span?Math.max(0,Math.min(100,Math.abs(n-worst)/span*100)):50),xc=x(c),xa=x(a),xv=Math.max(1.5,Math.min(98.5,x(v)));
+  const meds=p.medicoes,prev=meds.length>1?Number(meds[meds.length-2].valor):null,un=esc(p.unidadeMetrica);
+  let trend='';
+  if(prev!=null){const d=v-prev,worse=menor?d>0:d<0;trend=d===0?'<span class="trend">Sem variação desde a medição anterior</span>':'<span class="trend '+(worse?'t-crit':'t-ok')+'">'+(d>0?'▲ +':'▼ ')+fnum(d)+' '+un+' desde a medição anterior · '+(worse?'piorou':'melhorou')+'</span>';}
+  const sig=menor?['≥','≥','≤']:['≤','≤','≥'];
+  return '<div class="mrow"><div class="mrow-h"><div class="mrow-t"><b>'+esc(p.metrica)+'</b><span class="small muted">'+r.id+' · '+esc(r.titulo)+'</span></div><div class="mrow-v"><b>'+fnum(v)+' <small>'+un+'</small></b>'+toneTag(ms==='critico'?'crit':'warn',ms==='critico'?'Crítico':'Alerta')+'</div></div>'
+    +'<div class="mbar" data-tip="'+esc('Última medição: '+fnum(v)+' '+p.unidadeMetrica+' em '+fd(m.ts)+'\nCrítico '+sig[0]+' '+fnum(c)+' · alerta '+sig[1]+' '+fnum(a)+' · ideal '+sig[2]+' '+fnum(i))+'">'
+    +'<i class="z z-crit'+(ms==='critico'?' act':'')+'" style="left:0;width:'+xc+'%"></i><i class="z z-warn'+(ms==='alerta'?' act':'')+'" style="left:'+xc+'%;width:'+(xa-xc)+'%"></i><i class="z z-ok" style="left:'+xa+'%;right:0"></i><i class="mk" style="left:'+xv+'%"></i></div>'
+    +'<div class="mscale small muted"><span>Crítico '+sig[0]+' '+fnum(c)+'</span><span>Alerta '+sig[1]+' '+fnum(a)+'</span><span>Ideal '+sig[2]+' '+fnum(i)+'</span></div>'+trend+'</div>'}
 function renderOp(u){
-  const all=scope(u),list=all.filter(r=>r.status!=='encerrado');
-  const counts={};list.forEach(r=>{if(r.prob&&r.imp){const k=r.prob+'-'+r.imp;counts[k]=(counts[k]||0)+1}});
-  const alto=list.filter(r=>nivel(r)>=12).length;
-  const mets=list.filter(r=>['alerta','critico'].includes(metricSt(r))).length;
-  const prz=list.filter(r=>['em_tratamento','ocorrido'].includes(r.status)&&r.prr&&r.prr.prazo&&daysTo(r.prr.prazo)<=15).length;
-  const pend=pendingFor(u),der=derived(u);
-  const queue=pend.map(p=>({riskId:p.r.id,msg:p.r.titulo+' — '+p.txt,crit:p.crit,tag:'Pendência'})).concat(der.map(d=>({riskId:d.riskId,msg:d.msg,crit:d.crit,tag:d.tipo==='prazo'?'Prazo':'Métrica'}))).sort((a,b)=>(b.crit?1:0)-(a.crit?1:0)).slice(0,8);
-  const qh=queue.length?queue.map(q=>'<div class="alert-item'+(q.crit?' crit':'')+'"><span class="dot"></span><div style="flex:1;min-width:0"><span class="st '+(q.crit?'bad':'info')+'">'+q.tag+'</span> '+esc(q.msg)+'</div><button class="btn sm" data-open="'+q.riskId+'">Abrir</button></div>').join(''):'<div class="empty">Nada pendente. Os alertas aparecem aqui.</div>';
-  const mon=list.filter(r=>['alerta','critico'].includes(metricSt(r))).sort((a,b)=>(metricSt(b)==='critico')-(metricSt(a)==='critico'));
-  const mh=mon.length?mon.map(r=>{const m=lastMed(r),p=r.prr;const lo=Math.min(Number(p.critico),Number(p.ideal),Number(m.valor)),hi=Math.max(Number(p.critico),Number(p.ideal),Number(m.valor));let pos=hi===lo?50:(Number(m.valor)-lo)/(hi-lo)*100;if(p.sentido==='menor')pos=100-pos;pos=Math.max(3,Math.min(97,pos));
-    return '<div style="margin-bottom:14px"><div class="row" style="justify-content:space-between;gap:6px"><b style="font-size:13px">'+esc(p.metrica)+'</b><span class="mono small">'+m.valor+' '+esc(p.unidadeMetrica)+'</span></div><div class="gauge" style="margin:8px 0 4px"><i style="left:'+pos+'%"></i></div><div class="row small muted" style="justify-content:space-between"><span>crítico '+p.critico+'</span><span>alerta '+p.alerta+'</span><span>ideal '+p.ideal+'</span></div><div class="small muted">'+r.id+' · '+esc(r.titulo)+'</div></div>'}).join(''):'<div class="empty">Nenhuma métrica em alerta.</div>';
-  return '<div class="kpis"><div class="kpi ka"><span>Riscos ativos</span><b>'+list.length+'</b><span>'+(u.unit||'todas as coordenadorias')+'</span></div><div class="kpi k4"><span>Nível alto ou extremo</span><b>'+alto+'</b><span>nível 12 ou mais</span></div><div class="kpi k3"><span>Métricas em alerta</span><b>'+mets+'</b><span>alerta ou crítico</span></div><div class="kpi k2"><span>Prazos em até 15 dias</span><b>'+prz+'</b><span>inclui vencidos</span></div><div class="kpi k1"><span>Pendências com você</span><b>'+pend.length+'</b><span>'+PAPEL[u.papel]+'</span></div></div>'+
-  '<div class="row"><div class="card grow"><h3>Mapa de riscos</h3>'+matrix('count',counts,UI.filt.cell)+'<p class="hint">Clique em uma célula para filtrar a lista.</p></div><div class="card grow"><h3>Fila de ação</h3>'+qh+'</div><div class="card grow"><h3>Métricas fora do ideal</h3>'+mh+'</div></div>'+
-  '<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h3 style="margin:0">Riscos</h3>'+filterBar(u)+'</div>'+tableRisks(filtered(list))+'</div>'}
+  const all=scope(u),list=all.filter(r=>r.status!=='encerrado'),aval=list.filter(r=>nivel(r));
+  const counts={},ids={};aval.forEach(r=>{const k=r.prob+'-'+r.imp;counts[k]=(counts[k]||0)+1;(ids[k]=ids[k]||[]).push(r)});
+  const alto=aval.filter(r=>nivel(r)>=12).length;
+  const monit=list.filter(r=>metricSt(r)!=='sem'),crit=monit.filter(r=>metricSt(r)==='critico').length,fora=monit.filter(r=>metricSt(r)==='alerta').length+crit;
+  const comPrazo=list.filter(r=>['em_tratamento','ocorrido'].includes(r.status)&&r.prr&&r.prr.prazo),prz=comPrazo.filter(r=>daysTo(r.prr.prazo)<=15),venc=prz.filter(r=>daysTo(r.prr.prazo)<0).length;
+  const pend=pendingFor(u).length;
+  const kpis='<div class="tiles">'
+    +tile('Riscos ativos',list.length,(u.unit||'Todas as coordenadorias')+(list.length-aval.length?' · '+(list.length-aval.length)+' sem avaliação':''))
+    +tile('Nível alto ou extremo',alto,alto?alto+' de '+aval.length+' avaliados · nível 12 ou mais':'Nenhum risco com nível 12 ou mais',alto?'crit':'ok',aval.length?pct(alto,aval.length):null)
+    +tile('Métricas em alerta',fora,monit.length?fora+' de '+monit.length+' monitoradas'+(crit?' · '+crit+' crítica(s)':''):'Nenhuma métrica com medição ainda',crit?'crit':fora?'warn':'ok',monit.length?pct(fora,monit.length):null)
+    +tile('Prazos em até 15 dias',prz.length,prz.length?(venc?venc+' vencido(s) · ':'')+prz.length+' de '+comPrazo.length+' ações em andamento':'Nenhuma ação perto do prazo',venc?'crit':prz.length?'warn':'ok',comPrazo.length?pct(prz.length,comPrazo.length):null)
+    +tile('Pendências com você',pend,pend?PAPEL[u.papel]+' · itens que dependem do seu perfil':PAPEL[u.papel]+' · nada aguardando você',pend?'info':'ok')+'</div>';
+  const mon=monit.filter(r=>metricSt(r)!=='ok').sort((a,b)=>(metricSt(b)==='critico')-(metricSt(a)==='critico'));
+  const mh=mon.length?'<div class="mgrid">'+mon.map(metricRow).join('')+'</div>':'<div class="empty">'+ICO.ok+'<p>Todas as métricas medidas estão dentro do ideal.</p></div>';
+  const rows=filtered(UI.filt.st==='encerrado'?all:list);
+  return kpis+'<div class="dash">'
+    +'<section class="card span-5">'+cardH('Mapa de riscos','Riscos ativos por probabilidade e impacto. Clique numa célula para filtrar a lista.')+heat(counts,ids,UI.filt.cell)+'</section>'
+    +actionQueue(u,list)
+    +'<section class="card span-12">'+cardH('Situação dos riscos','Distribuição por nível e etapa do fluxo do PRR. Clique numa etapa para filtrar a lista.')+'<div class="sit"><div><span class="eyebrow">Por nível</span>'+levelStack(aval,list.length-aval.length)+'</div><div><span class="eyebrow">Por etapa do PRR</span>'+flow(all)+'</div></div></section>'
+    +'<section class="card span-12">'+cardH('Métricas fora do ideal','Última medição contra os limites definidos no PRR.','<span class="count">'+mon.length+'</span>')+mh+'</section>'
+    +'<section class="card span-12">'+cardH('Riscos','Ordenados pelo nível, do mais grave para o menos grave.','<span class="count">'+rows.length+'</span>')+'<div class="table-tools">'+filterBar(u)+'</div>'+tableRisks(rows)+'</section></div>'}
 /* ===== Painel Alta Gestão (decisão de custo e prestação de contas) ===== */
+function unitBars(E){
+  const U=UNITS.map(un=>{const xs=E.filter(x=>x.r.unit===un);return {un,n:xs.length,c:xs.reduce((a,x)=>a+x.e.cur,0),p:xs.reduce((a,x)=>a+x.e.res,0)}}).sort((a,b)=>b.c-a.c||b.n-a.n);
+  const mx=Math.max(1,...U.map(x=>Math.max(x.c,x.p))),w=v=>'width:calc((100% - 76px) * '+(v/mx).toFixed(4)+')';
+  return '<ul class="legend top"><li><i class="sw-now"></i>Hoje</li><li><i class="sw-after"></i>Após os PRRs</li></ul><div class="gbars">'+U.map(x=>x.n
+    ?'<div class="gb" tabindex="0" data-tip="'+esc(x.un+' · '+x.n+' risco(s) avaliado(s)\nHoje: '+brl(x.c)+'\nApós os PRRs: '+brl(x.p)+'\nRedução: '+brl(x.c-x.p)+' ('+pct(x.c-x.p,x.c)+'%)')+'"><span class="gb-l">'+x.un+'<small>'+x.n+' risco(s)</small></span><div class="gb-bars"><div class="gb-b"><i class="now" style="'+w(x.c)+'"></i><em>'+brlc(x.c)+'</em></div><div class="gb-b"><i class="after" style="'+w(x.p)+'"></i><em>'+brlc(x.p)+'</em></div></div></div>'
+    :'<div class="gb empty-row"><span class="gb-l">'+x.un+'<small>0 riscos</small></span><span class="small muted">Sem riscos avaliados</span></div>').join('')+'</div>'}
+function prioList(pend){
+  const prio=pend.filter(x=>x.e.cost>0).sort((a,b)=>(b.e.ratio||0)-(a.e.ratio||0)),mx=Math.max(1e-9,...prio.map(x=>x.e.ratio||0));
+  if(!prio.length)return '<div class="empty">'+ICO.ok+'<p>Nenhum PRR com custo aguardando decisão.</p></div>';
+  return '<ol class="rank">'+prio.map((x,i)=>'<li><button class="rk" data-open="'+x.r.id+'"><span class="rk-n">'+(i+1)+'</span><span class="rk-b"><b>'+esc(x.r.titulo)+'</b><span class="small muted">'+x.r.id+' · '+x.r.unit+' · '+STAT[x.r.status][0]+'</span><span class="rk-bar"><i style="width:'+pct(x.e.ratio||0,mx)+'%"></i></span><span class="small muted">Custo <b>'+brlc(x.e.cost)+'</b> · redução <b>'+brlc(x.e.gain)+'</b></span></span><span class="rk-r"><b>'+(x.e.ratio!=null?ratioTxt(x.e.ratio):'—')+'</b><small>retorno</small></span></button></li>').join('')+'</ol>'}
 function renderAlta(u){
   const list=S.risks.filter(r=>r.status!=='encerrado'&&r.prob&&r.imp);
   const E=list.map(r=>({r,e:econ(r)}));
-  const tot=E.reduce((a,x)=>a+x.e.cur,0),res=E.reduce((a,x)=>a+x.e.res,0);
+  const tot=E.reduce((a,x)=>a+x.e.cur,0),res=E.reduce((a,x)=>a+x.e.res,0),red=tot-res,nPrr=E.filter(x=>x.r.prr).length;
   const aprov=E.filter(x=>['em_tratamento','ocorrido'].includes(x.r.status)),pend=E.filter(x=>['ag_gestor','ag_csgr'].includes(x.r.status));
   const invA=aprov.reduce((a,x)=>a+x.e.cost,0),invP=pend.reduce((a,x)=>a+x.e.cost,0);
-  const withC=E.filter(x=>x.e.cost>0),bc=withC.reduce((a,x)=>a+x.e.cost,0)?withC.reduce((a,x)=>a+x.e.gain,0)/withC.reduce((a,x)=>a+x.e.cost,0):0;
+  const withC=E.filter(x=>x.e.cost>0),costC=withC.reduce((a,x)=>a+x.e.cost,0),bc=costC?withC.reduce((a,x)=>a+x.e.gain,0)/costC:0;
   const semPrr=list.filter(r=>nivel(r)>=12&&!['em_tratamento','ocorrido'].includes(r.status)).length;
-  const maxU=Math.max(1,...UNITS.map(un=>E.filter(x=>x.r.unit===un).reduce((a,x)=>a+x.e.cur,0)));
-  const bars=UNITS.map(un=>{const xs=E.filter(x=>x.r.unit===un);const c=xs.reduce((a,x)=>a+x.e.cur,0),p=xs.reduce((a,x)=>a+x.e.res,0);
-    return '<div class="b"><span>'+un+'</span><div class="track" title="Atual '+brl(c)+' · projetada '+brl(p)+'"><div class="fill" style="width:'+(c/maxU*100)+'%"></div><div class="fill2" style="width:'+(p/maxU*100)+'%"></div></div><span class="mono small">'+brlc(c)+'</span></div>'}).join('');
-  const top=E.slice().sort((a,b)=>b.e.cur-a.e.cur).slice(0,6);
-  const th=top.map(x=>{const r=x.r;return '<tr><td><b>'+esc(r.titulo)+'</b><div class="muted small">'+r.id+' · '+r.unit+'</div></td><td>'+lvc(nivel(r))+'</td><td class="mono">'+brlc(x.e.cur)+'</td><td>'+(r.prr?esc(r.prr.tratamento):'—')+'</td><td class="mono">'+(x.e.cost?brlc(x.e.cost):'—')+'</td><td class="mono">'+(x.e.gain?brlc(x.e.gain):'—')+'</td><td>'+stChip(r)+'</td><td><button class="btn sm" data-tce="'+r.id+'" '+(r.prr?'':'disabled')+'>Justificativa</button></td></tr>'}).join('');
-  const prio=pend.filter(x=>x.e.cost>0).sort((a,b)=>(b.e.ratio||0)-(a.e.ratio||0));
-  const ph=prio.length?prio.map((x,i)=>'<tr class="click" data-open="'+x.r.id+'"><td class="mono">'+(i+1)+'</td><td><b>'+esc(x.r.titulo)+'</b><div class="muted small">'+x.r.unit+' · '+STAT[x.r.status][0]+'</div></td><td class="mono">'+brlc(x.e.cost)+'</td><td class="mono">'+brlc(x.e.gain)+'</td><td class="mono"><b>'+(x.e.ratio!=null?x.e.ratio.toFixed(1).replace('.',','):'—')+'</b></td></tr>').join(''):'<tr><td colspan="5" class="muted">Nenhum PRR com custo aguardando decisão.</td></tr>';
-  const forms=['mitigar','evitar','transferir','aceitar'].map(f=>{const xs=E.filter(x=>x.r.prr&&x.r.prr.tratamento===f);return '<tr><td style="text-transform:capitalize">'+f+'</td><td class="mono">'+xs.length+'</td><td class="mono">'+brlc(xs.reduce((a,x)=>a+x.e.cost,0))+'</td><td class="mono">'+brlc(xs.reduce((a,x)=>a+x.e.gain,0))+'</td></tr>'}).join('');
-  const tce=UI.tce&&rk(UI.tce)?'<div class="card"><div class="row" style="justify-content:space-between;align-items:center"><h3>Justificativa de despesa · '+UI.tce+'</h3><div><button class="btn sm" data-act="copytce">Copiar texto</button> <button class="btn sm" data-act="closetce">Fechar</button></div></div><div class="pre" id="tcetext">'+esc(tceText(rk(UI.tce)))+'</div></div>':'';
-  return '<div class="kpis"><div class="kpi k4"><span>Exposição esperada hoje</span><b>'+brlc(tot)+'</b><span>probabilidade × exposição</span></div><div class="kpi k1"><span>Exposição após os PRRs</span><b>'+brlc(res)+'</b><span>redução de '+brlc(tot-res)+'</span></div><div class="kpi ka"><span>Investimento aprovado</span><b>'+brlc(invA)+'</b><span>+ '+brlc(invP)+' aguardando decisão</span></div><div class="kpi k2"><span>Benefício por real investido</span><b>'+(withC.length?bc.toFixed(1).replace('.',',')+'×':'—')+'</b><span>redução de exposição ÷ custo</span></div><div class="kpi k3"><span>Alto/extremo sem tratamento aprovado</span><b>'+semPrr+'</b><span>risco sem resposta em andamento</span></div></div>'+
-  '<div class="row"><div class="card grow"><h3>Exposição por coordenadoria</h3><div class="bars">'+bars+'</div><p class="hint">Cinza: exposição atual. Azul: exposição projetada com os PRRs.</p></div><div class="card grow"><h3>Prioridade de investimento</h3><div class="scroll"><table class="tbl"><thead><tr><th>#</th><th>PRR pendente</th><th>Custo</th><th>Redução</th><th>Retorno ×</th></tr></thead><tbody>'+ph+'</tbody></table></div><p class="hint">Ordenado pela redução de exposição por real gasto.</p></div></div>'+
-  '<div class="card"><h3>Maiores exposições</h3><div class="scroll"><table class="tbl"><thead><tr><th>Risco</th><th>Nível</th><th>Exposição esperada</th><th>Tratamento</th><th>Custo</th><th>Redução</th><th>Situação</th><th></th></tr></thead><tbody>'+th+'</tbody></table></div></div>'+tce+
-  '<div class="row"><div class="card grow"><h3>Respostas por forma de tratamento</h3><table class="tbl"><thead><tr><th>Forma</th><th>PRRs</th><th>Custo</th><th>Redução</th></tr></thead><tbody>'+forms+'</tbody></table></div><div class="card grow"><h3>Como ler estes números</h3><p class="small muted">A probabilidade 1 a 5 vira percentual (5%, 15%, 35%, 60%, 85%). A exposição esperada é esse percentual vezes a exposição financeira estimada do risco. A projeção usa a probabilidade e o impacto residuais informados no PRR. São premissas editáveis pela CSGR e servem para comparar opções, não para prever perdas.</p></div></div>'}
+  const sum=!tot?'Ainda não há riscos avaliados com exposição financeira. Os números aparecem aqui assim que as coordenadorias avaliarem seus riscos.'
+    :(nPrr?'Se os '+nPrr+' planos de resposta registrados forem executados, a exposição esperada '+(red>=0?'cai':'sobe')+' de <b>'+brlc(tot)+'</b> para <b>'+brlc(res)+'</b>, '+(red>=0?'uma redução':'um aumento')+' de '+pct(Math.abs(red),tot)+'%. ':'Nenhum risco avaliado tem plano de resposta registrado ainda. ')
+      +'O investimento aprovado soma <b>'+brlc(invA)+'</b>'+(invP?' e outros <b>'+brlc(invP)+'</b> aguardam decisão':'')+'. '
+      +(withC.length?'Em média, cada real investido reduz '+bc.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+' de exposição. ':'')
+      +(semPrr?'<b>'+semPrr+' risco(s) de nível alto ou extremo</b> ainda não têm tratamento aprovado.':'Todos os riscos de nível alto ou extremo têm tratamento aprovado.');
+  const hero='<section class="card hero span-12"><div class="hero-main"><span class="eyebrow">Exposição esperada hoje</span><b class="hero-v">'+brlc(tot)+'</b><span class="small muted">Probabilidade × exposição financeira de '+list.length+' risco(s) avaliado(s)</span></div>'
+    +'<div class="hero-cmp" data-tip="'+esc('Hoje: '+brl(tot)+'\nApós os PRRs: '+brl(res)+'\n'+(red>=0?'Redução: ':'Aumento: ')+brl(Math.abs(red)))+'"><div class="cmp"><span>Hoje</span><div class="cmp-t"><i class="now" style="width:'+pct(tot,Math.max(tot,res))+'%"></i></div><b>'+brlc(tot)+'</b></div><div class="cmp"><span>Após os PRRs</span><div class="cmp-t"><i class="after" style="width:'+pct(res,Math.max(tot,res))+'%"></i></div><b>'+brlc(res)+'</b></div>'
+    +(red>0?'<p class="cmp-d">'+toneTag('ok','Redução de '+brlc(red)+' ('+pct(red,tot)+'%)')+'</p>':'')+'</div>'
+    +'<div class="hero-sum"><span class="eyebrow">Resumo para decisão</span><p>'+sum+'</p></div></section>';
+  const kpis='<div class="tiles">'
+    +tile('Investimento aprovado',brlc(invA),invP?'+ '+brlc(invP)+' aguardando decisão':'Nada aguardando decisão')
+    +tile('Retorno por real investido',withC.length?ratioTxt(bc):'—','Redução de exposição ÷ custo dos PRRs')
+    +tile('Alto/extremo sem tratamento aprovado',semPrr,semPrr?'Riscos sem resposta em andamento':'Todos com resposta em andamento',semPrr?'crit':'ok')
+    +tile('PRRs aguardando decisão',pend.length,pend.length?'Com o gestor ou com a CSGR':'Nenhum PRR em análise',pend.length?'info':'ok')+'</div>';
+  const maxE=Math.max(1,...E.map(x=>x.e.cur)),top=E.slice().sort((a,b)=>b.e.cur-a.e.cur).slice(0,6);
+  const th=top.length?top.map(x=>{const r=x.r;return '<tr><td><b>'+esc(r.titulo)+'</b><div class="muted small">'+r.id+' · '+r.unit+'</div></td><td>'+lvc(nivel(r))+'</td><td>'+inbar(x.e.cur,maxE)+'</td><td>'+(r.prr?cap(r.prr.tratamento):'<span class="muted">Sem PRR</span>')+'</td><td class="num">'+(x.e.cost?brlc(x.e.cost):'—')+'</td><td class="num">'+(x.e.gain?brlc(x.e.gain):'—')+'</td><td>'+stChip(r)+'</td><td class="num"><button class="btn sm" data-tce="'+r.id+'"'+(r.prr?'':' disabled')+'>Justificativa</button></td></tr>'}).join('')
+    :'<tr><td colspan="8" class="muted">Nenhum risco avaliado ainda.</td></tr>';
+  const redAll=Math.max(1,E.reduce((a,x)=>a+x.e.gain,0));
+  const forms=['mitigar','evitar','transferir','aceitar'].map(f=>{const xs=E.filter(x=>x.r.prr&&x.r.prr.tratamento===f),g=xs.reduce((a,x)=>a+x.e.gain,0);
+    return '<tr><td><b>'+cap(f)+'</b><div class="muted small">'+TRAT[f]+'</div></td><td class="num">'+xs.length+'</td><td class="num">'+brlc(xs.reduce((a,x)=>a+x.e.cost,0))+'</td><td>'+inbar(g,redAll)+'</td></tr>'}).join('');
+  const tce=UI.tce&&rk(UI.tce)?'<section class="card span-12">'+cardH('Justificativa de despesa · '+UI.tce,'Texto pronto para o processo de contratação e para a prestação de contas.','<div class="row"><button class="btn sm" data-act="copytce">Copiar texto</button><button class="btn sm" data-act="closetce">Fechar</button></div>')+'<div class="pre" id="tcetext">'+esc(tceText(rk(UI.tce)))+'</div></section>':'';
+  return '<div class="dash">'+hero+'</div>'+kpis+'<div class="dash">'
+    +'<section class="card span-7">'+cardH('Exposição por coordenadoria','Exposição esperada hoje e projetada com os PRRs registrados.')+unitBars(E)+'</section>'
+    +'<section class="card span-5">'+cardH('Prioridade de investimento','PRRs aguardando decisão, pela redução de exposição por real gasto.','<span class="count">'+pend.filter(x=>x.e.cost>0).length+'</span>')+prioList(pend)+'</section>'
+    +'<section class="card span-12">'+cardH('Maiores exposições','Os seis riscos com maior exposição esperada e a resposta proposta para cada um.')+'<div class="scroll"><table class="tbl"><thead><tr><th>Risco</th><th>Nível</th><th>Exposição esperada</th><th>Tratamento</th><th class="num">Custo</th><th class="num">Redução</th><th>Situação</th><th></th></tr></thead><tbody>'+th+'</tbody></table></div></section>'+tce
+    +'<section class="card span-7">'+cardH('Respostas por forma de tratamento','Quantos PRRs adotam cada forma, quanto custam e quanto reduzem.')+'<div class="scroll"><table class="tbl"><thead><tr><th>Forma</th><th class="num">PRRs</th><th class="num">Custo</th><th>Redução</th></tr></thead><tbody>'+forms+'</tbody></table></div></section>'
+    +'<section class="card span-5">'+cardH('Como ler estes números')+'<p class="small muted">A exposição esperada é o percentual da probabilidade vezes a exposição financeira estimada do risco. A projeção usa a probabilidade e o impacto residuais informados no PRR. São premissas para comparar opções, não previsões de perda.</p>'
+    +'<table class="tbl compact"><thead><tr><th>Probabilidade</th><th class="num">Percentual</th></tr></thead><tbody>'+PROB.map((x,i)=>'<tr><td>'+(i+1)+' · '+x[0]+'</td><td class="num">'+Math.round(PPCT[i+1]*100)+'%</td></tr>').join('')+'</tbody></table></section></div>'}
 function tceText(r){const e=econ(r),p=r.prr||emptyPrr(),n=nivel(r),nr=(p.probRes||1)*(p.impRes||1);
   const ap=(p.aprov||[]).map(a=>'  - '+fd(a.ts)+' · '+a.por+' ('+PAPEL[a.papel]+'): '+a.decisao+(a.motivo?' — '+a.motivo:'')).join('\n');
   return 'JUSTIFICATIVA DE DESPESA · GESTÃO DE RISCOS DE TIC\nRisco '+r.id+' · '+r.unit+' · '+r.titulo+'\n\nDescrição: Devido a '+r.causa+', poderá ocorrer '+r.evento+', levando a '+r.impacto+', afetando '+r.objetivo+'.\n\nSituação do risco: nível '+n+' ('+LV[band(n)]+'), probabilidade '+r.prob+' × impacto '+r.imp+'.\nExposição financeira estimada: '+brl(r.exposicao)+'. Exposição esperada: '+brl(e.cur)+'.\n\nResposta adotada: '+p.tratamento+'. '+p.acao+'\nCusto estimado: '+brl(e.cost)+'. Responsável: '+(p.responsavel||'—')+'. Prazo: '+fd(p.prazo)+'.\nRisco residual esperado: nível '+nr+' ('+LV[band(nr)]+'). Exposição residual: '+brl(e.res)+'. Redução esperada: '+brl(e.gain)+(e.ratio!=null?' ('+e.ratio.toFixed(1).replace('.',',')+' reais de redução para cada real investido)':'')+'.\nAcompanhamento: '+(p.metrica?p.metrica+' ('+p.unidadeMetrica+'), crítico '+p.critico+', alerta '+p.alerta+', ideal '+p.ideal:'métrica ainda não definida')+'.\n\nTramitação do PRR:\n'+(ap||'  - sem registros')+'\n\nPremissas: probabilidades convertidas em 5%, 15%, 35%, 60% e 85%. Todas as alterações deste risco estão registradas no histórico do MIRA (quem, quando e o quê).'}
@@ -289,6 +395,7 @@ function viewAuth() {
 }
 function render(keep) {
   if (!alive) return;
+  hideTip();
   const sy = window.scrollY;
   if (!UI.ready) { root.innerHTML = '<div class="auth"><div class="card"><p class="muted">Carregando…</p></div></div>'; return; }
   if (!S.me) { root.innerHTML = viewAuth(); const f = root.querySelector('input'); if (f) f.focus(); return; }
@@ -303,7 +410,7 @@ function render(keep) {
   const cur = UI.view === 'risco' ? 'riscos' : UI.view;
   let v;
   try {
-    if (UI.view === 'paineis') v = '<div class="pagehead"><div style="flex:1"><h2>' + (UI.panel === 'op' ? 'Painel Operacional' : 'Painel Alta Gestão') + '</h2><p class="muted">' + (UI.panel === 'op' ? 'O que exige ação agora: pendências, prazos e métricas fora do ideal.' : 'Quanto cada risco custa, quanto custa tratá-lo e o que se ganha. Base para decidir investimento e prestar contas ao TCE.') + '</p></div><div class="seg" role="group" aria-label="Escolher painel"><button data-panel="op" aria-pressed="' + (UI.panel === 'op') + '">Operacional · TI</button><button data-panel="alta" aria-pressed="' + (UI.panel === 'alta') + '">Alta gestão</button></div></div>' + (UI.panel === 'op' ? renderOp(u) : renderAlta(u));
+    if (UI.view === 'paineis') v = panelHead(u) + (UI.panel === 'op' ? renderOp(u) : renderAlta(u));
     else if (UI.view === 'riscos') v = viewRiscos(u);
     else if (UI.view === 'risco') v = viewRisk(u);
     else if (UI.view === 'matriz') v = viewMatriz(u);
@@ -441,15 +548,27 @@ async function onAuth(setup) {
   } catch (e) { UI.authErr = e.message; render(); }
 }
 const onClick = e => {
-  const t = e.target.closest('[data-act],[data-open],[data-nav],[data-tab],[data-panel],[data-cell],[data-tce]'); if (!t) return;
+  const t = e.target.closest('[data-act],[data-open],[data-nav],[data-tab],[data-panel],[data-cell],[data-tce],[data-stfilt]'); if (!t) return;
   if (t.dataset.open) { e.preventDefault(); openRisk(t.dataset.open); return; }
   if (t.dataset.nav) { const n = t.dataset.nav; UI.rid = null; UI.draft = null; UI.warnAck = false; if (n === 'novo') { act('novo'); return; } if (n !== 'riscos' || UI.view !== 'riscos') UI.filt = { unit: '', nv: '', st: '', cell: null }; UI.view = n; render(); return; }
   if (t.dataset.tab) { UI.tab = Number(t.dataset.tab); render(true); return; }
   if (t.dataset.panel) { UI.panel = t.dataset.panel; render(); return; }
   if (t.dataset.cell) { const [p, i] = t.dataset.cell.split('-').map(Number); const same = UI.filt.cell && UI.filt.cell.p === p && UI.filt.cell.i === i; UI.filt.cell = same ? null : { p, i }; render(true); return; }
   if (t.dataset.tce) { UI.tce = t.dataset.tce; render(true); const x = document.getElementById('tcetext'); if (x) x.scrollIntoView({ block: 'center' }); return; }
+  if (t.dataset.stfilt) { UI.filt.st = UI.filt.st === t.dataset.stfilt ? '' : t.dataset.stfilt; render(true); return; }
   if (t.dataset.act) act(t.dataset.act, t);
 };
+// Dica flutuante dos gráficos: lê data-tip como texto puro (textContent), no hover e no foco do teclado.
+let tipEl = null;
+function hideTip() { if (tipEl) { tipEl.remove(); tipEl = null; } }
+function showTip(t) {
+  if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tip'; tipEl.setAttribute('role', 'tooltip'); document.body.appendChild(tipEl); }
+  tipEl.textContent = t.dataset.tip;
+  const r = t.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  tipEl.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+  tipEl.style.top = (r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8) + 'px';
+}
+const onTip = e => { const t = e.target.closest && e.target.closest('[data-tip]'); if (t) showTip(t); else hideTip(); };
 const onChange = e => {
   const t = e.target;
   if (t.dataset.filter) { UI.filt[t.dataset.filter] = t.value; render(true); return; }
@@ -473,6 +592,10 @@ root.addEventListener('click', onClick);
 root.addEventListener('change', onChange);
 root.addEventListener('input', onInput);
 root.addEventListener('submit', onSubmit);
+root.addEventListener('pointerover', onTip);
+root.addEventListener('pointerleave', hideTip);
+root.addEventListener('focusin', onTip);
+root.addEventListener('focusout', hideTip);
 /* ===== Início ===== */
 (async () => {
   try {
@@ -482,5 +605,5 @@ root.addEventListener('submit', onSubmit);
   } catch (e) { UI.authErr = 'Não foi possível falar com o servidor.'; }
   UI.ready = true; render();
 })();
-return () => { alive = false; root.removeEventListener('click', onClick); root.removeEventListener('change', onChange); root.removeEventListener('input', onInput); root.removeEventListener('submit', onSubmit); root.innerHTML = ''; };
+return () => { alive = false; hideTip(); root.removeEventListener('click', onClick); root.removeEventListener('change', onChange); root.removeEventListener('input', onInput); root.removeEventListener('submit', onSubmit); root.removeEventListener('pointerover', onTip); root.removeEventListener('pointerleave', hideTip); root.removeEventListener('focusin', onTip); root.removeEventListener('focusout', hideTip); root.innerHTML = ''; };
 }
