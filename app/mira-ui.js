@@ -106,8 +106,8 @@ const toneTag=(t,txt)=>'<span class="tone t-'+t+'">'+ICO[t]+(txt||TONE[t])+'</sp
 // Barra de magnitude dentro da tabela, com o valor na ponta.
 const inbar=(v,max)=>'<div class="inbar"><span class="inbar-t"><i style="width:'+pct(v,max)+'%"></i></span><span class="inbar-v">'+brlc(v)+'</span></div>';
 const cardH=(title,sub,extra)=>'<div class="card-h"><div><h3>'+title+'</h3>'+(sub?'<p>'+sub+'</p>':'')+'</div>'+(extra||'')+'</div>';
-function tile(label,value,foot,tone,meter){
-  return '<div class="tile"><div class="tile-h"><span>'+label+'</span>'+(tone?toneTag(tone):'')+'</div><b class="tile-v">'+value+'</b>'
+function tile(label,value,foot,tone,meter,toneTxt){
+  return '<div class="tile"><div class="tile-h"><span>'+label+'</span>'+(tone?toneTag(tone,toneTxt):'')+'</div><b class="tile-v">'+value+'</b>'
     +(meter!=null?'<div class="meter t-'+(tone||'info')+'"><i style="width:'+meter+'%"></i></div>':'')+'<span class="tile-f">'+foot+'</span></div>'}
 // Cabeçalho padrão de página: sobretítulo, título, apoio e ações à direita.
 const pageHead=(t,sub,act,eye)=>'<div class="dash-head"><div class="dash-title">'+(eye?'<span class="eyebrow">'+eye+'</span>':'')+'<h2>'+t+'</h2>'+(sub?'<p class="muted">'+sub+'</p>':'')+'</div>'+(act?'<div class="dash-tools">'+act+'</div>':'')+'</div>';
@@ -241,24 +241,49 @@ function tceText(r){const e=econ(r),p=r.prr||emptyPrr(),n=nivel(r),nr=(p.probRes
 /* ===== Tela do risco: 5 fases ===== */
 const ph=s=>s&&String(s).trim()?esc(s):'…';
 const previewHTML=f=>'Devido a <mark>'+ph(f.causa)+'</mark>, poderá ocorrer <mark>'+ph(f.evento)+'</mark>, levando a <mark>'+ph(f.impacto)+'</mark>, afetando <mark>'+ph(f.objetivo)+'</mark>.';
+const valSt=(p,v)=>{v=Number(v);const c=Number(p.critico),a=Number(p.alerta);return p.sentido==='menor'?(v>=c?'critico':v>=a?'alerta':'ok'):(v<=c?'critico':v<=a?'alerta':'ok')};
+const stTone=s=>s==='critico'?toneTag('crit','Crítico'):s==='alerta'?toneTag('warn','Alerta'):toneTag('ok','Ideal');
+const TICK='<svg class="ico-t" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-6.5"/></svg>';
+const fhm=s=>(s?new Date(s).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'');
+// O histórico guarda valores brutos (ag_csgr, 2026-12-15, 85000). Aqui viram o texto que a pessoa lê.
+const FMTV={'Situação':v=>(STAT[v]||[v])[0],'Prazo':fd,'Custo estimado (R$)':v=>brl(Number(v)),'Exposição financeira (R$)':v=>brl(Number(v)),'Forma de tratamento':v=>cap(String(v)),'Sentido da métrica':v=>(v==='menor'?'menor é melhor':'maior é melhor'),
+  'Probabilidade':v=>(PROB[v-1]?v+' · '+PROB[v-1][0]:v),'Probabilidade residual':v=>(PROB[v-1]?v+' · '+PROB[v-1][0]:v),'Nota de impacto':v=>(IMPS[v-1]?v+' · '+IMPS[v-1][0]:v),'Impacto residual':v=>(IMPS[v-1]?v+' · '+IMPS[v-1][0]:v)};
+const fmtV=(c,v)=>(v===''||v==null?'':FMTV[c]?FMTV[c](v):String(v));
 function historyList(list,showRisk){
   if(!list.length)return '<div class="empty">Sem registros.</div>';
-  return '<ul class="timeline">'+list.map(a=>'<li><span class="when">'+fdt(a.ts)+'</span><div><b>'+esc(a.user)+'</b> <span class="muted">('+PAPEL[a.role]+(a.unit?' · '+a.unit:'')+')</span> '+esc(a.action)+(showRisk&&a.riskId?' <a href="#" data-open="'+a.riskId+'">'+a.riskId+'</a>':'')+(a.changes||[]).map(c=>'<div class="small"><span class="muted">'+esc(c.campo)+':</span> '+(c.de!==''?'<span class="del">'+esc(c.de)+'</span> ':'')+'<span class="add">'+esc(c.para===''?'(vazio)':c.para)+'</span></div>').join('')+(a.note?'<div class="small muted">“'+esc(a.note)+'”</div>':'')+'</div></li>').join('')+'</ul>'}
-function chartSVG(r){
-  const p=r.prr,m=p.medicoes;if(!m.length)return '<div class="empty">Sem medições. Registre a primeira abaixo.</div>';
-  const W=560,H=190,L=34,R=84,T=12,B=26;
-  const vals=m.map(x=>Number(x.valor)).concat([Number(p.critico),Number(p.alerta),Number(p.ideal)]);
-  let lo=Math.min(...vals),hi=Math.max(...vals);if(hi===lo){hi+=1;lo-=1}const pad=(hi-lo)*.1;lo-=pad;hi+=pad;
-  const y=v=>T+(H-T-B)*(1-(v-lo)/(hi-lo));
-  const t0=new Date(m[0].ts).getTime(),t1=new Date(m[m.length-1].ts).getTime();
-  const x=(t,i)=>m.length===1?L+(W-L-R)/2:L+(W-L-R)*((t-t0)/Math.max(1,t1-t0));
-  const line=(v,c,l)=>'<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="'+c+'" stroke-dasharray="5 4" stroke-width="1.5"/><text x="'+(W-R+6)+'" y="'+(y(v)+4)+'" font-size="11" fill="'+c+'">'+l+' '+v+'</text>';
-  const pts=m.map((q,i)=>x(new Date(q.ts).getTime(),i)+','+y(Number(q.valor))).join(' ');
-  const dots=m.map((q,i)=>'<circle cx="'+x(new Date(q.ts).getTime(),i)+'" cy="'+y(Number(q.valor))+'" r="'+(i===m.length-1?5:3.5)+'" fill="var(--accent)"/>').join('');
-  const lab=m.map((q,i)=>(i===0||i===m.length-1)?'<text x="'+x(new Date(q.ts).getTime(),i)+'" y="'+(H-8)+'" font-size="10" text-anchor="'+(i===0&&m.length>1?'start':'end')+'" fill="var(--muted)">'+fd(q.ts)+'</text>':'').join('');
-  const lastv='<text x="'+(x(t1,m.length-1))+'" y="'+(y(Number(m[m.length-1].valor))-9)+'" font-size="11" font-weight="600" text-anchor="end" fill="var(--ink)">'+m[m.length-1].valor+'</text>';
-  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Série de medições da métrica '+esc(p.metrica)+'">'+line(Number(p.critico),'var(--s4)','crítico')+line(Number(p.alerta),'var(--s2)','alerta')+line(Number(p.ideal),'var(--s1)','ideal')+(m.length>1?'<polyline points="'+pts+'" fill="none" stroke="var(--accent)" stroke-width="2.5"/>':'')+dots+lab+lastv+'</svg>'}
-function roField(label,val){return '<div class="field"><label>'+label+'</label><div>'+(val&&String(val).trim()?esc(val):'<span class="muted">—</span>')+'</div></div>'}
+  let day='';
+  const chg=c=>'<div class="small"><span class="muted">'+esc(c.campo)+':</span> '+(c.de!==''&&c.de!=null?'<span class="del">'+esc(fmtV(c.campo,c.de))+'</span> ':'')+'<span class="add">'+esc(c.para===''||c.para==null?'(vazio)':fmtV(c.campo,c.para))+'</span></div>';
+  return '<ul class="tl-list">'+list.map(a=>{
+    const d=fd(a.ts),head=d!==day?'<li class="tl-day">'+(day=d)+'</li>':'',ch=a.changes||[];
+    return head+'<li class="tl"><span class="tl-dot" aria-hidden="true"></span><div class="tl-b"><div class="tl-h"><span><b>'+esc(a.user)+'</b> <span class="muted">('+PAPEL[a.role]+(a.unit?' · '+a.unit:'')+')</span> '+esc(a.action)+(showRisk&&a.riskId?' <a href="#" data-open="'+a.riskId+'">'+a.riskId+'</a>':'')+'</span><span class="when">'+fhm(a.ts)+'</span></div>'
+      +ch.slice(0,4).map(chg).join('')+(ch.length>4?'<details class="more"><summary>+'+(ch.length-4)+' campo(s)</summary>'+ch.slice(4).map(chg).join('')+'</details>':'')
+      +(a.note?'<div class="small muted">“'+esc(a.note)+'”</div>':'')+'</div></li>'}).join('')+'</ul>'}
+// Gráfico de medições em HTML/CSS: os textos mantêm o tamanho em qualquer largura e só a linha é um SVG esticado.
+function chartHTML(r){
+  const p=r.prr,m=p.medicoes,un=esc(p.unidadeMetrica);
+  if(!m.length)return '<div class="empty">Sem medições. Registre a primeira abaixo.</div>';
+  const c=Number(p.critico),a=Number(p.alerta),id=Number(p.ideal),menor=p.sentido==='menor',H=200;
+  const table='<details class="tv"><summary>Ver como tabela</summary><div class="scroll"><table class="tbl compact"><thead><tr><th>#</th><th>Data</th><th class="num">Valor</th><th>Situação</th><th>Registrado por</th></tr></thead><tbody>'+m.map((q,i)=>({q,i})).reverse().map(o=>'<tr><td>'+(o.i+1)+'</td><td>'+fdt(o.q.ts)+'</td><td class="num">'+fnum(o.q.valor)+' '+un+'</td><td>'+stTone(valSt(p,o.q.valor))+'</td><td>'+esc(o.q.por||'—')+'</td></tr>').join('')+'</tbody></table></div></details>';
+  if(![c,a,id].every(Number.isFinite))return table;
+  const vals=m.map(q=>Number(q.valor)).concat([c,a,id]);
+  let lo=Math.min(...vals),hi=Math.max(...vals);if(hi===lo){hi+=1;lo-=1}const pad=(hi-lo)*.12;lo-=pad;hi+=pad;
+  const y=v=>Math.round((1-(Number(v)-lo)/(hi-lo))*H*10)/10;
+  const ts=m.map(q=>new Date(q.ts).getTime()),span=ts[ts.length-1]-ts[0],byTime=m.length>1&&span>=36*36e5;
+  const x=i=>(m.length===1?50:Math.round((4+92*(byTime?(ts[i]-ts[0])/span:i/(m.length-1)))*10)/10);
+  const yc=y(c),ya=y(a),Z=menor?[['crit',0,yc],['warn',yc,ya],['ok',ya,H]]:[['ok',0,ya],['warn',ya,yc],['crit',yc,H]];
+  const zones='<div class="mzones">'+Z.map(z=>'<i class="mz mz-'+z[0]+'" style="top:'+z[1]+'px;height:'+Math.max(0,z[2]-z[1])+'px"></i>').join('')+'</div>';
+  // Rótulos dos limites na margem direita, sem sobreposição quando os valores são próximos.
+  const L=[['crit','Crítico',c],['warn','Alerta',a],['ok','Ideal',id]].map(t=>({t:t[0],n:t[1],v:t[2],y:y(t[2])})).sort((u1,u2)=>u1.y-u2.y),pos=L.map(l=>Math.max(8,l.y));
+  for(let i=1;i<pos.length;i++)pos[i]=Math.max(pos[i],pos[i-1]+17);
+  for(let i=pos.length-1;i>=0;i--)pos[i]=Math.min(pos[i],H-8-17*(pos.length-1-i));
+  const lines=L.map(l=>'<i class="mth t-'+l.t+'" style="top:'+l.y+'px"></i>').join(''),labs=L.map((l,i)=>'<span class="mlab" style="top:'+(pos[i]-8)+'px"><i class="t-'+l.t+'"></i>'+l.n+' <b>'+fnum(l.v)+'</b></span>').join('');
+  const line=m.length>1?'<svg class="mline" viewBox="0 0 100 '+H+'" preserveAspectRatio="none" aria-hidden="true"><polyline points="'+m.map((q,i)=>x(i)+','+y(q.valor)).join(' ')+'"/></svg>':'';
+  const dots=m.map((q,i)=>{const tip='Medição '+(i+1)+' de '+m.length+'\n'+fnum(q.valor)+' '+p.unidadeMetrica+' · '+({ok:'Ideal',alerta:'Alerta',critico:'Crítico'}[valSt(p,q.valor)])+'\n'+fdt(q.ts)+(q.por?' · '+q.por:'');
+    return '<button type="button" class="mp'+(i===m.length-1?' last':'')+'" style="left:'+x(i)+'%;top:'+y(q.valor)+'px" data-tip="'+esc(tip)+'" aria-label="'+esc(tip.replace(/\n/g,'. '))+'"></button>'}).join('');
+  const lm=m[m.length-1],ly=y(lm.valor),val='<span class="mval'+(ly<30?' below':'')+'" style="left:'+x(m.length-1)+'%;top:'+ly+'px">'+fnum(lm.valor)+' '+un+'</span>';
+  const ax=m.map((q,i)=>((byTime||m.length>10)?(i===0||i===m.length-1):true)?'<span style="left:'+x(i)+'%">'+(byTime?new Date(q.ts).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'#'+(i+1))+'</span>':'').join('');
+  return '<div class="mchart" role="group" aria-label="Série de medições da métrica '+esc(p.metrica)+'. Última: '+fnum(lm.valor)+' '+un+'"><div class="mplot" style="height:'+H+'px">'+zones+lines+line+dots+val+labs+'</div><div class="maxis">'+ax+'</div></div>'+table}
+function roField(label,val,wide){const has=val!=null&&String(val).trim()!=='';return '<div class="kv'+(wide?' wide':'')+'"><span class="kv-l">'+label+'</span><div class="kv-v">'+(has?esc(val):'<span class="muted">—</span>')+'</div></div>'}
 function iaBox(r){const k=UI.rid;const ia=UI.ia&&UI.ia[k];if(!ia)return '';
   return '<div class="info-box" style="margin-top:10px"><b>Assistente de IA</b><div style="margin-top:4px">'+(ia.ehRisco===false?'<div class="warn-box">Isto parece um problema, não um risco. '+esc(ia.motivo||'')+'</div>':'<div>'+esc(ia.motivo||'Descrição reescrita no formato do MGR. Confira e ajuste os campos.')+'</div>')+'</div></div>'}
 function tabContexto(u,r){const un=r?r.unit:u.unit,c=S.ctx[un]||{escopo:'',marcos:[]},resp=respOf(un),ges=gestorOf(un);
@@ -266,68 +291,110 @@ function tabContexto(u,r){const un=r?r.unit:u.unit,c=S.ctx[un]||{escopo:'',marco
 function tabIdent(u,r,isNew){
   const ed=isNew?u.papel==='cadastrador':canEdit(u,r);
   const f=(UI.draft&&UI.draft._rid===UI.rid)?UI.draft:(isNew?{}:r);
-  const fld=(id,lab,hint,ex,rows)=>ed?'<div class="field"><label for="f-'+id+'">'+lab+'</label><textarea id="f-'+id+'" rows="'+(rows||2)+'" data-live="1">'+esc(f[id]||'')+'</textarea><div class="hint">'+hint+'</div><div class="ex">Exemplo: '+ex+'</div><div id="w-'+id+'"></div></div>':roField(lab,f[id]);
+  const fld=(id,lab,hint,ex,rows)=>ed?'<div class="field"><label for="f-'+id+'">'+lab+'</label><textarea id="f-'+id+'" rows="'+(rows||2)+'" data-live="1" placeholder="Ex.: '+esc(ex)+'">'+esc(f[id]||'')+'</textarea><div class="hint">'+hint+'</div><div id="w-'+id+'"></div></div>':roField(lab,f[id],true);
   const ai=(ed&&UI.sampleOk)?'<div class="card flat" style="margin-bottom:14px;background:var(--surface2)"><h3>Descreva com suas palavras</h3><textarea id="ia-text" rows="3" placeholder="Escreva com suas palavras o que preocupa você. O assistente organiza no formato do MGR."></textarea><p style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="ia">Estruturar com IA</button><button class="btn" data-act="ia-review">Revisar o que já escrevi</button><span id="ia-status" class="small muted" aria-live="polite"></span></p><p class="hint">O assistente reescreve no formato do MGR, avisa quando é um problema e sugere notas e ações. Os dados são lidos para responder e não são usados pelo MIRA para treinar modelos.</p>'+iaBox(r)+'</div>':(ed?'<p class="hint" style="margin-bottom:12px">O assistente de IA não está disponível nesta visualização. O formulário guiado e as validações continuam funcionando.</p>':'');
-  return '<div class="card"><h3>Fase 2 · Identificação do risco</h3>'+ai+(ed?'<div class="field"><label for="f-titulo">Título curto</label><input id="f-titulo" value="'+esc(f.titulo||'')+'" style="width:100%" data-live="1"><div class="ex">Exemplo: Exploração de vulnerabilidades no Sistema X</div></div>':roField('Título',f.titulo))+
-  fld('causa','Causa — Devido a…','O que dá origem ao risco. Uma situação que existe hoje.','exploração de vulnerabilidades no Sistema X')+
-  fld('evento','Evento — poderá ocorrer…','O que pode acontecer no futuro. Se já está acontecendo, é problema e não risco.','vazamento de dados pessoais')+
-  fld('impacto','Impacto — levando a…','A consequência se o evento ocorrer.','sanções ao Estado')+
-  fld('objetivo','Objetivo afetado — afetando…','Qual objetivo da SETIC fica comprometido.','a segurança dos sistemas da Setic')+
-  '<label>Como o MGR lê esse risco</label><div class="preview" id="pv">'+previewHTML(f)+'</div><div id="sim"></div>'+
-  (ed?'<p style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="save-ident">'+(isNew?'Cadastrar e avaliar':'Salvar identificação')+'</button></p>':'')+'</div>'}
+  const main=(ed?'<div class="field"><label for="f-titulo">Título curto</label><input id="f-titulo" value="'+esc(f.titulo||'')+'" style="width:100%" data-live="1" placeholder="Ex.: Exploração de vulnerabilidades no Sistema X"></div>':roField('Título',f.titulo,true))+
+    fld('causa','Causa — Devido a…','O que dá origem ao risco. Uma situação que existe hoje.','exploração de vulnerabilidades no Sistema X')+
+    fld('evento','Evento — poderá ocorrer…','O que pode acontecer no futuro. Se já está acontecendo, é problema e não risco.','vazamento de dados pessoais')+
+    fld('impacto','Impacto — levando a…','A consequência se o evento ocorrer.','sanções ao Estado')+
+    fld('objetivo','Objetivo afetado — afetando…','Qual objetivo da SETIC fica comprometido.','a segurança dos sistemas da Setic');
+  const side='<aside class="ident-side"><div class="side-card"><span class="eyebrow">Como o MGR lê esse risco</span><div class="preview" id="pv">'+previewHTML(f)+'</div><div id="sim"></div>'
+    +(ed?'<button class="btn primary" data-act="save-ident" style="width:100%;margin-top:14px">'+(isNew?'Cadastrar e avaliar':'Salvar identificação')+'</button>':'')
+    +'<div class="info-box callout" style="margin-top:12px">'+ICO.info+'<span>Risco é um evento <b>futuro e incerto</b>. Se já está acontecendo, é problema, não risco.</span></div></div></aside>';
+  return '<div class="card"><h3>Fase 2 · Identificação do risco</h3>'+ai+'<div class="ident"><div class="ident-main">'+main+'</div>'+side+'</div></div>'}
 function avRes(p,i,r){const n=p&&i?p*i:0;
-  return (n?'<p style="margin-bottom:8px">Nível <b class="mono">'+n+'</b> '+lvc(n)+'</p>':'<p class="muted">Escolha a probabilidade e o impacto.</p>')+matrix('score',null,n?{p,i}:null)}
+  return (n?'<p style="margin-bottom:8px">'+lvc(n)+'</p>':'<p class="muted">Escolha a probabilidade e o impacto.</p>')+matrix('score',null,n?{p,i}:null)}
 function tabAval(u,r){
   const ed=canEdit(u,r),ia=UI.ia&&UI.ia[r.id];
   const radios=(name,arr,val)=>'<div class="scale">'+arr.map((x,k)=>'<label><input type="radio" name="'+name+'" value="'+(k+1)+'"'+((val===k+1)?' checked':'')+(ed?'':' disabled')+'><span><b>'+(k+1)+'</b> · '+x[0]+'<div class="small muted">'+x[1]+'</div></span></label>').join('')+'</div>';
   const sug=(ed&&ia&&ia.probabilidade)?'<div class="info-box" style="margin-bottom:12px"><b>Sugestão da IA:</b> probabilidade '+ia.probabilidade+' ('+esc(ia.justificativaProbabilidade||'')+'); impacto '+ia.impactoNota+' ('+esc(ia.justificativaImpacto||'')+') <button class="btn sm" data-act="ia-notas">Aplicar</button></div>':'';
-  return '<div class="card"><h3>Fase 3 · Avaliação</h3>'+sug+'<div class="row"><div class="grow"><label>Probabilidade</label>'+radios('prob',PROB,r.prob)+'</div><div class="grow"><label>Impacto</label>'+radios('imp',IMPS,r.imp)+'</div><div class="grow" style="max-width:380px"><label>Nível = probabilidade × impacto</label><div id="av-res">'+avRes(r.prob,r.imp,r)+'</div><div class="field" style="margin-top:12px"><label for="f-exp">Exposição financeira estimada (R$)</label>'+(ed?'<input id="f-exp" type="number" min="0" step="1000" value="'+(r.exposicao||'')+'" style="width:100%">':'<div>'+brl(r.exposicao)+'</div>')+'<div class="hint">Quanto custaria se o evento ocorresse. Usado pela alta gestão para priorizar investimento.</div></div></div></div>'+(ed?'<p style="margin-top:12px"><button class="btn primary" data-act="save-aval">Salvar avaliação</button></p>':'')+'</div>'}
-function prrApproval(u,r){const p=r.prr;
-  const trail=p&&p.aprov.length?'<ul class="timeline">'+p.aprov.map(a=>'<li><span class="when">'+fdt(a.ts)+'</span><div><b>'+esc(a.por)+'</b> <span class="muted">('+PAPEL[a.papel]+')</span> — '+({enviado:'enviou para validação do gestor',encaminhado:'validou e encaminhou à CSGR',aprovado:'aprovou o PRR',devolvido:'devolveu o PRR'}[a.decisao])+(a.motivo?'<div class="small muted">“'+esc(a.motivo)+'”</div>':'')+'</div></li>').join('')+'</ul>':'<p class="muted">O PRR ainda não foi enviado.</p>';
-  let acts='';
-  if(canGes(u,r))acts='<div class="field" style="margin-top:12px"><label for="ap-motivo">Observação (obrigatória para devolver)</label><textarea id="ap-motivo" rows="2"></textarea></div><button class="btn primary" data-act="gestor-ok">Validar e encaminhar à CSGR</button> <button class="btn danger" data-act="gestor-dev">Devolver ao cadastrador</button>';
-  if(canCsg(u,r))acts='<div class="field" style="margin-top:12px"><label for="ap-motivo">Observação (obrigatória para devolver)</label><textarea id="ap-motivo" rows="2"></textarea></div><button class="btn primary" data-act="csgr-ok">Aprovar PRR</button> <button class="btn danger" data-act="csgr-dev">Devolver</button>';
-  return '<div class="card flat"><h3>Tramitação do PRR '+stChip(r)+'</h3>'+trail+acts+'</div>'}
+  return '<div class="card"><h3>Fase 3 · Avaliação</h3>'+sug+'<div class="row"><div class="grow"><label>Probabilidade</label>'+radios('prob',PROB,r.prob)+'</div><div class="grow"><label>Impacto</label>'+radios('imp',IMPS,r.imp)+'</div><div class="grow" style="max-width:380px"><label>Nível = probabilidade × impacto</label><div id="av-res">'+avRes(r.prob,r.imp,r)+'</div><div class="field" style="margin-top:12px"><label for="f-exp">Exposição financeira estimada (R$)</label>'+(ed?'<input id="f-exp" type="number" min="0" step="1000" value="'+(r.exposicao||'')+'" style="width:100%">':'<div>'+brl(r.exposicao)+'</div>')+'<div class="hint">Quanto custaria se o evento ocorresse. Usado pela alta gestão para priorizar investimento.</div></div>'+(ed?'<button class="btn primary" data-act="save-aval" style="width:100%">Salvar avaliação</button>':'')+'</div></div></div>'}
+// Trilha de tramitação do PRR e, para quem decide neste momento, as ações.
+function prrTrail(r){const p=r.prr;
+  return p&&p.aprov.length?'<ul class="tl-list">'+p.aprov.map(a=>'<li class="tl"><span class="tl-dot" aria-hidden="true"></span><div class="tl-b"><div class="tl-h"><span><b>'+esc(a.por)+'</b> <span class="muted">('+PAPEL[a.papel]+')</span> '+({enviado:'enviou para validação do gestor',encaminhado:'validou e encaminhou à CSGR',aprovado:'aprovou o PRR',devolvido:'devolveu o PRR'}[a.decisao])+'</span><span class="when">'+fdt(a.ts)+'</span></div>'+(a.motivo?'<div class="small muted">“'+esc(a.motivo)+'”</div>':'')+'</div></li>').join('')+'</ul>':'<p class="muted">O PRR ainda não foi enviado.</p>'}
+function prrActions(u,r){
+  const mot='<div class="field"><label for="ap-motivo">Observação (obrigatória para devolver)</label><textarea id="ap-motivo" rows="3"></textarea></div>';
+  if(canGes(u,r))return mot+'<div class="actions"><button class="btn primary" data-act="gestor-ok">Validar e encaminhar à CSGR</button><button class="btn danger" data-act="gestor-dev">Devolver ao cadastrador</button></div>';
+  if(canCsg(u,r))return mot+'<div class="actions"><button class="btn primary" data-act="csgr-ok">Aprovar PRR</button><button class="btn danger" data-act="csgr-dev">Devolver</button></div>';
+  return ''}
+// Números do PRR salvo, para quem lê ou decide.
+function prrSummary(r){
+  const p=r.prr;if(!p||!r.prob||!r.imp)return '';
+  const e=econ(r),n=nivel(r),nr=(p.probRes||1)*(p.impRes||1);
+  return '<div class="tiles sum"><div class="tile"><div class="tile-h"><span>Risco atual → residual</span></div><div class="tile-chips">'+lvc(n)+'<span class="arr" aria-hidden="true">→</span>'+lvc(nr)+'</div><span class="tile-f">'+(p.tratamento==='aceitar'?'Risco aceito: sem redução':'Depois do tratamento')+'</span></div>'
+    +tile('Custo do PRR',brlc(e.cost),'Responsável: '+esc(p.responsavel||'—'))
+    +tile('Redução de exposição',brlc(e.gain),brlc(e.cur)+' → '+brlc(e.res))
+    +tile('Retorno por real',e.ratio!=null?ratioTxt(e.ratio):'—','Prazo: '+fd(p.prazo),e.ratio!=null&&e.ratio<1?'warn':'',null,'Abaixo de 1×')+'</div>'}
+// Resumo de quem está editando o PRR: usa os valores digitados e é recalculado a cada alteração.
+function prrLiveHTML(r,p){
+  const x=Object.assign({},r,{prr:Object.assign({},r.prr||emptyPrr(),p)}),e=econ(x),n=nivel(r),nr=(Number(p.probRes)||1)*(Number(p.impRes)||1);
+  const c=Number(p.critico),a=Number(p.alerta),i=Number(p.ideal),menor=p.sentido==='menor',sig=menor?['≥','≥','≤']:['≤','≤','≥'];
+  const has=[p.critico,p.alerta,p.ideal].every(v=>v!==''&&v!=null&&Number.isFinite(Number(v))),ord=has&&(menor?i<a&&a<c:c<a&&a<i),w=Math.abs(c-a);
+  const thr=ord?'<div class="thr"><i class="t-crit" style="flex:'+w+'"></i><i class="t-warn" style="flex:'+w+'"></i><i class="t-ok" style="flex:'+Math.abs(i-a)+'"></i></div><div class="thr-l small muted"><span>Crítico '+sig[0]+' '+fnum(c)+'</span><span>Alerta '+sig[1]+' '+fnum(a)+'</span><span>Ideal '+sig[2]+' '+fnum(i)+'</span></div>':'';
+  const chk=!has?'<span class="muted small">Preencha crítico, alerta e ideal para ver as faixas.</span>':ord?toneTag('ok','Limites coerentes'):toneTag('warn','Ordem dos limites incorreta');
+  const row=(l,v)=>'<div class="kvl"><span>'+l+'</span><b>'+v+'</b></div>';
+  return '<span class="eyebrow">Resumo do PRR</span><p class="hint" style="margin:2px 0 10px">Atualiza enquanto você preenche.</p>'
+    +'<div class="kvl"><span>Risco atual → residual</span><div class="chips2">'+lvc(n)+'<span class="arr" aria-hidden="true">→</span>'+lvc(nr)+'</div></div>'
+    +row('Exposição esperada',brlc(e.cur)+' → '+brlc(e.res))+row('Redução esperada',brlc(e.gain))+row('Custo',brlc(e.cost))+row('Retorno por real',e.ratio!=null?ratioTxt(e.ratio):'—')
+    +'<div class="sep-line"></div><span class="eyebrow">Limites da métrica</span><div style="margin:8px 0">'+chk+'</div>'+thr}
 function tabPrr(u,r){
   if(!r.prob||!r.imp)return '<div class="card"><h3>Fase 4 · Tratamento</h3><div class="empty">Avalie probabilidade e impacto antes de elaborar o PRR.</div></div>';
-  const ed=canEdit(u,r),p=r.prr||emptyPrr(),ia=UI.ia&&UI.ia[r.id];
-  const inp=(id,lab,val,type,extra)=>ed?'<div class="field"><label for="'+id+'">'+lab+'</label><input id="'+id+'" type="'+(type||'text')+'" value="'+esc(val==null?'':val)+'" style="width:100%" '+(extra||'')+'></div>':roField(lab,val);
-  const sel=(id,lab,opts,val)=>ed?'<div class="field"><label for="'+id+'">'+lab+'</label><select id="'+id+'" style="width:100%">'+opts.map(o=>'<option value="'+o[0]+'"'+(String(o[0])===String(val)?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></div>':roField(lab,(opts.find(o=>String(o[0])===String(val))||[])[1]);
+  const ed=canEdit(u,r),p=r.prr||emptyPrr(),ia=UI.ia&&UI.ia[r.id],dec=canGes(u,r)||canCsg(u,r);
+  if(!ed&&!r.prr)return '<div class="card"><h3>Fase 4 · Tratamento</h3><div class="empty">O PRR ainda não foi elaborado.</div></div>';
+  const inp=(id,lab,val,type,extra)=>'<div class="field"><label for="'+id+'">'+lab+'</label><input id="'+id+'" type="'+(type||'text')+'" value="'+esc(val==null?'':val)+'" style="width:100%" '+(extra||'')+'></div>';
+  const sel=(id,lab,opts,val)=>'<div class="field"><label for="'+id+'">'+lab+'</label><select id="'+id+'" style="width:100%">'+opts.map(o=>'<option value="'+o[0]+'"'+(String(o[0])===String(val)?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></div>';
   const iaAc=(ed&&ia&&ia.acoes&&ia.acoes.length)?'<div class="info-box" style="margin-bottom:12px"><b>Ações sugeridas pela IA</b>'+ia.acoes.map((a,i)=>'<div style="margin-top:6px;display:flex;gap:8px;align-items:flex-start"><span style="flex:1">'+esc(a)+'</span><button class="btn sm" data-act="ia-acao" data-i="'+i+'">Usar</button></div>').join('')+'</div>':'';
-  const res=(p.probRes||1)*(p.impRes||1);
-  return '<div class="card"><h3>Fase 4 · Plano de Respostas a Riscos (PRR)</h3><p class="muted" style="margin-bottom:12px">Risco atual: '+lvc(nivel(r))+'. '+(ed?'Preencha o plano e envie ao gestor da coordenadoria.':'')+'</p>'+iaAc+
-  '<div class="row"><div class="grow">'+sel('p-trat','Forma de tratamento',Object.keys(TRAT).map(k=>[k,k.charAt(0).toUpperCase()+k.slice(1)+' — '+TRAT[k]]),p.tratamento)+
-  (ed?'<div class="field"><label for="p-controles">Controles existentes</label><textarea id="p-controles" rows="2">'+esc(p.controles)+'</textarea><div class="hint">O que já existe hoje para reduzir esse risco.</div></div><div class="field"><label for="p-acao">Ação proposta</label><textarea id="p-acao" rows="3">'+esc(p.acao)+'</textarea><div class="hint">Mitigar, evitar ou transferir: o que será feito. Aceitar: por que o risco é aceito.</div></div>':roField('Controles existentes',p.controles)+roField('Ação proposta',p.acao))+
-  inp('p-resp','Responsável pela ação',p.responsavel)+inp('p-prazo','Prazo',p.prazo?String(p.prazo).slice(0,10):'','date')+inp('p-custo','Custo estimado (R$)',p.custo,'number','min="0" step="1000"')+'</div>'+
-  '<div class="grow">'+inp('p-metrica','Métrica de acompanhamento',p.metrica)+'<div class="row">'+'<div style="flex:1 1 120px">'+inp('p-unid','Unidade',p.unidadeMetrica)+'</div><div style="flex:1 1 160px">'+sel('p-sent','Melhor quando…',[['menor','o valor é menor'],['maior','o valor é maior']],p.sentido)+'</div></div>'+
-  '<div class="g2">'+inp('p-crit','Crítico',p.critico,'number','step="any"')+inp('p-alerta','Alerta',p.alerta,'number','step="any"')+inp('p-ideal','Ideal',p.ideal,'number','step="any"')+'</div><div class="hint" style="margin:-6px 0 12px">Se menor é melhor: ideal &lt; alerta &lt; crítico. Se maior é melhor: crítico &lt; alerta &lt; ideal.</div>'+
-  '<div class="g2">'+sel('p-probres','Probabilidade residual',PROB.map((x,i)=>[i+1,(i+1)+' · '+x[0]]),p.probRes)+sel('p-impres','Impacto residual',IMPS.map((x,i)=>[i+1,(i+1)+' · '+x[0]]),p.impRes)+'</div><p class="small muted">Risco residual esperado: <b class="mono">'+res+'</b> ('+LV[band(res)]+'). É o nível depois do tratamento.</p></div></div><div id="p-err"></div>'+
-  (ed?'<p style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">Enviar para validação do gestor</button></p>':'')+'</div>'+prrApproval(u,r)}
+  const back=r.status==='devolvido'?p.aprov.filter(a=>a.decisao==='devolvido').slice(-1)[0]:null;
+  const backBox=back?'<div class="warn-box callout" style="margin-bottom:14px">'+ICO.warn+'<span><b>Devolvido por '+esc(back.por)+' ('+PAPEL[back.papel]+'):</b> '+esc(back.motivo||'sem observação')+'</span></div>':'';
+  const sec=(n,t,body)=>'<section class="fs"><h4><span>'+n+'</span>'+t+'</h4>'+body+'</section>';
+  const form='<div class="prr-grid"><div class="prr-main">'
+    +sec(1,'Resposta ao risco',sel('p-trat','Forma de tratamento',Object.keys(TRAT).map(k=>[k,cap(k)+' — '+TRAT[k]]),p.tratamento)
+      +'<div class="field"><label for="p-controles">Controles existentes</label><textarea id="p-controles" rows="2">'+esc(p.controles)+'</textarea><div class="hint">O que já existe hoje para reduzir esse risco.</div></div><div class="field"><label for="p-acao">Ação proposta</label><textarea id="p-acao" rows="3">'+esc(p.acao)+'</textarea><div class="hint">Mitigar, evitar ou transferir: o que será feito. Aceitar: por que o risco é aceito.</div></div>')
+    +sec(2,'Responsável, prazo e custo','<div class="g3">'+inp('p-resp','Responsável pela ação',p.responsavel)+inp('p-prazo','Prazo',p.prazo?String(p.prazo).slice(0,10):'','date')+inp('p-custo','Custo estimado (R$)',p.custo,'number','min="0" step="1000"')+'</div>')
+    +sec(3,'Acompanhamento da métrica',inp('p-metrica','Métrica de acompanhamento',p.metrica)+'<div class="g2">'+inp('p-unid','Unidade',p.unidadeMetrica)+sel('p-sent','Melhor quando…',[['menor','o valor é menor'],['maior','o valor é maior']],p.sentido)+'</div><div class="g3">'+inp('p-crit','Crítico',p.critico,'number','step="any"')+inp('p-alerta','Alerta',p.alerta,'number','step="any"')+inp('p-ideal','Ideal',p.ideal,'number','step="any"')+'</div><div class="hint">Se menor é melhor: ideal &lt; alerta &lt; crítico. Se maior é melhor: crítico &lt; alerta &lt; ideal.</div>')
+    +sec(4,'Risco residual','<div class="g2">'+sel('p-probres','Probabilidade residual',PROB.map((x,i)=>[i+1,(i+1)+' · '+x[0]]),p.probRes)+sel('p-impres','Impacto residual',IMPS.map((x,i)=>[i+1,(i+1)+' · '+x[0]]),p.impRes)+'</div><div class="hint">É o nível do risco depois do tratamento.</div>')
+    +'</div><aside class="prr-side"><div class="side-card" id="prr-live">'+prrLiveHTML(r,p)+'</div></aside></div><div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">Enviar para validação do gestor</button></div>';
+  const ro='<div class="kvgrid">'+roField('Forma de tratamento',cap(p.tratamento)+' — '+TRAT[p.tratamento],true)+roField('Controles existentes',p.controles,true)+roField('Ação proposta',p.acao,true)
+    +roField('Responsável pela ação',p.responsavel)+roField('Prazo',p.prazo?fd(p.prazo):'')+roField('Custo estimado',brl(p.custo))
+    +roField('Métrica de acompanhamento',p.metrica,true)+roField('Unidade',p.unidadeMetrica)+roField('Melhor quando…',p.sentido==='menor'?'o valor é menor':'o valor é maior')+roField('Crítico',p.critico)+roField('Alerta',p.alerta)+roField('Ideal',p.ideal)
+    +roField('Probabilidade residual',(p.probRes||1)+' · '+PROB[(p.probRes||1)-1][0])+roField('Impacto residual',(p.impRes||1)+' · '+IMPS[(p.impRes||1)-1][0])+'</div>';
+  const stat=stChip(r);
+  const decide='<div class="card decide"><div class="card-h"><div><h3>Decisão do PRR</h3><p>'+(canGes(u,r)?'Valide o plano e encaminhe à CSGR, ou devolva ao cadastrador com uma observação.':'Aprove o plano para iniciar o monitoramento, ou devolva com uma observação.')+'</p></div>'+stat+'</div>'+prrSummary(r)+'<div class="decide-grid"><div><span class="eyebrow">Tramitação</span>'+prrTrail(r)+'</div><div><span class="eyebrow">Sua decisão</span>'+prrActions(u,r)+'</div></div></div>';
+  const trail='<div class="card"><div class="card-h"><div><h3>Tramitação do PRR</h3></div>'+stat+'</div>'+prrTrail(r)+'</div>';
+  const detail='<div class="card"><h3>Fase 4 · Plano de Respostas a Riscos (PRR)</h3><p class="muted" style="margin:2px 0 12px">Risco atual: '+lvc(nivel(r))+'. '+(ed?'Preencha o plano e envie ao gestor da coordenadoria.':'')+'</p>'+backBox+(ed?iaAc+form:(dec?'':prrSummary(r))+ro)+'</div>';
+  return (dec?decide:'')+detail+(dec?'':trail)}
 function tabMon(u,r){
   if(!['em_tratamento','ocorrido','encerrado'].includes(r.status))return '<div class="card"><h3>Fase 5 · Monitoramento e reavaliação</h3><div class="empty">Disponível depois que a CSGR aprovar o PRR.</div></div>';
   const p=r.prr,m=lastMed(r),ms=metricSt(r),mon=canMon(u,r);
   const lh=r.niveis.slice().reverse().map(n=>'<tr><td>'+fd(n.ts)+'</td><td class="mono">'+n.prob+' × '+n.imp+'</td><td>'+lvc(n.nivel)+'</td><td>'+esc(n.motivo)+'</td></tr>').join('');
   const sel=(id,v)=>'<select id="'+id+'">'+[1,2,3,4,5].map(k=>'<option value="'+k+'"'+(k===v?' selected':'')+'>'+k+'</option>').join('')+'</select>';
-  return '<div class="card"><h3>Fase 5 · Monitoramento da métrica</h3><div class="row" style="align-items:center;margin-bottom:8px"><b>'+esc(p.metrica)+'</b>'+(m?'<span class="mono">'+m.valor+' '+esc(p.unidadeMetrica)+'</span>':'')+metChip(r)+'<span class="muted small">'+(p.sentido==='menor'?'quanto menor, melhor':'quanto maior, melhor')+'</span></div>'+chartSVG(r)+
-  (mon?'<div class="row" style="align-items:flex-end;margin-top:10px"><div><label for="m-valor">Nova medição ('+esc(p.unidadeMetrica)+')</label><input id="m-valor" type="number" step="any" style="width:140px"></div><button class="btn primary" data-act="add-med">Registrar medição</button></div>':'')+'</div>'+
-  '<div class="row"><div class="card grow"><h3>Reavaliação do nível</h3><table class="tbl"><thead><tr><th>Data</th><th>P × I</th><th>Nível</th><th>Motivo</th></tr></thead><tbody>'+lh+'</tbody></table>'+
-  (mon?'<div class="g2" style="margin-top:12px"><div><label for="r-prob">Probabilidade</label>'+sel('r-prob',r.prob)+'</div><div><label for="r-imp">Impacto</label>'+sel('r-imp',r.imp)+'</div></div><div class="field" style="margin-top:8px"><label for="r-motivo">Motivo da reavaliação</label><input id="r-motivo" style="width:100%"></div><p style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="reaval">Reavaliar nível</button>'+(r.status==='em_tratamento'?'<button class="btn danger" data-act="evento">O evento ocorreu</button>':'')+'</p>':'')+
-  (u.papel==='gestor'&&u.unit===r.unit&&r.status!=='encerrado'?'<p style="margin-top:8px"><button class="btn" data-act="encerrar">Encerrar risco</button></p>':'')+'</div></div>'}
+  const now=m?'<div class="mon-now"><b>'+fnum(m.valor)+' <small>'+esc(p.unidadeMetrica)+'</small></b>'+(ms==='sem'?'':stTone(ms))+'</div>':'';
+  return '<div class="card"><div class="card-h"><div><h3>Fase 5 · Monitoramento da métrica</h3><p>'+esc(p.metrica)+' · '+(p.sentido==='menor'?'quanto menor, melhor':'quanto maior, melhor')+'</p></div>'+now+'</div>'+chartHTML(r)+
+  (mon?'<div class="row" style="align-items:flex-end;margin-top:12px"><div><label for="m-valor">Nova medição ('+esc(p.unidadeMetrica)+')</label><input id="m-valor" type="number" step="any" style="width:140px"></div><button class="btn primary" data-act="add-med">Registrar medição</button></div>':'')+'</div>'+
+  '<div class="card"><h3>Reavaliação do nível</h3><div class="scroll"><table class="tbl"><thead><tr><th>Data</th><th>P × I</th><th>Nível</th><th>Motivo</th></tr></thead><tbody>'+lh+'</tbody></table></div>'+
+  (mon?'<div class="g2" style="margin-top:12px"><div><label for="r-prob">Probabilidade</label>'+sel('r-prob',r.prob)+'</div><div><label for="r-imp">Impacto</label>'+sel('r-imp',r.imp)+'</div></div><div class="field" style="margin-top:8px"><label for="r-motivo">Motivo da reavaliação</label><input id="r-motivo" style="width:100%"></div><div class="actions"><button class="btn primary" data-act="reaval">Reavaliar nível</button>'+(r.status==='em_tratamento'?'<button class="btn danger" data-act="evento">O evento ocorreu</button>':'')+'</div>':'')+
+  (u.papel==='gestor'&&u.unit===r.unit&&r.status!=='encerrado'?'<div class="actions"><button class="btn" data-act="encerrar">Encerrar risco</button></div>':'')+'</div>'}
+function riskHead(u,r){
+  const n=nivel(r),e=econ(r),p=r.prr,has=!!(p&&(p.acao||p.custo));
+  const fact=(l,v)=>'<div class="fact"><span>'+l+'</span><b>'+v+'</b></div>';
+  const facts=fact('Nível',n?lvc(n)+' <small class="muted">'+r.prob+' × '+r.imp+'</small>':'<span class="muted">Sem avaliação</span>')+fact('Exposição esperada',n&&r.exposicao?brlc(e.cur):'—')+fact('Custo do PRR',has?brlc(p.custo):'—')
+    +fact('Prazo da ação',p&&p.prazo?prazoCell(r):'—')+fact('Responsável',p&&p.responsavel?esc(p.responsavel):'—')+fact('Aberto por',esc(r.criadoPor)+' · '+fd(r.criadoEm));
+  return '<div class="card rhead"><div class="rhead-top"><button class="btn sm" data-nav="riscos">← Riscos</button><span class="mono muted">'+r.id+'</span><span class="unit">'+r.unit+'</span><span class="spacer"></span>'+stChip(r)+'</div><h2>'+esc(r.titulo)+'</h2>'
+    +(UI.tab===2&&canEdit(u,r)?'':'<p class="preview">'+previewHTML(r)+'</p>')+'<div class="facts">'+facts+'</div></div>'}
 function viewRisk(u){
   const isNew=UI.rid==='new',r=isNew?null:rk(UI.rid);
   if(!isNew&&!r){UI.view='riscos';return viewRiscos(u)}
   if(r&&(u.papel==='cadastrador'||u.papel==='gestor')&&u.unit!==r.unit)return '<div class="card"><div class="empty">Este risco pertence a outra coordenadoria. O acesso é restrito às pessoas indicadas pela unidade.</div></div>';
-  const cur=isNew?2:curPhase(r);
-  const step='<div class="stepper">'+PHASES.map((x,i)=>{const n=i+1;return '<button data-tab="'+n+'" class="'+(n<cur?'done ':'')+(n===UI.tab?'cur':'')+'" aria-current="'+(n===UI.tab)+'" title="'+x[1]+'"><b>FASE '+n+(n===cur?' · ATUAL':'')+'</b><span>'+x[0]+'</span></button>'}).join('')+'</div><div class="comm">Comunicação em todas as fases: avisos de designação, aprovação, devolução, métrica em alerta e prazo vencendo</div>';
+  const cur=isNew?2:curPhase(r),fin=!!r&&r.status==='encerrado';
+  const step='<div class="card stepper-card"><ol class="steps" aria-label="Fases do MGR">'+PHASES.map((x,i)=>{const n=i+1,done=n<cur||fin;return '<li class="'+(done?'done ':'')+(n===cur?'cur ':'')+(n===UI.tab?'sel':'')+'"><button data-tab="'+n+'" aria-current="'+(n===UI.tab)+'" title="'+esc(x[1])+'"><span class="step-n">'+(done?TICK:n)+'</span><span class="step-t"><b>'+x[0]+'</b><small>'+(done?'Concluída':n===cur?'Fase atual':'')+'</small></span></button></li>'}).join('')+'</ol><p class="comm">'+ICO.info+'Comunicação em todas as fases: avisos de designação, aprovação, devolução, métrica em alerta e prazo vencendo.</p></div>';
   let body;
   if(UI.tab===1)body=tabContexto(u,r);
   else if(UI.tab===2)body=tabIdent(u,r,isNew);
   else if(isNew)body='<div class="card"><div class="empty">Cadastre a identificação do risco primeiro.</div></div>';
   else body=UI.tab===3?tabAval(u,r):UI.tab===4?tabPrr(u,r):tabMon(u,r);
-  const head=isNew?'<h2>Novo risco · '+u.unit+'</h2>':'<div class="row" style="align-items:center"><span class="mono muted">'+r.id+'</span><h2 style="flex:1 1 280px">'+esc(r.titulo)+'</h2>'+stChip(r)+lvc(nivel(r))+'</div>';
+  const head=isNew?'<div class="card rhead"><div class="rhead-top"><button class="btn sm" data-nav="riscos">← Riscos</button><span class="unit">'+u.unit+'</span></div><h2>Novo risco</h2><p class="muted">Descreva o risco no formato do MGR. Depois você avalia probabilidade e impacto e elabora o PRR.</p></div>':riskHead(u,r);
   const hist=isNew?'':'<div class="card"><h3>Histórico deste risco</h3>'+historyList(S.audit.filter(a=>a.riskId===r.id).slice(0,30))+'</div>';
-  return '<div><button class="btn sm" data-nav="riscos">← Voltar para os riscos</button></div>'+head+step+body+hist}
-
+  return head+step+body+hist}
 /* ===== Demais telas ===== */
 function viewRiscos(u){
   const list=filtered(scope(u));
@@ -585,11 +652,15 @@ const onChange = e => {
   if (t.dataset.filter) { UI.filt[t.dataset.filter] = t.value; render(true); return; }
   if (t.dataset.ctxunit !== undefined) { UI.ctxUnit = t.value; render(true); return; }
   if (t.name === 'prob' || t.name === 'imp') { updAv(); return; }
+  if (isPrrField(t)) { prrLive(); return; }
   if (t.id === 'n-papel') { const w = document.getElementById('n-unit-wrap'); if (w) w.hidden = (t.value === 'csgr' || t.value === 'cgge'); return; }
   if (t.dataset.marco !== undefined) { act2marco(Number(t.dataset.marco)); }
 };
 async function act2marco(idx) { if (UI.busy) return; UI.busy = true; try { await api('POST', 'ctx/marco', { op: 'toggle', idx }); await refresh(true); } catch (e) { toast(e.message); await refresh(true); } finally { UI.busy = false; } }
-const onInput = e => { if (e.target.dataset.live) { UI.warnAck = false; refreshIdent(); } };
+// Resumo do PRR que acompanha o formulário: recalcula com o que está digitado.
+const isPrrField = t => !!t.id && t.id.indexOf('p-') === 0 && t.id !== 'p-err';
+function prrLive() { const el = document.getElementById('prr-live'), r = UI.rid && UI.rid !== 'new' ? rk(UI.rid) : null; if (el && r) el.innerHTML = prrLiveHTML(r, readPrr()); }
+const onInput = e => { if (e.target.dataset.live) { UI.warnAck = false; refreshIdent(); } else if (isPrrField(e.target)) prrLive(); };
 const onSubmit = e => {
   e.preventDefault();
   if (e.target.id === 'auth-form') { onAuth(UI.needsSetup); return; }
