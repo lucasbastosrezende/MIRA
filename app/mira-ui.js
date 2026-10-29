@@ -7,11 +7,15 @@ export function mountMira(root) {
 const { UNITS, PAPEL, LV, band, PROB, IMPS, PPCT, TRAT, STAT, PHASES, nivel, curPhase, lastMed, metricSt, econ, emptyPrr, canEdit, canMon, canGes, canCsg, visible, checkRisk } = MIRA;
 const DAY = 864e5;
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fd = s => (s ? new Date(s).toLocaleDateString('pt-BR') : '—');
+// Data sem hora ("2026-12-15") vira meia-noite local; sem isso o fuso do Brasil mostra o dia anterior.
+const pd = s => (/^\d{4}-\d{2}-\d{2}$/.test(String(s)) ? new Date(s + 'T00:00:00') : new Date(s));
+const fd = s => (s ? pd(s).toLocaleDateString('pt-BR') : '—');
 const fdt = s => (s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 const brl = n => (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const brlc = n => { n = n || 0; const a = Math.abs(n); return a >= 1e6 ? 'R$ ' + (n / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi' : a >= 1e3 ? 'R$ ' + Math.round(n / 1e3).toLocaleString('pt-BR') + ' mil' : brl(n); };
-const daysTo = s => (s ? Math.ceil((new Date(s).getTime() - Date.now()) / DAY) : null);
+const dayOf = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const daysTo = s => (s ? Math.round((dayOf(pd(s)) - dayOf(new Date())) / DAY) : null);
+const initials = n => String(n || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
 const lvc = n => (n ? '<span class="lv lv' + band(n) + '">' + LV[band(n)] + ' · ' + n + '</span>' : '<span class="st">Sem avaliação</span>');
 let alive = true;
 let S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [] };
@@ -26,7 +30,7 @@ function derived(u) {
   scope(u).forEach(r => {
     if (!['em_tratamento', 'ocorrido'].includes(r.status) || !r.prr) return;
     const d = daysTo(r.prr.prazo);
-    if (d != null && r.prr.prazo && d <= 15 && u.papel !== 'cgge') out.push({ k: 'prazo-' + r.id, tipo: 'prazo', riskId: r.id, crit: d < 0, msg: d < 0 ? 'Prazo vencido há ' + (-d) + ' dia(s): ' + r.titulo : 'Prazo da ação em ' + d + ' dia(s): ' + r.titulo });
+    if (d != null && r.prr.prazo && d <= 15 && u.papel !== 'cgge') out.push({ k: 'prazo-' + r.id, tipo: 'prazo', riskId: r.id, crit: d < 0, msg: d < 0 ? 'Prazo vencido há ' + (-d) + ' dia(s): ' + r.titulo : d === 0 ? 'Prazo da ação vence hoje: ' + r.titulo : 'Prazo da ação em ' + d + ' dia(s): ' + r.titulo });
     const ms = metricSt(r);
     if (ms === 'alerta' || ms === 'critico') out.push({ k: 'met-' + r.id, tipo: 'metrica', riskId: r.id, crit: ms === 'critico', msg: 'Métrica "' + r.prr.metrica + '" em ' + (ms === 'critico' ? 'nível crítico' : 'alerta') + ' (' + lastMed(r).valor + ' ' + r.prr.unidadeMetrica + '): ' + r.titulo });
   });
@@ -105,12 +109,13 @@ const cardH=(title,sub,extra)=>'<div class="card-h"><div><h3>'+title+'</h3>'+(su
 function tile(label,value,foot,tone,meter){
   return '<div class="tile"><div class="tile-h"><span>'+label+'</span>'+(tone?toneTag(tone):'')+'</div><b class="tile-v">'+value+'</b>'
     +(meter!=null?'<div class="meter t-'+(tone||'info')+'"><i style="width:'+meter+'%"></i></div>':'')+'<span class="tile-f">'+foot+'</span></div>'}
+// Cabeçalho padrão de página: sobretítulo, título, apoio e ações à direita.
+const pageHead=(t,sub,act,eye)=>'<div class="dash-head"><div class="dash-title">'+(eye?'<span class="eyebrow">'+eye+'</span>':'')+'<h2>'+t+'</h2>'+(sub?'<p class="muted">'+sub+'</p>':'')+'</div>'+(act?'<div class="dash-tools">'+act+'</div>':'')+'</div>';
 function panelHead(u){
   const op=UI.panel==='op',when=UI.loadedAt?new Date(UI.loadedAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-  return '<div class="dash-head"><div class="dash-title"><span class="eyebrow">'+(u.unit?'Coordenadoria '+u.unit:'SETIC · todas as coordenadorias')+'</span><h2>'+(op?'Painel Operacional':'Painel Alta Gestão')+'</h2><p class="muted">'
-    +(op?'O que exige ação agora: pendências, prazos e métricas fora do ideal.':'Quanto cada risco custa, quanto custa tratá-lo e o que se ganha. Base para decidir investimento e prestar contas ao TCE.')+'</p></div>'
-    +'<div class="dash-tools">'+(when?'<span class="small muted">Dados de '+when+'</span>':'')+'<button class="btn sm" data-act="dl-csv">Exportar CSV</button>'
-    +'<div class="seg" role="group" aria-label="Escolher painel"><button data-panel="op" aria-pressed="'+op+'">Operacional · TI</button><button data-panel="alta" aria-pressed="'+!op+'">Alta gestão</button></div></div></div>'}
+  return pageHead(op?'Painel Operacional':'Painel Alta Gestão',op?'O que exige ação agora: pendências, prazos e métricas fora do ideal.':'Quanto cada risco custa, quanto custa tratá-lo e o que se ganha. Base para decidir investimento e prestar contas ao TCE.',
+    (when?'<span class="small muted">Dados de '+when+'</span>':'')+'<button class="btn sm" data-act="dl-csv">Exportar CSV</button><div class="seg" role="group" aria-label="Escolher painel"><button data-panel="op" aria-pressed="'+op+'">Operacional · TI</button><button data-panel="alta" aria-pressed="'+!op+'">Alta gestão</button></div>',
+    u.unit?'Coordenadoria '+u.unit:'SETIC · todas as coordenadorias')}
 /* ===== Painel Operacional (profissional de TI) ===== */
 function heat(counts,ids,sel){
   let h='<div class="heat" role="group" aria-label="Mapa de calor: impacto por probabilidade"><div class="heat-y" aria-hidden="true">Impacto</div><div class="heat-grid">';
@@ -384,14 +389,20 @@ function viewUsers(u) {
   return '<h2>Usuários</h2><div class="row"><div class="card grow" style="max-width:420px"><h3>Cadastrar pessoa</h3><form id="user-form" autocomplete="off"><div class="field"><label for="n-nome">Nome completo</label><input id="n-nome" style="width:100%" required></div><div class="field"><label for="n-user">Usuário de acesso</label><input id="n-user" style="width:100%" required><div class="hint">Minúsculas, números, ponto, hífen ou sublinhado.</div></div><div class="field"><label for="n-papel">Perfil</label><select id="n-papel" style="width:100%"><option value="cadastrador">Cadastrador(a) · registra riscos da coordenadoria</option><option value="gestor">Gestor(a) de riscos · titular da coordenadoria</option><option value="csgr">CSGR · aprova PRRs e gera o relatório</option><option value="cgge">CGGE · só consulta</option></select></div><div class="field" id="n-unit-wrap"><label for="n-unit">Coordenadoria</label><select id="n-unit" style="width:100%">' + UNITS.map(x => '<option>' + x + '</option>').join('') + '</select><div class="hint">Até 2 cadastradores e 1 gestor por coordenadoria.</div></div><div class="field"><label for="n-pw">Senha inicial</label><input id="n-pw" type="password" style="width:100%" required minlength="8"><div class="hint">Mínimo de 8 caracteres. A pessoa pode receber a senha por canal seguro.</div></div><button class="btn primary" type="submit">Cadastrar</button></form></div>'
     + '<div class="card grow"><h3>Pessoas com acesso</h3><div class="scroll"><table class="tbl"><thead><tr><th>Pessoa</th><th>Perfil</th><th>Coordenadoria</th><th>Situação</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></div></div>';
 }
+const LOGO = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/><path d="M16 2v7M16 23v7M2 16h7M23 16h7"/></svg>';
 function viewAuth() {
   const setup = UI.needsSetup;
-  return '<div class="auth"><div class="card"><div class="logo" style="margin-bottom:14px"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/><path d="M16 2v7M16 23v7M2 16h7M23 16h7"/></svg><div>MIRA<small>Monitoramento Integrado de Riscos e Ações</small></div></div>'
-    + '<h2 style="font-size:19px;margin-bottom:6px">' + (setup ? 'Primeiro acesso' : 'Entrar') + '</h2>'
-    + (setup ? '<p class="muted" style="margin-bottom:12px">O sistema está vazio. Crie a conta da CSGR. Com ela você cadastra as pessoas de cada coordenadoria.</p>' : '')
+  const rail = PHASES.map((x, i) => '<li><span class="rail-n">' + (i + 1) + '</span><span><b>' + x[0] + '</b><small>' + x[1] + '</small></span></li>').join('');
+  const proofs = ['Cada alteração fica registrada: quem, quando e o quê.', 'Acesso conferido no servidor por perfil e coordenadoria.', 'Dois painéis: Operacional de TI e Alta Gestão.'].map(t => '<li>' + ICO.ok + t + '</li>').join('');
+  return '<div class="login"><section class="login-brand"><div class="logo">' + LOGO + '<div>MIRA<small>Monitoramento Integrado de Riscos e Ações · SETIC</small></div></div>'
+    + '<div class="login-pitch"><h1>Gestão de riscos de TIC, do contexto ao monitoramento.</h1><p>O MIRA conduz cada coordenadoria pelas 5 fases do MGR e mostra à alta gestão quanto cada risco custa e o que cada resposta devolve.</p></div>'
+    + '<ol class="rail" aria-label="As 5 fases do MGR">' + rail + '</ol><ul class="proofs">' + proofs + '</ul>'
+    + '<svg class="login-bg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width=".5" aria-hidden="true"><circle cx="16" cy="16" r="15"/><circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="5"/><path d="M16 0v32M0 16h32"/></svg></section>'
+    + '<section class="login-side"><div class="login-card"><h2>' + (setup ? 'Primeiro acesso' : 'Entrar') + '</h2>'
+    + '<p class="muted">' + (setup ? 'O sistema está vazio. Crie a conta da CSGR. Com ela você cadastra as pessoas de cada coordenadoria.' : 'Use o usuário e a senha cadastrados pela CSGR.') + '</p>'
     + '<form id="auth-form">' + (setup ? '<div class="field"><label for="a-nome">Nome completo</label><input id="a-nome" style="width:100%" required></div>' : '')
     + '<div class="field"><label for="a-user">Usuário</label><input id="a-user" style="width:100%" autocomplete="username" required></div><div class="field"><label for="a-pw">Senha</label><input id="a-pw" type="password" style="width:100%" autocomplete="' + (setup ? 'new-password' : 'current-password') + '" required' + (setup ? ' minlength="8"' : '') + '>' + (setup ? '<div class="hint">Mínimo de 8 caracteres.</div>' : '') + '</div>'
-    + (UI.authErr ? '<div class="warn-box" role="alert" style="margin-bottom:10px">' + esc(UI.authErr) + '</div>' : '') + '<button class="btn primary" type="submit" style="width:100%">' + (setup ? 'Criar conta da CSGR' : 'Entrar') + '</button></form></div></div>';
+    + (UI.authErr ? '<div class="warn-box" role="alert" style="margin-bottom:10px">' + esc(UI.authErr) + '</div>' : '') + '<button class="btn primary" type="submit" style="width:100%">' + (setup ? 'Criar conta da CSGR' : 'Entrar') + '</button></form></div></section></div>';
 }
 function render(keep) {
   if (!alive) return;
@@ -421,7 +432,7 @@ function render(keep) {
     else if (UI.view === 'usuarios') v = viewUsers(u);
     else v = viewRel(u);
   } catch (e) { v = '<div class="card"><h3>Não foi possível abrir esta tela</h3><p class="muted">' + esc(e.message) + '</p></div>'; }
-  root.innerHTML = '<header class="top"><div class="bar"><div class="logo"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/><path d="M16 2v7M16 23v7M2 16h7M23 16h7"/></svg><div>MIRA<small>Monitoramento Integrado de Riscos e Ações · SETIC</small></div></div><span class="spacer"></span><span class="small"><b>' + esc(u.nome) + '</b> <span class="muted">· ' + PAPEL[u.papel] + (u.unit ? ' · ' + u.unit : '') + '</span></span><button class="btn sm" data-act="logout">Sair</button></div><nav class="nav" aria-label="Seções">' + nav.map(n => '<button data-nav="' + n[0] + '"' + (n[0] !== 'novo' && cur === n[0] ? ' aria-current="page"' : '') + '>' + n[1] + (n[2] ? '<span class="badge">' + n[2] + '</span>' : '') + '</button>').join('') + '</nav></header><div class="wrap"><main>' + v + '</main></div>';
+  root.innerHTML = '<header class="top"><div class="bar"><div class="logo">' + LOGO + '<div>MIRA<small>Monitoramento Integrado de Riscos e Ações · SETIC</small></div></div><span class="spacer"></span><span class="who"><span class="avatar" aria-hidden="true">' + esc(initials(u.nome)) + '</span><span class="who-t"><b>' + esc(u.nome) + '</b><span>' + PAPEL[u.papel] + (u.unit ? ' · ' + u.unit : '') + '</span></span></span><button class="btn sm" data-act="logout">Sair</button></div><nav class="nav" aria-label="Seções">' + nav.map(n => '<button data-nav="' + n[0] + '"' + (n[0] !== 'novo' && cur === n[0] ? ' aria-current="page"' : '') + '>' + n[1] + (n[2] ? '<span class="badge">' + n[2] + '</span>' : '') + '</button>').join('') + '</nav></header><div class="wrap"><main>' + v + '</main></div>';
   if (UI.view === 'risco' && UI.tab === 2) refreshIdent(true);
   window.scrollTo(0, keep ? sy : 0);
 }
