@@ -424,7 +424,9 @@ function viewAlertas(u){
   const KIND={devolvido:'Devolução',aprovacao:'Aprovação',aprovado:'Aprovado',metrica:'Métrica',prazo:'Prazo',nivel:'Nível',evento:'Evento'};
   const row=(tn,kind,msg,meta,id,isNew)=>'<li><button class="qi" data-open="'+id+'"><span class="qi-ico t-'+tn+'" title="'+TONE[tn]+'">'+ICO[tn]+'</span><span class="qi-b"><span class="qi-k">'+kind+(isNew?' · <span class="new-tag">novo</span>':'')+'</span><span class="qi-msg">'+esc(msg)+'</span>'+(meta?'<span class="qi-t">'+meta+'</span>':'')+'</span><span class="qi-go" aria-hidden="true">›</span></button></li>';
   const act=dv.map(d=>row(d.crit?'crit':'warn',KIND[d.tipo]||d.tipo,d.msg,'',d.riskId,false)).join('');
-  const inf=st.map(a=>row(a.tipo==='devolvido'||a.tipo==='evento'?'warn':'info',KIND[a.tipo]||a.tipo,a.msg,fdt(a.ts),a.riskId,!a.lido[u.id])).join('');
+  // O tom segue a gravidade do aviso: métrica crítica e evento ocorrido são críticos; devolução, alerta e nível que subiu pedem atenção.
+  const toneOf=a=>a.tipo==='metrica'?(/crítico/.test(a.msg)?'crit':'warn'):a.tipo==='evento'?'crit':a.tipo==='devolvido'||a.tipo==='nivel'?'warn':a.tipo==='aprovado'?'ok':'info';
+  const inf=st.map(a=>row(toneOf(a),KIND[a.tipo]||a.tipo,a.msg,fdt(a.ts),a.riskId,!a.lido[u.id])).join('');
   const sec=(t,sub,n,body,empty)=>'<div class="card">'+cardH(t,sub,'<span class="count">'+n+'</span>')+(n?'<ul class="queue">'+body+'</ul>':'<div class="empty">'+ICO.ok+'<p>'+empty+'</p></div>')+'</div>';
   return pageHead('Alertas e avisos',(dv.length+unread)?dv.length+' exige(m) ação agora · '+unread+' aviso(s) não lido(s)':'Nenhum alerta novo.',unread?'<button class="btn" data-act="lidos">Marcar como lidos ('+unread+')</button>':'')
     +sec('Exigem ação agora','Prazos próximos ou vencidos e métricas em alerta ou críticas.',dv.length,act,'Nenhum prazo ou métrica exige ação agora.')
