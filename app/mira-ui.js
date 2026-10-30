@@ -20,7 +20,7 @@ const initials = n => String(n || '').trim().split(/\s+/).filter(Boolean).slice(
 const lvc = n => (n ? '<span class="lv lv' + band(n) + '">' + LV[band(n)] + ' · ' + n + '</span>' : '<span class="st">Sem avaliação</span>');
 let alive = true;
 let S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [] };
-const UI = { view: 'paineis', panel: 'op', rid: null, tab: 2, filt: { unit: '', nv: '', st: '', cell: null }, ia: null, draft: null, warnAck: false, tce: null, ready: false, needsSetup: false, sampleOk: false, authErr: '', busy: false };
+const UI = { view: 'paineis', panel: 'op', rid: null, tab: 2, filt: { unit: '', nv: '', st: '', cell: null }, ia: null, draft: null, warnAck: false, tce: null, ready: false, needsSetup: false, sampleOk: false, authErr: '', busy: false, ctxPeek: false };
 const me = () => S.me;
 const rk = id => S.risks.find(r => r.id === id);
 const scope = () => S.risks; // o servidor já entrega só o que o perfil pode ver
@@ -289,6 +289,17 @@ function iaBox(r){const k=UI.rid;const ia=UI.ia&&UI.ia[k];if(!ia)return '';
   return '<div class="info-box" style="margin-top:10px"><b>Assistente de IA</b><div style="margin-top:4px">'+(ia.ehRisco===false?'<div class="warn-box">Isto parece um problema, não um risco. '+esc(ia.motivo||'')+'</div>':'<div>'+esc(ia.motivo||'Descrição reescrita no formato do MGR. Confira e ajuste os campos.')+'</div>')+'</div></div>'}
 function tabContexto(u,r){const un=r?r.unit:u.unit,c=S.ctx[un]||{escopo:'',marcos:[]},resp=respOf(un),ges=gestorOf(un);
   return '<div class="card"><h3>Fase 1 · Contexto da '+un+'</h3>'+roField('Escopo',c.escopo)+'<div class="field"><label>Responsáveis designados</label><div>'+((resp.length||ges)?resp.map(x=>'<span class="st info">'+esc(x)+'</span>').join(' ')+(ges?' <span class="st info">'+esc(ges)+' · gestor</span>':''):'<span class="muted">—</span>')+'</div></div><label>Cronograma de implementação</label>'+(c.marcos.length?'<table class="tbl"><tbody>'+c.marcos.map(m=>'<tr><td>'+esc(m.marco)+'</td><td class="mono">'+fd(m.data)+'</td><td>'+(m.feito?'<span class="st ok">Concluído</span>':'<span class="st">Previsto</span>')+'</td></tr>').join('')+'</tbody></table>':'<div class="muted">Nenhum marco cadastrado.</div>')+'<p style="margin-top:12px"><button class="btn" data-nav="contexto">Abrir contexto da coordenadoria</button></p></div>'}
+// Contexto da coordenadoria à mão enquanto se escreve o risco, sem sair do formulário.
+function ctxPeek(un){
+  const c=S.ctx[un]||{escopo:'',marcos:[]},resp=respOf(un),ges=gestorOf(un);
+  const prox=c.marcos.filter(m=>!m.feito).sort((a,b)=>String(a.data).localeCompare(String(b.data))).slice(0,3);
+  const marco=m=>'<li><span>'+esc(m.marco)+'</span><span class="small muted">'+fd(m.data)+'</span>'+(daysTo(m.data)<0?toneTag('warn','Atrasado'):toneTag('info','Previsto'))+'</li>';
+  const pessoas=resp.concat(ges?[ges+' (gestor)']:[]);
+  return '<details class="ctx-peek"'+(UI.ctxPeek?' open':'')+'><summary data-peek="1">'+ICO.info+'<span><b>Contexto da '+un+'</b><small>Escopo, responsáveis e próximos marcos</small></span></summary><div class="ctx-peek-b">'
+    +'<div><span class="eyebrow">Escopo</span>'+(c.escopo?'<p>'+esc(c.escopo)+'</p>':'<p class="muted">Escopo ainda não registrado.</p>')+'</div>'
+    +'<div><span class="eyebrow">Responsáveis</span><p>'+(pessoas.length?esc(pessoas.join(', ')):'<span class="muted">Ninguém designado.</span>')+'</p></div>'
+    +'<div><span class="eyebrow">Próximos marcos</span>'+(prox.length?'<ul class="ctx-marcos">'+prox.map(marco).join('')+'</ul>':'<p class="muted">Nenhum marco pendente.</p>')+'</div>'
+    +'<p class="hint">Confira se o risco está dentro do escopo. Para editar, use a aba Contexto.</p></div></details>'}
 function tabIdent(u,r,isNew){
   const ed=isNew?u.papel==='cadastrador':canEdit(u,r);
   const f=(UI.draft&&UI.draft._rid===UI.rid)?UI.draft:(isNew?{}:r);
@@ -302,7 +313,7 @@ function tabIdent(u,r,isNew){
   const side='<aside class="ident-side"><div class="side-card"><span class="eyebrow">Como o MGR lê esse risco</span><div class="preview" id="pv">'+previewHTML(f)+'</div><div id="sim"></div>'
     +(ed?'<button class="btn primary" data-act="save-ident" style="width:100%;margin-top:14px">'+(isNew?'Cadastrar e avaliar':'Salvar identificação')+'</button>':'')
     +'<div class="info-box callout" style="margin-top:12px">'+ICO.info+'<span>Risco é um evento <b>futuro e incerto</b>. Se já está acontecendo, é problema, não risco.</span></div></div></aside>';
-  return '<div class="card"><h3>Fase 2 · Identificação do risco</h3>'+ai+'<div class="ident"><div class="ident-main">'+main+'</div>'+side+'</div></div>'}
+  return '<div class="card"><h3>Fase 2 · Identificação do risco</h3>'+(ed?ctxPeek(isNew?u.unit:r.unit):'')+ai+'<div class="ident"><div class="ident-main">'+main+'</div>'+side+'</div></div>'}
 function avRes(p,i,r){const n=p&&i?p*i:0;
   return (n?'<p style="margin-bottom:8px">'+lvc(n)+'</p>':'<p class="muted">Escolha a probabilidade e o impacto.</p>')+matrix('score',null,n?{p,i}:null)}
 function tabAval(u,r){
@@ -690,6 +701,7 @@ async function onAuth(setup) {
   } catch (e) { UI.authErr = e.message; render(); }
 }
 const onClick = e => {
+  const pk = e.target.closest('summary[data-peek]'); if (pk && pk.dataset.peek) { UI.ctxPeek = !pk.parentNode.open; return; }
   const t = e.target.closest('[data-act],[data-open],[data-nav],[data-tab],[data-panel],[data-cell],[data-tce],[data-stfilt]'); if (!t) return;
   if (t.dataset.open) { e.preventDefault(); openRisk(t.dataset.open); return; }
   if (t.dataset.nav) { const n = t.dataset.nav; UI.rid = null; UI.draft = null; UI.warnAck = false; if (n === 'novo') { act('novo'); return; } if (n !== 'riscos' || UI.view !== 'riscos') UI.filt = { unit: '', nv: '', st: '', cell: null }; UI.view = n; render(); return; }
