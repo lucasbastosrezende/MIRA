@@ -412,6 +412,42 @@ const ok = (c, m) => {
   r = await call('x', 'POST', 'login', { username: 'apagar.teste', password: 'senha-forte-2' });
   ok(r.s === 401, 'pessoa apagada não entra mais');
 
+  // Depois do evento: retomar o tratamento ou reabrir o PRR (com motivo); o gestor também pode agir
+  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'evento' });
+  ok(r.s === 200 && r.risk.status === 'ocorrido', 'cadastrador registra que o evento ocorreu');
+  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'retomar' });
+  ok(r.s === 422, 'retomar o tratamento exige motivo');
+  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'retomar', motivo: 'Evento contido' });
+  ok(r.s === 200 && r.risk.status === 'em_tratamento', 'gestor retoma o tratamento depois do evento');
+  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'add-med', valor: 3 });
+  ok(r.s === 200, 'gestor registra medição');
+  r = await call('cad', 'POST', 'risks/R-001/action', {
+    action: 'revisar-prr',
+    motivo: 'Ação precisa mudar',
+  });
+  ok(r.s === 200 && r.risk.status === 'avaliado', 'PRR reaberto para revisão');
+  r = await call('cad', 'POST', 'risks/R-001/prr', {
+    prr: { ...prr, acao: 'Ação revisada depois do evento' },
+  });
+  ok(r.s === 200, 'PRR reaberto pode ser editado');
+  await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-ok' });
+  r = await call('altagestao', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
+  ok(r.s === 200 && r.risk.status === 'em_tratamento', 'PRR revisado passa de novo pelas aprovações');
+  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'concluir-acao' });
+  ok(r.s === 200 && !!r.risk.prr.concluidaEm, 'ação do PRR marcada como concluída');
+  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'concluir-acao' });
+  ok(r.s === 403, 'ação já concluída não é concluída de novo');
+  r = await call('cad2', 'POST', 'risks/R-001/action', { action: 'revisar-prr', motivo: 'tentativa' });
+  ok(r.s === 404, 'outra coordenadoria não reabre o PRR');
+  r = await call('ges', 'POST', 'ctx/escopo', { escopo: 'Sistemas da coordenadoria, revisado pelo gestor' });
+  ok(r.s === 200, 'gestor edita o contexto da coordenadoria');
+  r = await call('ges', 'POST', 'risks', { ...ident, titulo: 'Risco aberto pelo gestor' });
+  ok(
+    r.s === 200 && r.risk.unit === 'Cosegi' && r.risk.criadoPor === 'ges.cosegi',
+    'gestor cria risco na coordenadoria',
+  );
+
   // Contexto (fase 1), assistente de IA sem chave, avisos e segurança da sessão
   r = await call('cad', 'POST', 'ctx/escopo', { escopo: 'Riscos de segurança da informação' });
   ok(r.s === 200, 'salva escopo');

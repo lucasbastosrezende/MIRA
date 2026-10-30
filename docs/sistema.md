@@ -18,7 +18,7 @@ As coordenadorias não vêm prontas: o administrador cria cada uma na hora, com 
 |---|---|
 | Administrador · implantação | Conta criada na implantação, no servidor (`npm run admin -- <usuario>`). Cria e renomeia as coordenadorias e é o único que cadastra pessoas, sempre com o relatório de pedido (SEI ou pedido formal, com número SEI e data). Redefine senhas, desativa e apaga contas; a conta dele não pode ser apagada. Não tem coordenadoria e não vê riscos; no histórico vê só o que ele fez. |
 | Cadastrador(a) | Registra e edita os riscos da própria coordenadoria, elabora o PRR, registra medições, reavalia o nível e informa quando o evento ocorreu. |
-| Gestor(a) de riscos | Titular da coordenadoria. Valida o PRR e o encaminha à Alta Gestão de Riscos, ou devolve com motivo. Delega no Quadro quem resolve cada risco. Encerra riscos. |
+| Gestor(a) de riscos | Titular (supervisor) da coordenadoria. Valida o PRR e o encaminha à Alta Gestão de Riscos, ou devolve com motivo. Delega no Quadro quem resolve cada risco. Também pode fazer o que o cadastrador faz na própria coordenadoria: cadastrar riscos, editar o contexto e acompanhar o tratamento. Encerra riscos. |
 | Alta Gestão de Riscos | Aprova ou devolve PRRs e gera o relatório anual. Vê todas as coordenadorias. No código e no banco, o perfil é `altagestao` (antes se chamava CSGR; bancos antigos são migrados sozinhos). |
 | CGGE | Só consulta, em todas as coordenadorias. |
 
@@ -32,7 +32,7 @@ Quem é de uma coordenadoria não enxerga nem acessa por endereço os riscos de 
 | 2 · Identificação | Título, causa, evento, impacto e objetivo afetado. Enquanto se digita, uma pré-visualização mostra a frase completa do MGR, os campos recebem avisos de qualidade e o sistema aponta riscos parecidos já cadastrados. |
 | 3 · Avaliação | Probabilidade e impacto de 1 a 5, cada nota com descrição. O nível é probabilidade × impacto, na matriz 5 × 5. Informa-se também a exposição financeira estimada em reais, no formato brasileiro (4.000.000 ou 4.000.000,50); embaixo do campo aparece como o valor foi entendido e a conta da exposição esperada (valor cheio × percentual da probabilidade). |
 | 4 · Tratamento (PRR) | Forma de tratamento (mitigar, evitar, transferir, aceitar), controles existentes, ação, responsável, prazo, custo, métrica com limites crítico, alerta e ideal, e o risco residual esperado. O residual começa igual ao nível de hoje, com atalhos para reduzir 1 na probabilidade, no impacto ou nos dois, e mostra a conta da exposição residual. Um resumo ao lado recalcula enquanto se preenche. |
-| 5 · Monitoramento | Medições da métrica em gráfico, sobre as faixas dos limites; reavaliação do nível com motivo; registro de que o evento ocorreu; encerramento pelo gestor. |
+| 5 · Monitoramento | Medições da métrica em gráfico, sobre as faixas dos limites; reavaliação do nível com motivo; registro de que o evento ocorreu; depois do evento, retomar o tratamento ou reabrir o PRR para revisão (com motivo); marcar a ação do PRR como concluída; encerramento pelo gestor. |
 
 ## Situações de um risco
 
@@ -49,7 +49,7 @@ rascunho → avaliado → aguardando gestor → aguardando Alta Gestão → em t
 - **Aguardando gestor / aguardando Alta Gestão:** PRR em validação. Ninguém edita o risco nessa etapa.
 - **Devolvido:** gestor ou Alta Gestão de Riscos devolveu com motivo obrigatório; o motivo aparece no topo do PRR para quem vai corrigir.
 - **Em tratamento:** PRR aprovado; começa o monitoramento da métrica.
-- **Evento ocorreu:** o risco se materializou; gestor e Alta Gestão de Riscos são avisados para reavaliar.
+- **Evento ocorreu:** o risco se materializou; gestor e Alta Gestão de Riscos são avisados para reavaliar. Dali o risco volta ao tratamento ("Retomar o tratamento") ou o PRR é reaberto para revisão e passa de novo pelas validações.
 - **Encerrado:** fechado pelo gestor; sai dos riscos ativos e dos painéis.
 
 ## Como os números são calculados
@@ -71,7 +71,8 @@ As faixas de nível, as descrições das notas e os percentuais são premissas q
 
 Há dois tipos de aviso, reunidos na aba Alertas:
 
-- **Avisos guardados**, gerados por um acontecimento: PRR enviado (para o gestor), PRR encaminhado (para a Alta Gestão de Riscos), PRR devolvido e aprovado (para cadastrador e gestor), métrica que entrou em alerta ou crítico (para cadastrador, gestor e Alta Gestão de Riscos), nível que subiu e evento ocorrido (para gestor e Alta Gestão de Riscos). Cada pessoa marca os seus como lidos.
+- **Prazo da ação**, em texto: "faltam N dias", "vence amanhã", "vence hoje", "vencido há N dias" ou "concluída em". Antes da aprovação aparece como "proposto". Ação concluída não gera aviso de prazo.
+- **Avisos guardados**, que saem da lista principal (e do contador) quando a situação que os gerou foi resolvida e ficam em "Resolvidos". São gerados por um acontecimento: PRR enviado (para o gestor), PRR encaminhado (para a Alta Gestão de Riscos), PRR devolvido e aprovado (para cadastrador e gestor), métrica que entrou em alerta ou crítico (para cadastrador, gestor e Alta Gestão de Riscos), nível que subiu e evento ocorrido (para gestor e Alta Gestão de Riscos). Cada pessoa marca os seus como lidos.
 - **Avisos do momento**, calculados a cada acesso: prazo da ação em até 15 dias ou vencido, e métrica em alerta ou crítico. Aparecem em "Exigem ação agora" e na fila de ação do painel Operacional.
 
 No protótipo os e-mails são simulados: o aviso aparece no sistema, mas nada sai por e-mail.

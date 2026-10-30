@@ -45,7 +45,7 @@ Para uso em produção: `npm run build && npm start`.
 |---|---|
 | Administrador | Implantação: cria e renomeia as coordenadorias e é o único que cadastra pessoas, sempre com o relatório de pedido. Redefine senhas, desativa e apaga contas (a dele não). Não vê riscos. |
 | Cadastrador | Registra e edita riscos da própria coordenadoria, elabora o PRR, registra medições e reavalia. |
-| Gestor de riscos | Titular da coordenadoria. Valida o PRR e o encaminha à Alta Gestão de Riscos (ou devolve). Delega no Quadro quem resolve cada risco. Encerra riscos. |
+| Gestor de riscos | Titular (supervisor) da coordenadoria. Valida o PRR e o encaminha à Alta Gestão de Riscos (ou devolve). Delega no Quadro quem resolve cada risco. Também cadastra riscos, edita o contexto e acompanha o tratamento. Encerra riscos. |
 | Alta Gestão de Riscos | Aprova ou devolve PRRs e gera o relatório anual. Vê todas as coordenadorias. No código e no banco, o perfil é `altagestao` (antes se chamava CSGR; bancos antigos são migrados sozinhos). |
 | CGGE | Só consulta. |
 

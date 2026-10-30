@@ -166,7 +166,7 @@ export function mountMira(root) {
     scope(u).forEach(r => {
       if (!['em_tratamento', 'ocorrido'].includes(r.status) || !r.prr) return;
       const d = daysTo(r.prr.prazo);
-      if (d != null && r.prr.prazo && d <= 15 && u.papel !== 'cgge')
+      if (d != null && r.prr.prazo && !r.prr.concluidaEm && d <= 15 && u.papel !== 'cgge')
         out.push({
           k: 'prazo-' + r.id,
           tipo: 'prazo',
@@ -202,7 +202,30 @@ export function mountMira(root) {
     return out;
   }
   // Quantidade de avisos guardados que a pessoa ainda não leu.
-  const unreadCount = u => S.alerts.filter(a => !a.lido[u.id]).length + derived(u).length;
+  // Um aviso guardado deixa de pedir atenção quando a situação que o gerou já foi resolvida: o PRR saiu da fila,
+  // a métrica voltou ao ideal, o evento foi tratado, o risco foi encerrado... Ele continua em "Resolvidos".
+  function resolvido(a) {
+    const r = rk(a.riskId);
+    if (!r || r.status === 'encerrado') return true;
+    switch (a.tipo) {
+      case 'aprovacao':
+        return (a.para || []).includes('gestor') ? r.status !== 'ag_gestor' : r.status !== 'ag_altagestao';
+      case 'devolvido':
+        return r.status !== 'devolvido';
+      case 'aprovado':
+        return r.status !== 'em_tratamento' || !!(r.prr && r.prr.medicoes && r.prr.medicoes.length);
+      case 'metrica':
+        return !['alerta', 'critico'].includes(metricSt(r));
+      case 'evento':
+        return r.status !== 'ocorrido';
+      case 'revisao':
+        return r.status !== 'avaliado';
+      default:
+        return false;
+    }
+  }
+  // Avisos não lidos e ainda pendentes, mais os alertas do momento.
+  const unreadCount = u => S.alerts.filter(a => !a.lido[u.id] && !resolvido(a)).length + derived(u).length;
   // Palavras de um texto, sem acento e sem palavras curtas, para comparar riscos.
   const tok = s =>
     new Set(
@@ -280,17 +303,25 @@ export function mountMira(root) {
           ? '<span class="st bad">Crítico</span>'
           : '<span class="muted">—</span>';
   };
-  // Célula do prazo do PRR na lista, com aviso quando está perto de vencer ou vencido.
+  // Prazo da ação do PRR em texto útil: concluída em, vencida há N dias, vence hoje ou amanhã, ou quantos dias
+  // faltam. Antes da aprovação, o prazo é só proposto.
   const prazoCell = r => {
-    if (!r.prr || !r.prr.prazo) return '<span class="muted">—</span>';
-    const d = daysTo(r.prr.prazo);
+    const p = r.prr;
+    if (!p || !p.prazo) return '<span class="muted">—</span>';
+    if (p.concluidaEm)
+      return fd(p.prazo) + ' <span class="st ok">concluída em ' + fd(p.concluidaEm) + '</span>';
+    if (!['em_tratamento', 'ocorrido'].includes(r.status))
+      return fd(p.prazo) + ' <span class="st">proposto</span>';
+    const d = daysTo(p.prazo);
     const t =
-      ['em_tratamento', 'ocorrido'].includes(r.status) && d <= 15
-        ? d < 0
-          ? ' <span class="st bad">vencido</span>'
-          : ' <span class="st warn">' + d + ' d</span>'
-        : '';
-    return fd(r.prr.prazo) + t;
+      d < 0
+        ? ['bad', 'vencido há ' + -d + (d === -1 ? ' dia' : ' dias')]
+        : d === 0
+          ? ['warn', 'vence hoje']
+          : d === 1
+            ? ['warn', 'vence amanhã']
+            : [d <= 15 ? 'warn' : '', 'faltam ' + d + ' dias'];
+    return fd(p.prazo) + ' <span class="st ' + t[0] + '">' + t[1] + '</span>';
   };
   // Matriz 5 × 5 de probabilidade × impacto da tela Matriz; cada célula lista os riscos dela.
   function matrix(mode, counts, sel) {
@@ -1830,7 +1861,7 @@ export function mountMira(root) {
   }
   // Fase 2 · Identificação: formulário guiado do MGR com pré-visualização ao lado.
   function tabIdent(u, r, isNew) {
-    const ed = isNew ? u.papel === 'cadastrador' : canEdit(u, r);
+    const ed = isNew ? u.papel === 'cadastrador' || u.papel === 'gestor' : canEdit(u, r);
     const f = UI.draft && UI.draft._rid === UI.rid ? UI.draft : isNew ? {} : r;
     const fld = (id, lab, hint, ex, rows) =>
       ed
@@ -2531,7 +2562,31 @@ export function mountMira(root) {
       (u.papel === 'gestor' && u.unit === r.unit && r.status !== 'encerrado'
         ? '<div class="actions"><button class="btn" data-act="encerrar">Encerrar risco</button></div>'
         : '') +
-      '</div>'
+      '</div>' +
+      (mon ? acoesTratamento(r) : '')
+    );
+  }
+  // Andamento do tratamento, para quem monitora (cadastrador ou gestor da coordenadoria): depois de um evento,
+  // retomar o tratamento ou reabrir o PRR; a qualquer momento, reabrir o PRR ou marcar a ação como concluída.
+  // Retomar e reabrir pedem motivo (o servidor confere).
+  function acoesTratamento(r) {
+    const p = r.prr || {},
+      oc = r.status === 'ocorrido';
+    return (
+      '<div class="card"><h3>' +
+      (oc ? 'Depois do evento' : 'Andamento do tratamento') +
+      '</h3>' +
+      (oc
+        ? '<p class="muted">O evento foi registrado. Reavalie o nível acima e escolha como seguir: retomar o tratamento com o mesmo PRR ou reabrir o PRR para revisão (ele volta a passar pelo gestor e pela Alta Gestão).</p>'
+        : '') +
+      (p.concluidaEm ? '<p>' + toneTag('ok', 'Ação do PRR concluída em ' + fd(p.concluidaEm)) + '</p>' : '') +
+      '<div class="field"><label for="t-motivo">Motivo</label><input id="t-motivo" style="width:100%" placeholder="Obrigatório para retomar o tratamento ou reabrir o PRR"></div><div class="actions">' +
+      (oc ? '<button class="btn primary" data-act="retomar">Retomar o tratamento</button>' : '') +
+      '<button class="btn" data-act="revisar-prr">Reabrir o PRR para revisão</button>' +
+      (p.concluidaEm
+        ? ''
+        : '<button class="btn" data-act="concluir-acao">Marcar a ação como concluída</button>') +
+      '</div></div>'
     );
   }
   // Cabeçalho da tela do risco: frase do MGR, situação, nível e fatos principais.
@@ -2641,7 +2696,7 @@ export function mountMira(root) {
       pageHead(
         'Riscos ' + (u.unit ? 'da ' + u.unit : 'da SETIC'),
         all.length + ' risco(s) cadastrado(s) · ' + alto + ' de nível alto ou extremo',
-        (u.papel === 'cadastrador'
+        (u.papel === 'cadastrador' || u.papel === 'gestor'
           ? '<button class="btn primary" data-act="novo">+ Novo risco</button>'
           : '') +
           '<button class="btn" data-nav="contexto">Contexto' +
@@ -2905,7 +2960,8 @@ export function mountMira(root) {
   }
   // Tela Alertas: avisos do momento e avisos guardados.
   function viewAlertas(u) {
-    const st = S.alerts,
+    const st = S.alerts.filter(a => !resolvido(a)),
+      feitos = S.alerts.filter(a => resolvido(a)),
       dv = derived(u),
       unread = st.filter(a => !a.lido[u.id]).length;
     const KIND = {
@@ -2917,6 +2973,7 @@ export function mountMira(root) {
       nivel: 'Nível',
       evento: 'Evento',
       delegado: 'Delegação',
+      revisao: 'Revisão do PRR',
     };
     const row = (tn, kind, msg, meta, id, isNew) =>
       '<li><button class="qi" data-open="' +
@@ -2976,7 +3033,14 @@ export function mountMira(root) {
         act,
         'Nenhum prazo ou métrica exige ação agora.',
       ) +
-      sec('Avisos', 'Do mais recente para o mais antigo.', st.length, inf, 'Sem avisos.') +
+      sec('Avisos', 'Do mais recente para o mais antigo.', st.length, inf, 'Sem avisos pendentes.') +
+      (feitos.length
+        ? '<details class="card resolvidos"><summary>Resolvidos (' +
+          feitos.length +
+          ')</summary><p class="hint">A situação destes avisos já foi resolvida.</p><ul class="queue">' +
+          feitos.map(a => row('ok', KIND[a.tipo] || a.tipo, a.msg, fdt(a.ts), a.riskId, false)).join('') +
+          '</ul></details>'
+        : '') +
       '<p class="hint">No protótipo, os e-mails são simulados.</p>'
     );
   }
@@ -3341,7 +3405,7 @@ export function mountMira(root) {
   // da própria coordenadoria. No passo 1 do novo risco (novo = true), o botão salva e segue para a identificação.
   function ctxCards(u, un, novo) {
     const c = S.ctx[un] || { escopo: '', marcos: [] };
-    const ed = u.papel === 'cadastrador' && u.unit === un;
+    const ed = (u.papel === 'cadastrador' || u.papel === 'gestor') && u.unit === un;
     const resp = respOf(un),
       ges = gestorOf(un);
     const chips =
@@ -4466,6 +4530,23 @@ export function mountMira(root) {
         await act2('evento');
         await refresh(true);
         toast('Evento registrado. Reavalie o nível.');
+        break;
+      // Andamento do tratamento: retomar depois do evento, reabrir o PRR e concluir a ação
+      case 'retomar':
+        await act2('retomar', { motivo: val('t-motivo') });
+        await refresh(true);
+        toast('Tratamento retomado.');
+        break;
+      case 'revisar-prr':
+        await act2('revisar-prr', { motivo: val('t-motivo') });
+        UI.tab = 4;
+        await refresh(true);
+        toast('PRR reaberto. Ajuste e envie de novo ao gestor.');
+        break;
+      case 'concluir-acao':
+        await act2('concluir-acao', { motivo: val('t-motivo') });
+        await refresh(true);
+        toast('Ação marcada como concluída.');
         break;
       case 'encerrar':
         await act2('encerrar');
