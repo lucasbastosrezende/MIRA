@@ -634,9 +634,12 @@ async function doAct(a, el) {
   }
 }
 function showPrrErrors(errs) { const e = document.getElementById('p-err'); if (e) e.innerHTML = '<div class="warn-box"><b>Corrija antes de enviar:</b><ul style="margin:4px 0 0 18px;padding:0">' + errs.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>'; }
+// Durante uma gravação a tela fica marcada como ocupada; um novo envio avisa em vez de ser ignorado em silêncio.
+function setBusy(on) { UI.busy = on; if (root.setAttribute) { if (on) root.setAttribute('aria-busy', 'true'); else root.removeAttribute('aria-busy'); } }
+const isBusy = () => { if (UI.busy) toast('Aguarde: a alteração anterior ainda está sendo salva.'); return UI.busy; };
 async function act(a, el) {
-  if (UI.busy) return; UI.busy = true;
-  try { await doAct(a, el); } catch (e) { toast(e.message || 'Não foi possível concluir a ação.'); } finally { UI.busy = false; }
+  if (isBusy()) return; setBusy(true);
+  try { await doAct(a, el); } catch (e) { toast(e.message || 'Não foi possível concluir a ação.'); } finally { setBusy(false); }
 }
 function updAv() { const p = Number((document.querySelector('input[name="prob"]:checked') || {}).value || 0), i = Number((document.querySelector('input[name="imp"]:checked') || {}).value || 0); const e = document.getElementById('av-res'); if (e) e.innerHTML = avRes(p, i); }
 function afterLogin() { const u = me(); UI.view = 'paineis'; UI.panel = (u.papel === 'csgr' || u.papel === 'cgge') ? 'alta' : 'op'; UI.rid = null; UI.draft = null; UI.tce = null; UI.filt = { unit: '', nv: '', st: '', cell: null }; }
@@ -680,7 +683,7 @@ const onChange = e => {
   if (t.id === 'n-papel') { const w = document.getElementById('n-unit-wrap'); if (w) w.hidden = (t.value === 'csgr' || t.value === 'cgge'); return; }
   if (t.dataset.marco !== undefined) { act2marco(Number(t.dataset.marco)); }
 };
-async function act2marco(idx) { if (UI.busy) return; UI.busy = true; try { await api('POST', 'ctx/marco', { op: 'toggle', idx }); await refresh(true); } catch (e) { toast(e.message); await refresh(true); } finally { UI.busy = false; } }
+async function act2marco(idx) { if (isBusy()) return; setBusy(true); try { await api('POST', 'ctx/marco', { op: 'toggle', idx }); await refresh(true); } catch (e) { toast(e.message); await refresh(true); } finally { setBusy(false); } }
 // Resumo do PRR que acompanha o formulário: recalcula com o que está digitado.
 const isPrrField = t => !!t.id && t.id.indexOf('p-') === 0 && t.id !== 'p-err';
 function prrLive() { const el = document.getElementById('prr-live'), r = UI.rid && UI.rid !== 'new' ? rk(UI.rid) : null; if (el && r) el.innerHTML = prrLiveHTML(r, readPrr()); }
@@ -693,7 +696,7 @@ const onSubmit = e => {
     act2user({ nome: val('n-nome'), username: val('n-user'), papel, unit: (papel === 'csgr' || papel === 'cgge') ? null : val('n-unit'), password: val('n-pw') });
   }
 };
-async function act2user(b) { if (UI.busy) return; UI.busy = true; try { await api('POST', 'users', b); await refresh(true); toast('Pessoa cadastrada.'); } catch (e) { toast(e.message); } finally { UI.busy = false; } }
+async function act2user(b) { if (isBusy()) return; setBusy(true); try { await api('POST', 'users', b); await refresh(true); toast('Pessoa cadastrada.'); } catch (e) { toast(e.message); } finally { setBusy(false); } }
 root.addEventListener('click', onClick);
 root.addEventListener('change', onChange);
 root.addEventListener('input', onInput);

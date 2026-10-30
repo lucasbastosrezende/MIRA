@@ -470,3 +470,8 @@ main>.card.decide{box-shadow:0 0 0 1px var(--accent),var(--shadow)}
 .cover b{font-size:14px}
 .usr{display:flex;align-items:center;gap:10px}
 @media (max-width:640px){.qi-m{display:none}}
+
+/* Gravação em andamento: evita duplo envio e mostra que a tela está ocupada */
+[aria-busy="true"]{cursor:progress}
+[aria-busy="true"] .btn,[aria-busy="true"] .qi,[aria-busy="true"] .rk{pointer-events:none}
+[aria-busy="true"] .btn{opacity:.6;transition:opacity .1s .15s}
