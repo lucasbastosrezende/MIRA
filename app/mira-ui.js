@@ -1,6 +1,7 @@
 'use strict';
 // Interface do MIRA (cliente). Monta a aplicação dentro do elemento recebido e fala com /api.
 import MIRA from '../lib/logic.js';
+import { xlsx } from './planilha.js';
 
 export function mountMira(root) {
 /* ===== Núcleo: estado, utilidades e chamadas à API ===== */
@@ -114,7 +115,7 @@ const pageHead=(t,sub,act,eye)=>'<div class="dash-head"><div class="dash-title">
 function panelHead(u){
   const op=UI.panel==='op',when=UI.loadedAt?new Date(UI.loadedAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
   return pageHead(op?'Painel Operacional':'Painel Alta Gestão',op?'O que exige ação agora: pendências, prazos e métricas fora do ideal.':'Quanto cada risco custa, quanto custa tratá-lo e o que se ganha. Base para decidir investimento e prestar contas ao TCE.',
-    (when?'<span class="small muted">Dados de '+when+'</span>':'')+'<button class="btn sm" data-act="dl-csv">Exportar CSV</button><div class="seg" role="group" aria-label="Escolher painel"><button data-panel="op" aria-pressed="'+op+'">Operacional · TI</button><button data-panel="alta" aria-pressed="'+!op+'">Alta gestão</button></div>',
+    (when?'<span class="small muted">Dados de '+when+'</span>':'')+'<button class="btn sm" data-act="dl-xlsx" data-tip="Planilha com colunas ajustadas e valores em reais">Exportar Excel</button><button class="btn sm" data-act="dl-csv">Exportar CSV</button><div class="seg" role="group" aria-label="Escolher painel"><button data-panel="op" aria-pressed="'+op+'">Operacional · TI</button><button data-panel="alta" aria-pressed="'+!op+'">Alta gestão</button></div>',
     u.unit?'Coordenadoria '+u.unit:'SETIC · todas as coordenadorias')}
 /* ===== Painel Operacional (profissional de TI) ===== */
 function heat(counts,ids,sel){
@@ -398,7 +399,7 @@ function viewRisk(u){
 /* ===== Demais telas ===== */
 function viewRiscos(u){
   const all=scope(u),list=filtered(all),alto=all.filter(r=>r.status!=='encerrado'&&nivel(r)>=12).length;
-  return pageHead('Riscos '+(u.unit?'da '+u.unit:'da SETIC'),all.length+' risco(s) cadastrado(s) · '+alto+' de nível alto ou extremo',(u.papel==='cadastrador'?'<button class="btn primary" data-act="novo">+ Novo risco</button>':'')+'<button class="btn" data-act="dl-csv">Exportar CSV</button>')
+  return pageHead('Riscos '+(u.unit?'da '+u.unit:'da SETIC'),all.length+' risco(s) cadastrado(s) · '+alto+' de nível alto ou extremo',(u.papel==='cadastrador'?'<button class="btn primary" data-act="novo">+ Novo risco</button>':'')+'<button class="btn" data-act="dl-xlsx" data-tip="Planilha com colunas ajustadas e valores em reais">Exportar Excel</button><button class="btn" data-act="dl-csv">Exportar CSV</button>')
     +'<div class="card"><div class="table-tools">'+filterBar(u)+'</div>'+tableRisks(list)+'</div>'}
 function viewMatriz(u){
   const base=scope(u).filter(r=>r.status!=='encerrado'&&r.prob&&r.imp),counts={},ids={};
@@ -555,10 +556,34 @@ function copyText(id) {
   try { navigator.clipboard.writeText(t).then(() => toast('Texto copiado.')).catch(fb); } catch (e) { fb(); }
 }
 function openRisk(id) { const r = rk(id); if (!r) return; UI.view = 'risco'; UI.rid = id; UI.tab = Math.max(2, curPhase(r)); UI.draft = null; UI.warnAck = false; render(); }
+// Colunas da exportação, iguais no CSV e no Excel: título, tipo, largura máxima e valor.
+const MST = { critico: 'Crítico', alerta: 'Alerta', ok: 'Ideal' };
+const EXPORT = [
+  ['ID', 'txt', 10, r => r.id], ['Coordenadoria', 'txt', 14, r => r.unit], ['Título', 'txt', 40, r => r.titulo],
+  ['Causa', 'txt', 50, r => r.causa], ['Evento', 'txt', 50, r => r.evento], ['Impacto', 'txt', 50, r => r.impacto], ['Objetivo afetado', 'txt', 40, r => r.objetivo],
+  ['Probabilidade', 'num', 0, r => r.prob], ['Nota de impacto', 'num', 0, r => r.imp], ['Nível', 'num', 0, r => nivel(r) || ''], ['Faixa', 'txt', 12, r => (nivel(r) ? LV[band(nivel(r))] : '')],
+  ['Situação', 'txt', 20, r => STAT[r.status][0]], ['Exposição estimada', 'brl', 0, r => r.exposicao], ['Exposição esperada', 'brl', 0, r => (nivel(r) ? econ(r).cur : '')],
+  ['Tratamento', 'txt', 12, r => (r.prr ? cap(r.prr.tratamento) : '')], ['Ação', 'txt', 50, r => r.prr && r.prr.acao], ['Responsável', 'txt', 30, r => r.prr && r.prr.responsavel],
+  ['Prazo', 'data', 0, r => r.prr && r.prr.prazo], ['Custo do PRR', 'brl', 0, r => r.prr && r.prr.custo],
+  ['Exposição depois do PRR', 'brl', 0, r => (r.prr && nivel(r) ? econ(r).res : '')], ['Redução esperada', 'brl', 0, r => (r.prr && nivel(r) ? econ(r).gain : '')],
+  ['Retorno por real', 'x', 0, r => (r.prr && nivel(r) && econ(r).ratio != null ? econ(r).ratio : '')],
+  ['Métrica', 'txt', 40, r => r.prr && r.prr.metrica], ['Última medição', 'num', 0, r => (lastMed(r) ? lastMed(r).valor : '')], ['Estado da métrica', 'txt', 12, r => MST[metricSt(r)] || ''],
+];
+const expRows = () => scope().slice().sort((a, b) => nivel(b) - nivel(a)).map(r => EXPORT.map(c => c[3](r)));
 const csvq = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+// Excel em português lê ";" como separador e vírgula como decimal; o BOM garante os acentos.
+const csvv = (v, k) => (v == null || v === '' || v === false ? '' : k === 'data' ? fd(v) : k === 'brl' || k === 'x' ? String(Math.round(Number(v) * 100) / 100).replace('.', ',') : v);
 function csvAll() {
-  const h = ['ID', 'Coordenadoria', 'Título', 'Causa', 'Evento', 'Impacto', 'Objetivo', 'Probabilidade', 'Nota de impacto', 'Nível', 'Faixa', 'Situação', 'Tratamento', 'Ação', 'Custo (R$)', 'Responsável', 'Prazo', 'Métrica'];
-  return '﻿' + h.join(';') + '\n' + scope().map(r => [r.id, r.unit, r.titulo, r.causa, r.evento, r.impacto, r.objetivo, r.prob, r.imp, nivel(r), nivel(r) ? LV[band(nivel(r))] : '', STAT[r.status][0], r.prr ? r.prr.tratamento : '', r.prr ? r.prr.acao : '', r.prr ? r.prr.custo : '', r.prr ? r.prr.responsavel : '', r.prr ? fd(r.prr.prazo) : '', r.prr ? r.prr.metrica : ''].map(csvq).join(';')).join('\n');
+  return '\ufeff' + EXPORT.map(c => csvq(c[0])).join(';') + '\r\n' + expRows().map(r => r.map((v, i) => csvq(csvv(v, EXPORT[i][1]))).join(';')).join('\r\n');
+}
+function xlsxAll() {
+  const cols = EXPORT.map(c => ({ t: c[0], k: c[1], w: c[2] || 22 }));
+  const rows = expRows().map(r => r.map(v => (v === false || v == null ? '' : v)));
+  const E = scope().filter(r => r.status !== 'encerrado' && nivel(r)).map(r => ({ r, e: econ(r) }));
+  const por = UNITS.map(un => { const xs = E.filter(q => q.r.unit === un), s = k => xs.reduce((a, q) => a + q.e[k], 0);
+    return [un, xs.length, xs.filter(q => nivel(q.r) >= 12).length, s('cur'), s('res'), s('gain'), s('cost')]; }).filter(l => l[1]);
+  const ucols = [['Coordenadoria', 'txt'], ['Riscos ativos', 'num'], ['Alto ou extremo', 'num'], ['Exposição esperada', 'brl'], ['Depois dos PRRs', 'brl'], ['Redução esperada', 'brl'], ['Custo dos PRRs', 'brl']].map(c => ({ t: c[0], k: c[1], w: 22 }));
+  return xlsx([{ nome: 'Riscos', cols, rows }, { nome: 'Por coordenadoria', cols: ucols, rows: por }]);
 }
 async function runIA(review) {
   const st = document.getElementById('ia-status'), f = readIdent(), free = val('ia-text').trim();
@@ -627,6 +652,7 @@ async function doAct(a, el) {
     case 'copyrep': copyText('reptext'); break;
     case 'dl-rep': download('relatorio-csgr-mira.txt', reportText(), 'text/plain;charset=utf-8'); break;
     case 'dl-csv': download('riscos-mira.csv', csvAll(), 'text/csv;charset=utf-8'); break;
+    case 'dl-xlsx': download('riscos-mira.xlsx', xlsxAll(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); break;
     case 'pw-ask': UI.pwFor = el.dataset.id; render(true); break;
     case 'pw-cancel': UI.pwFor = null; render(true); break;
     case 'reset-pw': await api('POST', 'users/' + el.dataset.id + '/password', { password: val('pw-new') }); UI.pwFor = null; await refresh(true); toast('Senha redefinida. A pessoa precisa entrar de novo.'); break;
