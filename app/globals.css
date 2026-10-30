@@ -475,3 +475,26 @@ main>.card.decide{box-shadow:0 0 0 1px var(--accent),var(--shadow)}
 [aria-busy="true"]{cursor:progress}
 [aria-busy="true"] .btn,[aria-busy="true"] .qi,[aria-busy="true"] .rk{pointer-events:none}
 [aria-busy="true"] .btn{opacity:.6;transition:opacity .1s .15s}
+
+/* ===== Guia dos limites da métrica (PRR) ===== */
+.lim-guia{margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;background:var(--surface2)}
+.lim-guia p{margin:6px 0 0;line-height:1.45}
+.lim-ord{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.lim-lt{color:var(--muted);font-weight:600}
+
+/* ===== Contexto da coordenadoria no formulário do risco ===== */
+.ctx-peek{margin:0 0 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface2)}
+.ctx-peek>summary{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;list-style:none;color:var(--ink)}
+.ctx-peek>summary::-webkit-details-marker{display:none}
+.ctx-peek>summary::after{content:"Mostrar";margin-left:auto;color:var(--accent);font-size:12px;font-weight:600}
+.ctx-peek[open]>summary::after{content:"Ocultar"}
+.ctx-peek>summary>.ico{color:var(--accent);flex:none}
+.ctx-peek>summary small{display:block;color:var(--muted);font-size:12px}
+.ctx-peek>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.ctx-peek-b{display:grid;grid-template-columns:2fr 1fr 1.4fr;gap:14px;padding:4px 12px 12px;border-top:1px solid var(--line)}
+.ctx-peek-b>div{padding-top:10px}
+.ctx-peek-b p{margin:4px 0 0;font-size:13px;line-height:1.45}
+.ctx-peek-b>.hint{grid-column:1/-1;margin:0}
+.ctx-marcos{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:6px}
+.ctx-marcos li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:13px}
+@media (max-width:760px){.ctx-peek-b{grid-template-columns:1fr;gap:4px}}

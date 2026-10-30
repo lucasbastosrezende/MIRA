@@ -20,7 +20,7 @@ const initials = n => String(n || '').trim().split(/\s+/).filter(Boolean).slice(
 const lvc = n => (n ? '<span class="lv lv' + band(n) + '">' + LV[band(n)] + ' · ' + n + '</span>' : '<span class="st">Sem avaliação</span>');
 let alive = true;
 let S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [] };
-const UI = { view: 'paineis', panel: 'op', rid: null, tab: 2, filt: { unit: '', nv: '', st: '', cell: null }, ia: null, draft: null, warnAck: false, tce: null, ready: false, needsSetup: false, sampleOk: false, authErr: '', busy: false };
+const UI = { view: 'paineis', panel: 'op', rid: null, tab: 2, filt: { unit: '', nv: '', st: '', cell: null }, ia: null, draft: null, warnAck: false, tce: null, ready: false, needsSetup: false, sampleOk: false, authErr: '', busy: false, ctxPeek: false };
 const me = () => S.me;
 const rk = id => S.risks.find(r => r.id === id);
 const scope = () => S.risks; // o servidor já entrega só o que o perfil pode ver
@@ -289,6 +289,17 @@ function iaBox(r){const k=UI.rid;const ia=UI.ia&&UI.ia[k];if(!ia)return '';
   return '<div class="info-box" style="margin-top:10px"><b>Assistente de IA</b><div style="margin-top:4px">'+(ia.ehRisco===false?'<div class="warn-box">Isto parece um problema, não um risco. '+esc(ia.motivo||'')+'</div>':'<div>'+esc(ia.motivo||'Descrição reescrita no formato do MGR. Confira e ajuste os campos.')+'</div>')+'</div></div>'}
 function tabContexto(u,r){const un=r?r.unit:u.unit,c=S.ctx[un]||{escopo:'',marcos:[]},resp=respOf(un),ges=gestorOf(un);
   return '<div class="card"><h3>Fase 1 · Contexto da '+un+'</h3>'+roField('Escopo',c.escopo)+'<div class="field"><label>Responsáveis designados</label><div>'+((resp.length||ges)?resp.map(x=>'<span class="st info">'+esc(x)+'</span>').join(' ')+(ges?' <span class="st info">'+esc(ges)+' · gestor</span>':''):'<span class="muted">—</span>')+'</div></div><label>Cronograma de implementação</label>'+(c.marcos.length?'<table class="tbl"><tbody>'+c.marcos.map(m=>'<tr><td>'+esc(m.marco)+'</td><td class="mono">'+fd(m.data)+'</td><td>'+(m.feito?'<span class="st ok">Concluído</span>':'<span class="st">Previsto</span>')+'</td></tr>').join('')+'</tbody></table>':'<div class="muted">Nenhum marco cadastrado.</div>')+'<p style="margin-top:12px"><button class="btn" data-nav="contexto">Abrir contexto da coordenadoria</button></p></div>'}
+// Contexto da coordenadoria à mão enquanto se escreve o risco, sem sair do formulário.
+function ctxPeek(un){
+  const c=S.ctx[un]||{escopo:'',marcos:[]},resp=respOf(un),ges=gestorOf(un);
+  const prox=c.marcos.filter(m=>!m.feito).sort((a,b)=>String(a.data).localeCompare(String(b.data))).slice(0,3);
+  const marco=m=>'<li><span>'+esc(m.marco)+'</span><span class="small muted">'+fd(m.data)+'</span>'+(daysTo(m.data)<0?toneTag('warn','Atrasado'):toneTag('info','Previsto'))+'</li>';
+  const pessoas=resp.concat(ges?[ges+' (gestor)']:[]);
+  return '<details class="ctx-peek"'+(UI.ctxPeek?' open':'')+'><summary data-peek="1">'+ICO.info+'<span><b>Contexto da '+un+'</b><small>Escopo, responsáveis e próximos marcos</small></span></summary><div class="ctx-peek-b">'
+    +'<div><span class="eyebrow">Escopo</span>'+(c.escopo?'<p>'+esc(c.escopo)+'</p>':'<p class="muted">Escopo ainda não registrado.</p>')+'</div>'
+    +'<div><span class="eyebrow">Responsáveis</span><p>'+(pessoas.length?esc(pessoas.join(', ')):'<span class="muted">Ninguém designado.</span>')+'</p></div>'
+    +'<div><span class="eyebrow">Próximos marcos</span>'+(prox.length?'<ul class="ctx-marcos">'+prox.map(marco).join('')+'</ul>':'<p class="muted">Nenhum marco pendente.</p>')+'</div>'
+    +'<p class="hint">Confira se o risco está dentro do escopo. Para editar, use a aba Contexto.</p></div></details>'}
 function tabIdent(u,r,isNew){
   const ed=isNew?u.papel==='cadastrador':canEdit(u,r);
   const f=(UI.draft&&UI.draft._rid===UI.rid)?UI.draft:(isNew?{}:r);
@@ -302,7 +313,7 @@ function tabIdent(u,r,isNew){
   const side='<aside class="ident-side"><div class="side-card"><span class="eyebrow">Como o MGR lê esse risco</span><div class="preview" id="pv">'+previewHTML(f)+'</div><div id="sim"></div>'
     +(ed?'<button class="btn primary" data-act="save-ident" style="width:100%;margin-top:14px">'+(isNew?'Cadastrar e avaliar':'Salvar identificação')+'</button>':'')
     +'<div class="info-box callout" style="margin-top:12px">'+ICO.info+'<span>Risco é um evento <b>futuro e incerto</b>. Se já está acontecendo, é problema, não risco.</span></div></div></aside>';
-  return '<div class="card"><h3>Fase 2 · Identificação do risco</h3>'+ai+'<div class="ident"><div class="ident-main">'+main+'</div>'+side+'</div></div>'}
+  return '<div class="card"><h3>Fase 2 · Identificação do risco</h3>'+(ed?ctxPeek(isNew?u.unit:r.unit):'')+ai+'<div class="ident"><div class="ident-main">'+main+'</div>'+side+'</div></div>'}
 function avRes(p,i,r){const n=p&&i?p*i:0;
   return (n?'<p style="margin-bottom:8px">'+lvc(n)+'</p>':'<p class="muted">Escolha a probabilidade e o impacto.</p>')+matrix('score',null,n?{p,i}:null)}
 function tabAval(u,r){
@@ -327,6 +338,17 @@ function prrSummary(r){
     +tile('Redução de exposição',brlc(e.gain),brlc(e.cur)+' → '+brlc(e.res))
     +tile('Retorno por real',e.ratio!=null?ratioTxt(e.ratio):'—','Prazo: '+fd(p.prazo),e.ratio!=null&&e.ratio<1?'warn':'',null,'Abaixo de 1×')+'</div>'}
 // Resumo de quem está editando o PRR: usa os valores digitados e é recalculado a cada alteração.
+// Guia dos limites da métrica: muda com "Melhor quando…" e, com os números preenchidos, mostra como cada medição será classificada.
+function limGuia(p){
+  const menor=p.sentido!=='maior',u=p.unidadeMetrica?' '+esc(p.unidadeMetrica):'',lt=' <span class="lim-lt" aria-label="menor que">&lt;</span> ';
+  const ord=(menor?[['ok','Ideal'],['warn','Alerta'],['crit','Crítico']]:[['crit','Crítico'],['warn','Alerta'],['ok','Ideal']]).map(t=>toneTag(t[0],t[1])).join(lt);
+  const txt=menor?'<b>Menor é melhor</b> (ex.: horas fora do ar). Ideal é a meta e o menor número; crítico é o maior. Ex.: ideal 2, alerta 5, crítico 8.'
+    :'<b>Maior é melhor</b> (ex.: disponibilidade em %). Crítico é o menor número; ideal é a meta e o maior. Ex.: crítico 95, alerta 98, ideal 99,5.';
+  const c=Number(p.critico),a=Number(p.alerta),ok=[p.critico,p.alerta].every(v=>v!==''&&v!=null&&Number.isFinite(Number(v)))&&(menor?a<c:c<a);
+  const lei=!ok?'':'<p class="small">Cada medição será: '+(menor
+    ?'abaixo de '+fnum(a)+u+' → <b>Ideal</b> · de '+fnum(a)+' até abaixo de '+fnum(c)+u+' → <b>Alerta</b> · '+fnum(c)+u+' ou mais → <b>Crítico</b>.'
+    :'acima de '+fnum(a)+u+' → <b>Ideal</b> · acima de '+fnum(c)+' até '+fnum(a)+u+' → <b>Alerta</b> · '+fnum(c)+u+' ou menos → <b>Crítico</b>.')+'</p>';
+  return '<div class="lim-ord">'+ord+'</div><p class="small">'+txt+'</p>'+lei}
 function prrLiveHTML(r,p){
   const x=Object.assign({},r,{prr:Object.assign({},r.prr||emptyPrr(),p)}),e=econ(x),n=nivel(r),nr=(Number(p.probRes)||1)*(Number(p.impRes)||1);
   const c=Number(p.critico),a=Number(p.alerta),i=Number(p.ideal),menor=p.sentido==='menor',sig=menor?['≥','≥','≤']:['≤','≤','≥'];
@@ -352,7 +374,7 @@ function tabPrr(u,r){
     +sec(1,'Resposta ao risco',sel('p-trat','Forma de tratamento',Object.keys(TRAT).map(k=>[k,cap(k)+' — '+TRAT[k]]),p.tratamento)
       +'<div class="field"><label for="p-controles">Controles existentes</label><textarea id="p-controles" rows="2">'+esc(p.controles)+'</textarea><div class="hint">O que já existe hoje para reduzir esse risco.</div></div><div class="field"><label for="p-acao">Ação proposta</label><textarea id="p-acao" rows="3">'+esc(p.acao)+'</textarea><div class="hint">Mitigar, evitar ou transferir: o que será feito. Aceitar: por que o risco é aceito.</div></div>')
     +sec(2,'Responsável, prazo e custo','<div class="g3">'+inp('p-resp','Responsável pela ação',p.responsavel)+inp('p-prazo','Prazo',p.prazo?String(p.prazo).slice(0,10):'','date')+inp('p-custo','Custo estimado (R$)',p.custo,'number','min="0" step="1000"')+'</div>')
-    +sec(3,'Acompanhamento da métrica',inp('p-metrica','Métrica de acompanhamento',p.metrica)+'<div class="g2">'+inp('p-unid','Unidade',p.unidadeMetrica)+sel('p-sent','Melhor quando…',[['menor','o valor é menor'],['maior','o valor é maior']],p.sentido)+'</div><div class="g3">'+inp('p-crit','Crítico',p.critico,'number','step="any"')+inp('p-alerta','Alerta',p.alerta,'number','step="any"')+inp('p-ideal','Ideal',p.ideal,'number','step="any"')+'</div><div class="hint">Se menor é melhor: ideal &lt; alerta &lt; crítico. Se maior é melhor: crítico &lt; alerta &lt; ideal.</div>')
+    +sec(3,'Acompanhamento da métrica',inp('p-metrica','Métrica de acompanhamento',p.metrica)+'<div class="g2">'+inp('p-unid','Unidade',p.unidadeMetrica)+sel('p-sent','Melhor quando…',[['menor','o valor é menor'],['maior','o valor é maior']],p.sentido)+'</div><div class="g3">'+inp('p-crit','Crítico',p.critico,'number','step="any"')+inp('p-alerta','Alerta',p.alerta,'number','step="any"')+inp('p-ideal','Ideal',p.ideal,'number','step="any"')+'</div><div class="lim-guia" id="lim-guia" aria-live="polite">'+limGuia(p)+'</div>')
     +sec(4,'Risco residual','<div class="g2">'+sel('p-probres','Probabilidade residual',PROB.map((x,i)=>[i+1,(i+1)+' · '+x[0]]),p.probRes)+sel('p-impres','Impacto residual',IMPS.map((x,i)=>[i+1,(i+1)+' · '+x[0]]),p.impRes)+'</div><div class="hint">É o nível do risco depois do tratamento.</div>')
     +'</div><aside class="prr-side"><div class="side-card" id="prr-live">'+prrLiveHTML(r,p)+'</div></aside></div><div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">Enviar para validação do gestor</button></div>';
   const ro='<div class="kvgrid">'+roField('Forma de tratamento',cap(p.tratamento)+' — '+TRAT[p.tratamento],true)+roField('Controles existentes',p.controles,true)+roField('Ação proposta',p.acao,true)
@@ -679,6 +701,7 @@ async function onAuth(setup) {
   } catch (e) { UI.authErr = e.message; render(); }
 }
 const onClick = e => {
+  const pk = e.target.closest('summary[data-peek]'); if (pk && pk.dataset.peek) { UI.ctxPeek = !pk.parentNode.open; return; }
   const t = e.target.closest('[data-act],[data-open],[data-nav],[data-tab],[data-panel],[data-cell],[data-tce],[data-stfilt]'); if (!t) return;
   if (t.dataset.open) { e.preventDefault(); openRisk(t.dataset.open); return; }
   if (t.dataset.nav) { const n = t.dataset.nav; UI.rid = null; UI.draft = null; UI.warnAck = false; if (n === 'novo') { act('novo'); return; } if (n !== 'riscos' || UI.view !== 'riscos') UI.filt = { unit: '', nv: '', st: '', cell: null }; UI.view = n; render(); return; }
@@ -712,7 +735,7 @@ const onChange = e => {
 async function act2marco(idx) { if (isBusy()) return; setBusy(true); try { await api('POST', 'ctx/marco', { op: 'toggle', idx }); await refresh(true); } catch (e) { toast(e.message); await refresh(true); } finally { setBusy(false); } }
 // Resumo do PRR que acompanha o formulário: recalcula com o que está digitado.
 const isPrrField = t => !!t.id && t.id.indexOf('p-') === 0 && t.id !== 'p-err';
-function prrLive() { const el = document.getElementById('prr-live'), r = UI.rid && UI.rid !== 'new' ? rk(UI.rid) : null; if (el && r) el.innerHTML = prrLiveHTML(r, readPrr()); }
+function prrLive() { const el = document.getElementById('prr-live'), r = UI.rid && UI.rid !== 'new' ? rk(UI.rid) : null; if (el && r) el.innerHTML = prrLiveHTML(r, readPrr()); const g = document.getElementById('lim-guia'); if (g) g.innerHTML = limGuia(readPrr()); }
 const onInput = e => { if (e.target.dataset.live) { UI.warnAck = false; refreshIdent(); } else if (isPrrField(e.target)) prrLive(); };
 const onSubmit = e => {
   e.preventDefault();
