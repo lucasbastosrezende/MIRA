@@ -13,6 +13,7 @@ O sistema começa **vazio**: sem riscos, sem pessoas e sem dados de exemplo.
 | [docs/sistema.md](docs/sistema.md) | O que é o MIRA e como ele funciona por dentro |
 | [docs/pitch.md](docs/pitch.md) | Roteiro para apresentar o projeto |
 | [docs/testes.md](docs/testes.md) | Tabela de testes e resultados |
+| [docs/plano.md](docs/plano.md) | Plano de ação para a conformidade com o MGR: estado atual, regras fixas e o que fazer em cada item |
 | [CLAUDE.md](CLAUDE.md) | Regras de trabalho do repositório |
 
 ## Como rodar (localhost)
