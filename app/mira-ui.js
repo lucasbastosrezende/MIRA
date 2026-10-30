@@ -327,6 +327,17 @@ function prrSummary(r){
     +tile('Redução de exposição',brlc(e.gain),brlc(e.cur)+' → '+brlc(e.res))
     +tile('Retorno por real',e.ratio!=null?ratioTxt(e.ratio):'—','Prazo: '+fd(p.prazo),e.ratio!=null&&e.ratio<1?'warn':'',null,'Abaixo de 1×')+'</div>'}
 // Resumo de quem está editando o PRR: usa os valores digitados e é recalculado a cada alteração.
+// Guia dos limites da métrica: muda com "Melhor quando…" e, com os números preenchidos, mostra como cada medição será classificada.
+function limGuia(p){
+  const menor=p.sentido!=='maior',u=p.unidadeMetrica?' '+esc(p.unidadeMetrica):'',lt=' <span class="lim-lt" aria-label="menor que">&lt;</span> ';
+  const ord=(menor?[['ok','Ideal'],['warn','Alerta'],['crit','Crítico']]:[['crit','Crítico'],['warn','Alerta'],['ok','Ideal']]).map(t=>toneTag(t[0],t[1])).join(lt);
+  const txt=menor?'<b>Menor é melhor</b> (ex.: horas fora do ar). Ideal é a meta e o menor número; crítico é o maior. Ex.: ideal 2, alerta 5, crítico 8.'
+    :'<b>Maior é melhor</b> (ex.: disponibilidade em %). Crítico é o menor número; ideal é a meta e o maior. Ex.: crítico 95, alerta 98, ideal 99,5.';
+  const c=Number(p.critico),a=Number(p.alerta),ok=[p.critico,p.alerta].every(v=>v!==''&&v!=null&&Number.isFinite(Number(v)))&&(menor?a<c:c<a);
+  const lei=!ok?'':'<p class="small">Cada medição será: '+(menor
+    ?'abaixo de '+fnum(a)+u+' → <b>Ideal</b> · de '+fnum(a)+' até abaixo de '+fnum(c)+u+' → <b>Alerta</b> · '+fnum(c)+u+' ou mais → <b>Crítico</b>.'
+    :'acima de '+fnum(a)+u+' → <b>Ideal</b> · acima de '+fnum(c)+' até '+fnum(a)+u+' → <b>Alerta</b> · '+fnum(c)+u+' ou menos → <b>Crítico</b>.')+'</p>';
+  return '<div class="lim-ord">'+ord+'</div><p class="small">'+txt+'</p>'+lei}
 function prrLiveHTML(r,p){
   const x=Object.assign({},r,{prr:Object.assign({},r.prr||emptyPrr(),p)}),e=econ(x),n=nivel(r),nr=(Number(p.probRes)||1)*(Number(p.impRes)||1);
   const c=Number(p.critico),a=Number(p.alerta),i=Number(p.ideal),menor=p.sentido==='menor',sig=menor?['≥','≥','≤']:['≤','≤','≥'];
@@ -352,7 +363,7 @@ function tabPrr(u,r){
     +sec(1,'Resposta ao risco',sel('p-trat','Forma de tratamento',Object.keys(TRAT).map(k=>[k,cap(k)+' — '+TRAT[k]]),p.tratamento)
       +'<div class="field"><label for="p-controles">Controles existentes</label><textarea id="p-controles" rows="2">'+esc(p.controles)+'</textarea><div class="hint">O que já existe hoje para reduzir esse risco.</div></div><div class="field"><label for="p-acao">Ação proposta</label><textarea id="p-acao" rows="3">'+esc(p.acao)+'</textarea><div class="hint">Mitigar, evitar ou transferir: o que será feito. Aceitar: por que o risco é aceito.</div></div>')
     +sec(2,'Responsável, prazo e custo','<div class="g3">'+inp('p-resp','Responsável pela ação',p.responsavel)+inp('p-prazo','Prazo',p.prazo?String(p.prazo).slice(0,10):'','date')+inp('p-custo','Custo estimado (R$)',p.custo,'number','min="0" step="1000"')+'</div>')
-    +sec(3,'Acompanhamento da métrica',inp('p-metrica','Métrica de acompanhamento',p.metrica)+'<div class="g2">'+inp('p-unid','Unidade',p.unidadeMetrica)+sel('p-sent','Melhor quando…',[['menor','o valor é menor'],['maior','o valor é maior']],p.sentido)+'</div><div class="g3">'+inp('p-crit','Crítico',p.critico,'number','step="any"')+inp('p-alerta','Alerta',p.alerta,'number','step="any"')+inp('p-ideal','Ideal',p.ideal,'number','step="any"')+'</div><div class="hint">Se menor é melhor: ideal &lt; alerta &lt; crítico. Se maior é melhor: crítico &lt; alerta &lt; ideal.</div>')
+    +sec(3,'Acompanhamento da métrica',inp('p-metrica','Métrica de acompanhamento',p.metrica)+'<div class="g2">'+inp('p-unid','Unidade',p.unidadeMetrica)+sel('p-sent','Melhor quando…',[['menor','o valor é menor'],['maior','o valor é maior']],p.sentido)+'</div><div class="g3">'+inp('p-crit','Crítico',p.critico,'number','step="any"')+inp('p-alerta','Alerta',p.alerta,'number','step="any"')+inp('p-ideal','Ideal',p.ideal,'number','step="any"')+'</div><div class="lim-guia" id="lim-guia" aria-live="polite">'+limGuia(p)+'</div>')
     +sec(4,'Risco residual','<div class="g2">'+sel('p-probres','Probabilidade residual',PROB.map((x,i)=>[i+1,(i+1)+' · '+x[0]]),p.probRes)+sel('p-impres','Impacto residual',IMPS.map((x,i)=>[i+1,(i+1)+' · '+x[0]]),p.impRes)+'</div><div class="hint">É o nível do risco depois do tratamento.</div>')
     +'</div><aside class="prr-side"><div class="side-card" id="prr-live">'+prrLiveHTML(r,p)+'</div></aside></div><div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">Enviar para validação do gestor</button></div>';
   const ro='<div class="kvgrid">'+roField('Forma de tratamento',cap(p.tratamento)+' — '+TRAT[p.tratamento],true)+roField('Controles existentes',p.controles,true)+roField('Ação proposta',p.acao,true)
@@ -712,7 +723,7 @@ const onChange = e => {
 async function act2marco(idx) { if (isBusy()) return; setBusy(true); try { await api('POST', 'ctx/marco', { op: 'toggle', idx }); await refresh(true); } catch (e) { toast(e.message); await refresh(true); } finally { setBusy(false); } }
 // Resumo do PRR que acompanha o formulário: recalcula com o que está digitado.
 const isPrrField = t => !!t.id && t.id.indexOf('p-') === 0 && t.id !== 'p-err';
-function prrLive() { const el = document.getElementById('prr-live'), r = UI.rid && UI.rid !== 'new' ? rk(UI.rid) : null; if (el && r) el.innerHTML = prrLiveHTML(r, readPrr()); }
+function prrLive() { const el = document.getElementById('prr-live'), r = UI.rid && UI.rid !== 'new' ? rk(UI.rid) : null; if (el && r) el.innerHTML = prrLiveHTML(r, readPrr()); const g = document.getElementById('lim-guia'); if (g) g.innerHTML = limGuia(readPrr()); }
 const onInput = e => { if (e.target.dataset.live) { UI.warnAck = false; refreshIdent(); } else if (isPrrField(e.target)) prrLive(); };
 const onSubmit = e => {
   e.preventDefault();

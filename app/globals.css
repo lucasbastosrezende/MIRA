@@ -475,3 +475,9 @@ main>.card.decide{box-shadow:0 0 0 1px var(--accent),var(--shadow)}
 [aria-busy="true"]{cursor:progress}
 [aria-busy="true"] .btn,[aria-busy="true"] .qi,[aria-busy="true"] .rk{pointer-events:none}
 [aria-busy="true"] .btn{opacity:.6;transition:opacity .1s .15s}
+
+/* ===== Guia dos limites da métrica (PRR) ===== */
+.lim-guia{margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;background:var(--surface2)}
+.lim-guia p{margin:6px 0 0;line-height:1.45}
+.lim-ord{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.lim-lt{color:var(--muted);font-weight:600}
