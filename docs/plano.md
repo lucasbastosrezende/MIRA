@@ -2,7 +2,7 @@
 
 Plano para levar o MIRA ao Modelo de Gestão de Riscos (MGR) da SETIC, edital v1.0 de 01/10/2025. Parte da análise "MIRA · Alterações sugeridas pelo Modelo de Gestão de Riscos" (30/10/2026), feita sobre `origin/desenvolvimento` no commit `37c5b34`. Este arquivo foi escrito para quem continuar o trabalho num chat novo, sem o histórico da conversa: cada item diz **o que deve ser feito**, **como pode ser feito** no código atual, **o que já existe**, **o que depende de decisão** e **como conferir**.
 
-Revisto em 30/10/2026 com o próprio MGR (PDF de 2025) e com o edital do Hackathon SETIC (Desafio 3). **A seção 3 separa o que os documentos obrigam do que é melhoria**; comece por ela.
+Revisto em 30/10/2026 com o próprio MGR (PDF de 2025). **A única fonte de obrigação é o MGR.** A seção 3 separa o que ele obriga do que é melhoria; comece por ela.
 
 "p." é a página impressa do MGR. Os caminhos são relativos à raiz do repositório e valem para a branch `desenvolvimento-resolvendo-problemas`, que saiu de `docs/plano-conformidade-mgr` e já contém as branches 1 a 5 da seção 1. Números de linha mudam: procure pelo nome da função.
 
@@ -77,33 +77,30 @@ São regras do usuário e do `CLAUDE.md`. Só mudam se o usuário disser explici
 
 ## 3. O que é obrigatório (texto expresso, sem interpretação)
 
-Fontes: o MGR v1.0 (PDF "Modelo de Gestão de Riscos", 2025) e o edital do Hackathon SETIC, Desafio 3 (p. 6–7), que diz: "campos, escalas, níveis, categorias e tratamento seguem o MGR". Esta seção lista só o que um dos dois documentos diz de forma expressa. O que depende de leitura ou de escolha ficou fora daqui e está na seção 7 ou nas melhorias.
+Fonte única: o **MGR v1.0** (PDF "Modelo de Gestão de Riscos", Setic, 2025). Esta seção lista só o que o MGR diz de forma expressa. Outros documentos (o edital do hackathon, a análise anterior) não criam obrigação; o que vem deles ou depende de leitura ou de escolha está na seção 7 ou nas melhorias.
 
-"MGR p." é a página impressa do MGR; "Hack. p." é a página do edital do hackathon.
+"p." é a página impressa do MGR.
 
-| # | Regra (o que o documento diz) | Fonte | Situação no código | O que fazer |
+| # | Regra (o que o MGR diz) | Fonte | Situação no código | O que fazer |
 |---|---|---|---|---|
-| O1 | O perfil que aprova os PRRs e faz o relatório anual é a **CSGR**. "Alta gestão" é quem o CGGE subsidia, e não a CSGR. | MGR p. 4, 7 (Quadro 1), 20–23; Hack. p. 6–7 | Errado na branch 3: o perfil aparece como "Alta Gestão de Riscos" (`PAPEL.altagestao`, `STAT.ag_altagestao` "Aguardando Alta Gestão"). | Voltar a exibir "CSGR" em toda a tela, nos avisos, no relatório e na documentação. O código interno fica para o Passo 0 (seção 4). |
-| O2 | Faixas da Figura 5: **1–2 Irrelevante, 3–4 Baixo, 5–9 Médio, 10–16 Alto, 20–25 Extremo**. O exemplo 2 × 5 = 10 é Alto. | MGR p. 17–18 | Errado: `band` usa 3–5 / 6–10 / 12–16. | Item 1 e 27 (Etapa 1). |
-| O3 | Cores da legenda: Extremo **vermelho**, Alto **laranja**, Médio **amarelo**, Baixo **verde**, Irrelevante **azul claro**. | MGR p. 18 | Parcial: `--l0` é cinza-azulado (`#DDE3EA`). | Item 21 (Etapa 1): `--l0` azul claro e `--l4` vermelho nos três blocos de `globals.css`. |
-| O4 | Descrição de cada nota de **probabilidade** é a do Quadro 2, literal (ver abaixo). | MGR p. 15; Hack. p. 7 ("com a descrição de cada nota") | Errado: `PROB` tem frequências inventadas ("menos de 1 vez a cada 5 anos"). | Trocar o texto de `PROB` pelo Quadro 2. Sai da Etapa 2: não depende mais de decisão. |
-| O5 | Descrição de cada nota de **impacto** é a do Quadro 3, literal (ver abaixo). | MGR p. 16–17 | Errado: `IMPS` tem textos próprios. | Trocar o texto de `IMPS` pelo Quadro 3. |
-| O6 | Formas de tratamento: evitar, transferir, mitigar, aceitar, **com o sentido do MGR** (ver abaixo). | MGR p. 20–21; Hack. p. 7 | Parcial: os quatro nomes existem, mas `TRAT` tem textos próprios (ex.: "aceitar" sem a condição de custo ou nível reduzido). | Trocar o texto de `TRAT`. |
-| O7 | A probabilidade é dada "na **linha do tempo definida**" (ex.: "considerando os últimos 12 meses"). | MGR p. 14–15 | Falta. | Item 3: campo obrigatório "Linha do tempo" na avaliação, mostrado na pergunta da probabilidade e na exportação. |
-| O8 | O nível de criticidade "deve **considerar as ações de controle já existentes**". O nível que vai para a matriz e o mapa é esse. | MGR p. 14 | Falta: "Controles existentes" só aparece no PRR, depois da nota. | Item 4: "Controles existentes" passa para a avaliação, **antes** das notas. Isso responde a dúvida "inerente ou residual": as faixas e o mapa usam o nível avaliado com os controles existentes. |
-| O9 | Categorização do risco pelas setoriais: **CAGD, Coge, Code, Cosegi, Caf e Coinfra** (decisão já tomada pela CSGR). | MGR p. 27 (Apêndice B); Hack. p. 7 | Falta: não existe campo de categorização; a coordenadoria é criada livre pelo administrador. | Todo risco tem uma das 6 categorias. Como ligar isso às coordenadorias criáveis é pergunta ao usuário (seção 7). |
-| O10 | A planilha de identificação e avaliação tem: Setorial, Data, ID, **Categorização**, Causa, Risco (evento), Impacto, Probabilidade, Impacto (nota), Nível de risco. | MGR p. 28 (Apêndice C) | Parcial. | Item 16: a exportação ganha essas colunas, com esses nomes. |
-| O11 | O PRR tem: Setorial, Data, ID, Categorização, Risco (evento), **Controles existentes**, Ação proposta, Métrica, Responsável, Parâmetros **Crítico, Alerta e Ideal**. | MGR p. 29 (Apêndice D); Hack. p. 7 | Parcial: os campos existem, mas a exportação não traz todos. | Item 16a e 16b. |
-| O12 | A CSGR "emitirá **parecer** favorável ou não, apresentando as correções necessárias ou sugerindo melhorias". | MGR p. 21 | Parcial: o motivo é opcional na aprovação. | Item 20: parecer obrigatório na aprovação e na devolução. Sai da Etapa 2. |
-| O13 | Os PRRs são reunidos num **relatório anual** feito pela CSGR. | MGR p. 23; Hack. p. 6–7 | Parcial: o relatório não lista os PRRs. | Item 14: seção com cada PRR. |
-| O14 | Contexto tem como entregáveis: escopo, designação dos responsáveis, roadmap (cronograma) e **apresentação do MGR à equipe**, com a linha do tempo. | MGR p. 10–11; Hack. p. 7 ("escopo, responsáveis designados e cronograma") | Parcial: escopo e marcos existem; a designação existe pelo cadastro com SEI; a apresentação do MGR à equipe não é registrada. | Item 17: registrar a data da apresentação do MGR à equipe. O checklist das 8 ações do Apêndice A **não** é obrigatório (o MGR o chama de "exemplo", p. 11). |
-| O15 | Os riscos podem ser reavaliados em 5 situações: novos riscos, **mudança no nível**, ocorrência do evento, mudança no PRR, mudança no processo. | MGR p. 22 | Parcial: o aviso só sai quando o nível sobe. | Item 19a: aviso quando o nível muda, para cima ou para baixo. |
-| O16 | Comunicação em todas as fases, com aviso a cada passo: **designação**, aprovação, devolução, métrica no alerta, prazo vencendo. | MGR p. 22; Hack. p. 7 | Parcial: existem os avisos de aprovação, devolução, evento, revisão, medição e prazo; **falta o de designação**. | Item 11: aviso ao gestor e à pessoa quando alguém é designado na coordenadoria. |
-| O17 | A IA "pode ler os dados, mas eles **não podem ser usados para treinar o modelo**". | Hack. p. 6–7 | Sem registro: o sistema não diz isso nem garante. | Item 26: escrever a regra no código e na tela do assistente, e só ligar a IA com um provedor que garanta isso por contrato. |
-| O18 | O CGGE **consulta**. | Hack. p. 7; MGR p. 7 | Feito: `cgge: 'CGGE · consulta'`, só leitura. | Nada. A dúvida "o CGGE aprova iniciativas?" sai da Etapa 2: a resposta é não. |
-| O19 | O gestor (titular da coordenadoria) **aprova**, elabora o PRR, define o escopo e acompanha o monitoramento. | MGR p. 8, 10, 20, 22; Hack. p. 7 | Feito: `gestor-ok`, `canEdit`, `ctxEdit` e `canMon` aceitam o gestor (branch 4). | Nada obrigatório. |
-| O20 | Duas pessoas indicadas por unidade cadastram e editam os riscos da unidade. | Hack. p. 6–7 | Feito: limite de 2 cadastradores ativos por coordenadoria (`lib/service.js`). | Nada. |
-| O21 | Histórico de cada alteração: quem, quando e o quê. | Hack. p. 7 | Feito: trilha de auditoria. | Nada. |
+| O1 | O perfil que aprova os PRRs e faz o relatório anual é a **CSGR**. "Alta gestão" é quem o CGGE subsidia, e não a CSGR. | p. 4, 7 (Quadro 1), 20–23 | Errado na branch 3: o perfil aparece como "Alta Gestão de Riscos" (`PAPEL.altagestao`, `STAT.ag_altagestao` "Aguardando Alta Gestão"). | Voltar a exibir "CSGR" em toda a tela, nos avisos, no relatório e na documentação, e o código interno para `csgr` (Passo 0, seção 4). |
+| O2 | Faixas da Figura 5: **1–2 Irrelevante, 3–4 Baixo, 5–9 Médio, 10–16 Alto, 20–25 Extremo**. O exemplo 2 × 5 = 10 é Alto. | p. 17–18 | Errado: `band` usa 3–5 / 6–10 / 12–16. | Item 1 e 27 (Etapa 1). |
+| O3 | Cores da legenda: Extremo **vermelho**, Alto **laranja**, Médio **amarelo**, Baixo **verde**, Irrelevante **azul claro**. | p. 18 | Parcial: `--l0` é cinza-azulado (`#DDE3EA`). | Item 21 (Etapa 1): `--l0` azul claro e `--l4` vermelho nos três blocos de `globals.css`. |
+| O4 | Para a probabilidade, "deve-se considerar o Quadro 2": a descrição de cada nota é a do Quadro 2, literal (ver abaixo). | p. 15 | Errado: `PROB` tem frequências inventadas ("menos de 1 vez a cada 5 anos"). | Trocar o texto de `PROB` pelo Quadro 2. Não depende de decisão. |
+| O5 | Para o impacto, "deve-se considerar o Quadro 3": a descrição de cada nota é a do Quadro 3, literal (ver abaixo). | p. 16–17 | Errado: `IMPS` tem textos próprios. | Trocar o texto de `IMPS` pelo Quadro 3. |
+| O6 | Formas de tratamento: evitar, transferir, mitigar, aceitar, **com o sentido do MGR** (ver abaixo). | p. 20–21 | Parcial: os quatro nomes existem, mas `TRAT` tem textos próprios (ex.: "aceitar" sem a condição de custo ou nível reduzido). | Trocar o texto de `TRAT`. |
+| O7 | A probabilidade é dada "na **linha do tempo definida**" (ex.: "considerando os últimos 12 meses"). | p. 14–15 | Falta. | Item 3: campo obrigatório "Linha do tempo" na avaliação, mostrado na pergunta da probabilidade e na exportação. |
+| O8 | O nível de criticidade "deve **considerar as ações de controle já existentes**". O nível que vai para a matriz e o mapa é esse. | p. 14 | Falta: "Controles existentes" só aparece no PRR, depois da nota. | Item 4: "Controles existentes" passa para a avaliação, **antes** das notas. Isso responde a dúvida "inerente ou residual": as faixas e o mapa usam o nível avaliado com os controles existentes. |
+| O9 | Os riscos devem ser categorizados; a CSGR optou pela categorização pelas setoriais: **CAGD, Coge, Code, Cosegi, Caf e Coinfra**. | p. 13, 27 (Apêndice B) | Falta: não existe campo de categorização; a coordenadoria é criada livre pelo administrador. | As 6 setoriais viram modelo pronto de coordenadoria (resposta do usuário, seção 7); a categorização do risco é a coordenadoria dele. |
+| O10 | A planilha de identificação e avaliação tem: Setorial, Data, ID, **Categorização**, Causa, Risco (evento), Impacto, Probabilidade, Impacto (nota), Nível de risco. | p. 28 (Apêndice C) | Parcial. | Item 16: a exportação ganha essas colunas, com esses nomes. |
+| O11 | O PRR tem: Setorial, Data, ID, Categorização, Risco (evento), **Controles existentes**, Ação proposta, Métrica, Responsável, Parâmetros **Crítico, Alerta e Ideal**. | p. 29 (Apêndice D) | Parcial: os campos existem, mas a exportação não traz todos. | Itens 16a e 16. |
+| O12 | A CSGR "emitirá **parecer** favorável ou não, apresentando as correções necessárias ou sugerindo melhorias". | p. 21 | Parcial: o motivo é opcional na aprovação. | Item 20: parecer obrigatório na aprovação e na devolução. |
+| O13 | Os PRRs "serão concatenados em um **relatório**", elaborado pela CSGR e "atualizado periodicamente, a cada ano". | p. 23 | Parcial: o relatório não lista os PRRs. | Item 14: seção com cada PRR. |
+| O14 | Contexto tem como entregáveis: escopo, designação dos responsáveis, roadmap e **apresentação do MGR à equipe**, com a linha do tempo da implementação. | p. 10–11 | Parcial: escopo e marcos existem; a designação existe pelo cadastro com SEI; a apresentação do MGR à equipe não é registrada. | Item 17: registrar a data da apresentação do MGR à equipe. O checklist das 8 ações do Apêndice A **não** é obrigatório (o MGR o chama de "exemplo", p. 11). |
+| O15 | Os riscos podem ser reavaliados em 5 situações: novos riscos, **mudança no nível**, ocorrência do evento, mudança no PRR, mudança no processo. | p. 22 | Parcial: o aviso só sai quando o nível sobe. | Item 19a: aviso quando o nível muda, para cima ou para baixo. |
+| O16 | Comunicação em todas as 5 fases, "que garanta a interação entre todos os envolvidos". O MGR não diz a forma. | p. 9 (Figura 2), 22 | Feito em parte: avisos de aprovação, devolução, evento, revisão, medição e prazo. | Nada específico obrigatório. Avisos a mais (designação, criação de risco) são melhoria (item 11). |
+| O17 | O gestor de riscos (titular da coordenadoria) elabora o PRR, define o escopo, designa os responsáveis, aprova "a identificação, análise e tratamento", acompanha o monitoramento e estabelece prazos. | p. 8, 10, 20 | Feito: `gestor-ok`, `canEdit`, `ctxEdit`, `canMon` e o prazo do PRR aceitam o gestor (branch 4). | Nada obrigatório. |
+| O18 | O monitoramento é feito "pelo gestor do risco em conjunto com os designados no PRR, sob supervisão da CSGR", com referência na métrica e nos parâmetros. | p. 22 | Feito: `canMon` (gestor e cadastrador), medições pela métrica e pelos parâmetros, CSGR vê todos. | Nada. |
 
 ### Textos literais do MGR
 
@@ -149,7 +146,11 @@ Usar estes textos sem mudar palavras. No MGR, o cabeçalho dos Quadros 2 e 3 est
 - **Percentuais e valores em reais (item 13), risco residual e retorno por real:** não existem no MGR. São acréscimos do MIRA. O item 12 continua na Etapa 1 porque hoje o número mostrado está errado, não por exigência do MGR.
 - **Checklist das 8 ações do Apêndice A (item 17):** o MGR o apresenta como exemplo.
 - **Aprovação separada da avaliação pelo gestor (item 5):** o Quadro 1 pede que o gestor aprove "a identificação, análise e tratamento", e o `gestor-ok` já aprova os três juntos no envio do PRR. Uma etapa a mais é escolha, não exigência.
-- **Ação "dar conhecimento ao CGGE" (item 8):** é competência da CSGR na Portaria 41, mas o CGGE só consulta no sistema.
+- **Papel do CGGE (item 8):** o MGR diz só que o CGGE subsidia a alta gestão na avaliação e aprovação das iniciativas (p. 7); não lhe dá etapa no fluxo do risco. O perfil de consulta que já existe é compatível. "Dar conhecimento ao CGGE" é competência da CSGR na Portaria 41 (p. 5), sem forma definida.
+- **Limite de 2 cadastradores por coordenadoria:** o MGR fala em "responsável ou responsáveis" (p. 10), sem número. O limite atual é escolha do sistema, não do MGR.
+- **Histórico de alterações (auditoria):** o MGR não exige; o sistema já tem e mantém.
+- **IA (itens 22 e 26):** o MGR não fala em IA. O prompt usa os textos dos Quadros 2 e 3 só para não contradizer o MGR. Desligar a IA, avisar que o texto sai do servidor e proibir o uso dos dados para treino são decisões de segurança, fora do MGR.
+- **Avisos de designação e de criação de risco (item 11):** o MGR pede comunicação entre todos, sem dizer quais avisos.
 - **Critérios de tratamento (item 15):** o MGR manda considerar restrições legais e recursos (p. 21), mas o modelo de PRR (Apêndice D) não tem colunas para isso. Campos próprios são melhoria.
 - **Priorização (item 18), descartar risco (19b), prorrogar prazo (9b), responsável vinculado a usuário (10):** úteis, mas sem regra expressa que diga como fazer.
 - **Itens de segurança 23, 24 e 25:** fora do MGR, mas continuam na Etapa 1 por serem falhas.
@@ -162,7 +163,7 @@ Antes de código novo.
 
 1. **Nome do perfil (obrigatório, O1).** No MGR, a CSGR aprova os PRRs e faz o relatório; o CGGE subsidia "a alta gestão" (p. 7). A troca para "Alta Gestão de Riscos" (`feature/nome-alta-gestao-de-riscos`, commit `2119b47`) mistura os dois e precisa ser desfeita.
    - **Deve ser feito:** voltar a exibir "CSGR" em toda a tela.
-   - **Nome por extenso (respondido): Comissão de Supervisão de Gestão de Riscos.** O MGR usa duas formas. "Comissão de Supervisão **de** Gestão de Riscos" aparece no Quadro 1 (p. 7), nas fases 3.4 a 3.6 (p. 20–23), no Apêndice B, na folha de equipe e no edital do hackathon. "Comissão de Supervisão **e** Gestão de Riscos" aparece no item 2.1 (p. 4), que cita a Portaria 41, e no Apêndice A (p. 25). O usuário escolheu a primeira.
+   - **Nome por extenso (respondido): Comissão de Supervisão de Gestão de Riscos.** O MGR usa duas formas. "Comissão de Supervisão **de** Gestão de Riscos" aparece no Quadro 1 (p. 7), nas fases 3.4 a 3.6 (p. 20–23), no Apêndice B e na folha de equipe. "Comissão de Supervisão **e** Gestão de Riscos" aparece no item 2.1 (p. 4), que cita a Portaria 41, e no Apêndice A (p. 25). O usuário escolheu a primeira.
    - **Pode ser feito assim:** como a branch não foi mesclada, fazer um commit novo (sem reescrever o histórico) que restaura os textos de tela. Para o código interno há duas opções:
      - (a) manter `altagestao` no código e trocar só `PAPEL.altagestao` e os textos;
      - (b) voltar para `csgr`, com uma migração `user_version 3` em `lib/db.js` que faz o caminho inverso da versão 2 (pessoas, riscos e avisos) e com `auditNovo` traduzindo também `altagestao` para `csgr`.
@@ -184,13 +185,13 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 | 2 | Descrições de probabilidade e impacto | O4, O5 | Pendente (texto já definido) | 1 |
 | 3 | Linha do tempo da probabilidade | O7 | Pendente | 1 |
 | 4 | Controles existentes antes das notas | O8 | Pendente (já definido) | 1 |
-| 5 | Gestor sem as etapas do edital | O19 | Feito no que é obrigatório (branch 4) | — |
-| 6 | Monitoramento sem o gestor | O19 | Feito (branch 4) | — |
+| 5 | Gestor sem as etapas do edital | O17 | Feito no que é obrigatório (branch 4) | — |
+| 6 | Monitoramento sem o gestor | O18 | Feito (branch 4) | — |
 | 7 | Apetite a risco e alçada | Melhoria ("poderá") | Pendente (decisão) | 3 |
-| 8 | Papel do CGGE | O18 | Feito (só consulta) | — |
+| 8 | Papel do CGGE | Melhoria (o MGR não dá etapa ao CGGE) | Feito (só consulta) | — |
 | 9 | PRR travado depois da aprovação | Melhoria | Parcial | 3 |
 | 10 | Responsável da ação em texto livre | Melhoria | Parcial | 3 |
-| 11 | Comunicação: aviso de designação | O16 | Parcial | 1 |
+| 11 | Avisos de designação e de criação de risco | Melhoria (O16 não diz a forma) | Parcial | 3 |
 | 12 | Residual padrão 1 × 1 | Correção (número errado) | Parcial | 1 |
 | 13 | Percentuais e reais sem base | Melhoria (fora do MGR) | Pendente (decisão) | 3 |
 | 14 | Relatório anual sem os PRRs | O13 | Parcial | 1 |
@@ -201,11 +202,11 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 | 19 | Aviso de mudança de nível (19a) e descarte (19b) | O15 (19a); melhoria (19b) | Pendente | 1 e 3 |
 | 20 | Parecer da CSGR | O12 | Pendente | 1 |
 | 21 | Escala na reavaliação e cores da matriz | O3 | Pendente | 1 |
-| 22 | IA sem as definições do edital | O4, O5 | Pendente | 1 |
+| 22 | IA com os textos dos Quadros 2 e 3 | Consequência de O4 e O5 | Pendente | 1 |
 | 23 | Bloqueio de login burlável | Correção (segurança) | Pendente | 1 |
 | 24 | CSV sem proteção contra fórmulas | Correção (segurança) | Pendente | 1 |
 | 25 | Primeiro acesso e cookie | Correção (segurança) | Parcial | 1 |
-| 26 | IA sem treino com os dados | O17 | Pendente | 1 |
+| 26 | IA externa (desligar, aviso, sem treino) | Melhoria (fora do MGR) | Pendente (decisão de segurança) | 3 |
 | 27 | Faixas repetidas e testes sem o edital | O2 | Pendente | 1 |
 | 28 | Nome do perfil CSGR | O1 | Pendente | Passo 0 |
 | 29 | Textos das formas de tratamento | O6 | Pendente | 1 |
@@ -216,7 +217,7 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 
 Tudo o que a seção 3 marca como obrigatório, mais as correções de número e de segurança. Nada aqui depende da CSGR: o texto já está nos documentos. Trabalho na branch `desenvolvimento-resolvendo-problemas` (nome pedido pelo usuário) e **um PR quando o usuário pedir**.
 
-Ordem sugerida dentro da etapa: 28 (nome CSGR) → 1 e 27 (faixas) → 2, 29 e 22 (textos do MGR) → 3 e 4 (avaliação) → categorização → 16 (exportação) → 20, 14, 17, 11, 19a → 12, 21 → 26 → 23, 24, 25.
+Ordem sugerida dentro da etapa: 28 (nome CSGR) → 1 e 27 (faixas) → 2, 29 e 22 (textos do MGR) → 3 e 4 (avaliação) → categorização → 16 (exportação) → 20, 14, 17, 19a → 12, 21 → 23, 24, 25.
 
 ### 1 e 27 · Faixas de nível
 
@@ -324,16 +325,6 @@ Ordem sugerida dentro da etapa: 28 (nome CSGR) → 1 e 27 (faixas) → 2, 29 e 2
 
 - **Pode ser feito assim:** no contexto (`ctxEscopo`/`ctxMarco` em `lib/service.js`, `ctxCards` em `app/mira-ui.js`), registrar a data da apresentação do MGR à equipe, com auditoria. O cronograma já existe nos marcos.
 
-### 11 · Aviso de designação (O16)
-
-- **Pode ser feito assim:** quando o administrador cadastra ou reativa um cadastrador ou gestor numa coordenadoria, `alertAdd('designacao', …)` para o gestor da coordenadoria e para a própria pessoa.
-- **Conferir:** teste da API (cadastrar pessoa gera o aviso).
-
-### 26 · IA sem treino com os dados (O17)
-
-- **Deve:** os dados lidos pela IA não podem ser usados para treinar o modelo.
-- **Pode ser feito assim:** escrever a regra em `lib/api.js`, onde a chamada é feita; mostrar na tela do assistente que o texto vai para um serviço externo que não usa os dados para treino; variável `MIRA_IA=0|1` para desligar; registrar cada uso na auditoria. A garantia de não treino tem de vir do contrato do provedor e deve ser citada em `docs/sistema.md`.
-
 ---
 
 ## 7. Perguntas e decisões
@@ -357,7 +348,13 @@ Ordem sugerida dentro da etapa: 28 (nome CSGR) → 1 e 27 (faixas) → 2, 29 e 2
 
 ### Decisões que os documentos já resolveram (não perguntar de novo)
 
-- Nome do perfil: CSGR (O1). Texto das notas: Quadros 2 e 3 (O4, O5). Nível usado nas faixas: o avaliado com os controles existentes (O8). Papel do CGGE: consulta (O18). Parecer na aprovação: obrigatório (O12). IA externa: permitida, sem treino com os dados (O17).
+- Nome do perfil: CSGR (O1). Texto das notas: Quadros 2 e 3 (O4, O5). Nível usado nas faixas: o avaliado com os controles existentes (O8). Parecer na aprovação: obrigatório (O12). Papel do gestor: elabora e aprova (O17).
+
+### Fora do MGR
+
+| Decisão | Item | Quem decide |
+|---|---|---|
+| IA externa: permitir, permitir com aviso ou proibir; uso dos dados para treino | 26 | Coordenadoria de Segurança da Informação. Até lá, desligada por padrão. |
 
 ---
 
@@ -381,7 +378,7 @@ Um ou dois PRs, conforme o tamanho, quando o usuário pedir. Os itens obrigatór
 - Testes das duas regras.
 
 ### 8 · CGGE
-- O CGGE só consulta (O18), e isso já existe. Opcional:
+- O CGGE só consulta, e isso já existe. O MGR não lhe dá etapa no fluxo. Opcional:
 - Incluir `'cgge'` nas listas `para` de `alertAdd` para nível alto ou extremo e evento ocorrido. `visible` em `lib/logic.js` já deixa o CGGE ver avisos de todas as unidades.
 - Ação "Dar conhecimento ao CGGE" para a CSGR, com data registrada no risco e na auditoria.
 
@@ -395,9 +392,16 @@ Um ou dois PRs, conforme o tamanho, quando o usuário pedir. Os itens obrigatór
   - Vincular o "Responsável pela ação" do PRR a um usuário (opcional; texto livre continua valendo para pessoas de fora do sistema). Com vínculo, o aviso de prazo chega a essa pessoa.
   - Registro de execução com data e descrição (ampliar `concluir-acao` com o campo "o que foi feito").
 
-### 11 · Comunicação (além do aviso de designação)
+### 11 · Comunicação
+- Aviso de designação: quando o administrador cadastra ou reativa um cadastrador ou gestor numa coordenadoria, `alertAdd('designacao', …)` para o gestor da coordenadoria e para a própria pessoa.
 - Avisar o gestor quando um risco é criado (`createRisk`) e quando a avaliação muda (`updateAval`), com `alertAdd`.
 - Preparar o envio por e-mail atrás de uma interface (hoje simulado). O serviço de e-mail é decisão de infraestrutura e não deve entrar como dependência sem aprovação.
+
+### 26 · IA externa
+- Variável `MIRA_IA=0|1`, desligada por padrão.
+- Aviso na tela do assistente: o texto sai do servidor e vai para um serviço externo.
+- Só ligar com provedor que garanta, por contrato, que os dados não são usados para treino; citar isso em `docs/sistema.md`.
+- Registro na auditoria de cada uso.
 
 ### 13 · Premissas financeiras
 - Percentuais de probabilidade em `config` (item 7), aprovados pela CSGR, com data e responsável.
@@ -423,7 +427,7 @@ Ação `descartar` em `riskAction`, em `rascunho` e `avaliado`, com motivo obrig
 
 ## 9. Como conferir cada entrega
 
-- **Testes automáticos:** criar `tests/mgr.test.js` com uma verificação para cada regra O1 a O21 da seção 3, citando a página do MGR ou do edital do hackathon, mais o residual obrigatório. Incluir no `npm test`.
+- **Testes automáticos:** criar `tests/mgr.test.js` com uma verificação para cada regra O1 a O18 da seção 3, citando a página do MGR, mais o residual obrigatório. Incluir no `npm test`.
 - **Antes de cada commit:** `npm run test:api` e `node --no-warnings tests/ui.smoke.mjs` passando, e o Prettier sem diferenças.
 - **Roteiro de navegador** na cópia da porta 3200 (seção 1), com os cenários afetados atualizados (o T19 muda com as faixas novas).
 - **Documentação:** `docs/sistema.md`, `README.md` e `docs/testes.md` (nova rodada).
@@ -435,9 +439,9 @@ Ação `descartar` em `riskAction`, em `rascunho` e `avaliado`, com motivo obrig
 ## 10. Ordem resumida
 
 1. **Passo 0:** perguntas respondidas (seção 7); falta voltar o perfil para `csgr` (item 28).
-2. **Etapa 1 (obrigatório e correções):** itens 28, 1, 27, 2, 29, 22, 3, 4, categorização, 16, 20, 14, 17, 11, 19a, 12, 21, 26, 23, 24 e 25, num PR, na branch `desenvolvimento-resolvendo-problemas`.
+2. **Etapa 1 (obrigatório e correções):** itens 28, 1, 27, 2, 29, 22, 3, 4, categorização, 16, 20, 14, 17, 19a, 12, 21, 23, 24 e 25, num PR, na branch `desenvolvimento-resolvendo-problemas`.
 3. **Etapa 2:** levar à CSGR só as três decisões que sobraram (seção 7).
-4. **Etapa 3 (melhorias):** itens 5, 7, 8, 9b, 10, 11, 13, 15, 17, 18 e 19b, em um ou dois PRs.
+4. **Etapa 3 (melhorias):** itens 5, 7, 8, 9b, 10, 11, 13, 15, 17, 18, 19b e 26, em um ou dois PRs.
 
 ## 11. Observações da análise que continuam valendo
 
