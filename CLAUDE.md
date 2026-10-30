@@ -8,8 +8,9 @@ MIRA · Monitoramento Integrado de Riscos e Ações (SETIC). Plataforma que cond
 
 - Stack: Next.js 15 (App Router), React 19, Node >= 22.13, SQLite nativo (`node:sqlite`). Sem dependências extras.
 - Remoto: https://github.com/lucasbastosrezende/MIRA
-- Estrutura: `app/` (interface; `mira-ui.js` monta toda a tela e `globals.css` tem os estilos), `lib/` (`logic.js` regras do MGR, `service.js` regras de negócio e auditoria, `api.js` roteador, `db.js` banco), `tests/`.
-- Comandos: `npm run dev`, `npm run test:api`, `node --no-warnings tests/ui.smoke.mjs`.
+- Estrutura: `app/` (interface; `mira-ui.js` monta toda a tela e `globals.css` tem os estilos), `lib/` (`logic.js` regras do MGR, `service.js` regras de negócio e auditoria, `api.js` roteador, `db.js` banco), `tests/`, `docs/` (documentação), `.github/` (modelo de PR).
+- Documentação nova vai em `docs/` e entra na tabela "Documentação" do `README.md`. Na raiz ficam só o `README.md` e este `CLAUDE.md`.
+- Comandos: `npm run dev`, `npm test` (roda `npm run test:api` e `npm run test:ui`).
 
 ## Idioma
 
