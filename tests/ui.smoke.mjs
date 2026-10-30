@@ -118,23 +118,30 @@ setVals({
   'n-papel': 'cadastrador',
   'n-unit': 'Cosegi',
   'n-pw': 'senha-forte-2',
-  'n-sei-nome': 'Portaria de designação',
-  'n-sei-num': '0045123401',
+  'n-ped-tipo': 'sei',
+  'n-ped-nome': 'Portaria de designação',
+  'n-ped-num': '0045123401',
+  'n-ped-data': '2026-10-30',
 });
 await submit('user-form');
-ok(!html().includes('cad.cosegi'), 'sem o PDF do SEI a pessoa não é cadastrada');
-els['n-sei-pdf'] = {
+ok(!html().includes('cad.cosegi'), 'tipo SEI sem PDF: a pessoa não é cadastrada');
+els['n-ped-pdf'] = {
   files: [new File([Buffer.from('%PDF-1.4\n%%EOF\n')], 'portaria.pdf', { type: 'application/pdf' })],
 };
 await submit('user-form');
 ok(
-  html().includes('cad.cosegi') && html().includes('SEI nº 0045123401') && html().includes('Baixar PDF'),
-  'cadastra pessoa pela tela com o PDF do SEI',
+  html().includes('cad.cosegi') &&
+    html().includes('SEI nº 0045123401') &&
+    html().includes('/sei" download') &&
+    html().includes('Relatório de pedido'),
+  'cadastra pessoa pela tela com o relatório de pedido',
 );
 await call('adm', 'POST', 'login', { username: 'admin.teste', password: 'senha-forte-0' });
 await call('adm', 'POST', 'units', { sigla: 'Coinfra' });
 // PDF mínimo de teste para os cadastros feitos direto pela API.
 const sei = n => ({
+  tipo: 'sei',
+  data: '2026-10-30',
   nome: 'Portaria de designação',
   numero: '00451234' + n,
   arquivo: 'portaria.pdf',
@@ -146,7 +153,14 @@ for (const [nome, username, papel, unit, n] of [
   ['Consulta', 'cgge.user', 'cgge', null, 12],
   ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra', 13],
 ])
-  await call('adm', 'POST', 'users', { nome, username, papel, unit, password: 'senha-forte-2', sei: sei(n) });
+  await call('adm', 'POST', 'users', {
+    nome,
+    username,
+    papel,
+    unit,
+    password: 'senha-forte-2',
+    pedido: sei(n),
+  });
 await call('csgr', 'POST', 'login', { username: 'csgr.admin', password: 'senha-forte-2' });
 // dados via API
 for (const [k, u] of [
@@ -224,7 +238,11 @@ async function browse(label, user, pw, nameChk) {
   );
   if (t) {
     await click({ tce: t[1] });
-    ok(html().includes('JUSTIFICATIVA DE DESPESA'), label + ': gera justificativa para o TCE');
+    ok(
+      html().includes('Justificativa de despesa · gestão de riscos de TIC') &&
+        html().includes('<h4>Descrição</h4>'),
+      label + ': gera justificativa para o TCE em Markdown',
+    );
   }
   await click({ panel: 'op' });
   ok(!bad(), label + ': painel operacional');
@@ -263,6 +281,33 @@ const st = await call('cad', 'GET', 'state');
 ok(
   st.risks.find(r => r.id === 'R-001').prr.medicoes.length === 2,
   'medição registrada pela tela chega ao banco',
+);
+// Quadro: o gestor delega o risco a um cadastrador pela tela; o cabeçalho mostra a coordenadoria
+await call('adm', 'POST', 'units/nome', { sigla: 'Cosegi', nome: 'Nome por extenso de teste' });
+await click({ act: 'logout' });
+setVals({ 'a-user': 'ges.cosegi', 'a-pw': 'senha-forte-2' });
+await submit('auth-form');
+ok(
+  html().includes('COSEGI · Nome por extenso de teste'),
+  'cabeçalho mostra a sigla em maiúsculas e o nome por extenso',
+);
+await click({ nav: 'quadro' });
+ok(
+  html().includes('Elaborar o PRR') && html().includes('data-act="deleg-ask"') && !bad(),
+  'gestor vê o quadro com o botão Delegar',
+);
+await click({ act: 'deleg-ask', id: 'R-001' });
+const cadTeam = (await call('ges', 'GET', 'state')).team.find(t => t.nome === 'cad.cosegi');
+setVals({ 'dg-para': cadTeam.id, 'dg-nota': 'Resolver a medição crítica' });
+await click({ act: 'deleg-save', id: 'R-001' });
+ok(
+  html().includes('delegado por ges.cosegi') && html().includes('Resolver a medição crítica'),
+  'delegação feita pela tela aparece no cartão',
+);
+await click({ nav: 'relatorio' });
+ok(
+  html().includes('<h4>1. Panorama</h4>') && html().includes('data-act="dl-rep-md"'),
+  'relatório em Markdown com opções para baixar',
 );
 await click({ act: 'logout' });
 setVals({ 'a-user': 'cad.cosegi', 'a-pw': 'errada' });

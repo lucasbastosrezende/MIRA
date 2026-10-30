@@ -1,6 +1,6 @@
 # Tabela de testes
 
-Registro dos testes do MIRA em três rodadas: a rodada 1 sobre a interface redesenhada, a rodada 2 depois das melhorias que a rodada 1 apontou e a rodada 3 com o perfil de administrador (cadastro com PDF do SEI e coordenadorias criadas na hora).
+Registro dos testes do MIRA em quatro rodadas: a rodada 1 sobre a interface redesenhada, a rodada 2 depois das melhorias que a rodada 1 apontou, a rodada 3 com o perfil de administrador (cadastro com PDF do SEI e coordenadorias criadas na hora) e a rodada 4 com o quadro de delegação, o relatório de pedido e os novos downloads.
 
 ## Como os testes foram feitos
 
@@ -23,6 +23,7 @@ O roteiro de navegador cria, num banco temporário apagado ao final, só contas 
 | 1 · interface redesenhada | 44/44 | 32/32 | 31/31 | Sem defeito no sistema; 3 melhorias apontadas |
 | 2 · depois das melhorias | 44/44 | 32/32 | 33/33 | Melhorias confirmadas; nada novo encontrado |
 | 3 · perfil de administrador | 71/71 | 39/39 | 41/41 | Os cenários de pessoas passaram a ser do administrador; 7 cenários novos |
+| 4 · quadro, pedido e downloads | 91/91 | 43/43 | 46/46 | Achou um defeito: o aviso depois de delegar dizia "Responsável retirado"; corrigido antes do commit |
 
 Na primeira execução da rodada 1, quatro cenários falharam por erro do próprio roteiro, não do sistema. Dois enviavam o formulário seguinte antes de o anterior terminar de salvar; um dependia de uma conta que, por isso, não foi criada; e um contava como erro de JavaScript os avisos de rede 429 e 422 que o próprio teste provoca. O roteiro foi corrigido e a rodada 1 foi refeita do zero, num banco limpo.
 
@@ -79,6 +80,21 @@ Desde esta rodada, o roteiro cria a conta `adminteste` pelo comando `npm run adm
 | T38 | Pessoas | A busca da lista acha a pessoa pelo número SEI | Administrador | ✅ |
 | T39 | Permissões | CSGR não tem mais a tela Usuários e vê só as coordenadorias criadas | CSGR | ✅ |
 | T40 | Administrador | Telas do administrador em 390 px e no tema escuro, sem rolagem lateral nem erro | Administrador | ✅ |
+
+## Rodada 4: quadro, relatório de pedido e downloads
+
+O cadastro passou a pedir o relatório de pedido (tipo, número SEI e data); T02, T03, T32 e T36 foram ajustados a ele e T25, T26 e T34 ao menu Baixar. Os demais cenários seguem iguais e passaram.
+
+| # | Área | Cenário | Perfil | Rodada 4 |
+|---|---|---|---|---|
+| T42 | Quadro | O gestor delega o risco a quem vai resolver; o cadastrador vê no quadro, no filtro "Comigo" e no aviso; o cabeçalho mostra "COSEGI · nome por extenso" | Gestor e cadastrador | ✅ |
+| T44 | Exportação | O menu Baixar entrega os CSVs por coordenadoria, medições, quadro e histórico | CSGR | ✅ |
+| T25 | Relatório | O relatório aparece em Markdown na tela e baixa em .md e .txt | CSGR | ✅ |
+| T46 | Coordenadorias | O administrador edita o nome por extenso e apaga uma pessoa com confirmação; a conta dele não tem "Apagar" | Administrador | ✅ |
+| T47 | Pessoas | Pedido formal sem PDF é aceito com número SEI e data; `teste1` é criada sem pedido | Administrador | ✅ |
+| T48 | Pessoas | O administrador registra o pedido de quem já tem conta e baixa o relatório de pedido em .md | Administrador | ✅ |
+
+Na rodada 4 a API passou a 91 verificações (delegação só pelo gestor e só para gente da coordenadoria, aviso e auditoria da delegação, nome por extenso, exclusão de pessoa, pedido sem data ou SEI sem PDF barrados, pedido formal sem PDF aceito, `teste1` e `teste20` sem pedido e `teste21` barrada, registro de pedido de quem já tem conta) e a interface a 43.
 
 ## O que as suítes automáticas cobrem
 

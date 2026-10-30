@@ -36,6 +36,7 @@ export function mountMira(root) {
     canMon,
     canGes,
     canCsg,
+    canDel,
     visible,
     checkRisk,
   } = MIRA;
@@ -123,6 +124,17 @@ export function mountMira(root) {
   const scope = () => S.risks; // o servidor já entrega só o que o perfil pode ver
   // Siglas das coordenadorias que o perfil pode ver. Não há lista fixa: o administrador cria cada uma.
   const units = () => (S.units || []).map(x => x.sigla);
+  // Coordenadoria pela sigla, nos dados que o servidor entregou ({ sigla, nome }), ou null.
+  const unitOf = sigla => (S.units || []).find(x => x.sigla === sigla) || null;
+  // Sigla em letras maiúsculas, para o cabeçalho ("Cosegi" vira "COSEGI").
+  const siglaUp = sigla => String(sigla || '').toLocaleUpperCase('pt-BR');
+  // Nome da coordenadoria de quem entrou, para o cabeçalho: sigla em maiúsculas e o nome por extenso
+  // que o administrador cadastrou. Nada é fixo no código: tudo vem dos dados. Sem coordenadoria, ''.
+  const unitLabel = sigla => {
+    if (!sigla) return '';
+    const x = unitOf(sigla);
+    return siglaUp(sigla) + (x && x.nome ? ' · ' + x.nome : '');
+  };
   // Nomes dos cadastradores de uma coordenadoria.
   const respOf = unit => S.team.filter(t => t.unit === unit && t.papel === 'cadastrador').map(t => t.nome);
   // Nome do gestor de riscos de uma coordenadoria.
@@ -523,7 +535,8 @@ export function mountMira(root) {
       op ? 'Painel Operacional' : 'Painel Alta Gestão',
       op ? 'O que exige ação agora.' : 'Quanto os riscos custam e quanto os tratamentos reduzem.',
       (when ? '<span class="small muted">Dados de ' + when + '</span>' : '') +
-        '<button class="btn sm" data-act="dl-xlsx" data-tip="Planilha com colunas ajustadas e valores em reais">Exportar Excel</button><button class="btn sm" data-act="dl-csv">Exportar CSV</button><div class="seg" role="group" aria-label="Escolher painel"><button data-panel="op" aria-pressed="' +
+        dlMenu(DL_RISCOS, true) +
+        '<div class="seg" role="group" aria-label="Escolher painel"><button data-panel="op" aria-pressed="' +
         op +
         '">Operacional · TI</button><button data-panel="alta" aria-pressed="' +
         !op +
@@ -1249,10 +1262,12 @@ export function mountMira(root) {
           cardH(
             'Justificativa de despesa · ' + UI.tce,
             'Pronto para a contratação e a prestação de contas.',
-            '<div class="row"><button class="btn sm" data-act="copytce">Copiar texto</button><button class="btn sm" data-act="closetce">Fechar</button></div>',
+            '<div class="row"><button class="btn sm" data-act="copytce">Copiar Markdown</button>' +
+              dlMenu(DL_TCE, true) +
+              '<button class="btn sm" data-act="closetce">Fechar</button></div>',
           ) +
-          '<div class="pre" id="tcetext">' +
-          esc(tceText(rk(UI.tce))) +
+          '<div id="tcetext">' +
+          mdHtml(tceMd(rk(UI.tce))) +
           '</div></section>'
         : '';
     return (
@@ -1301,8 +1316,9 @@ export function mountMira(root) {
       '</tbody></table></section></div>'
     );
   }
-  // Texto da justificativa de despesa de um risco, para o processo de contratação e o TCE.
-  function tceText(r) {
+  // Justificativa de despesa de um risco em Markdown, para o processo de contratação e o TCE.
+  // Na tela vira HTML (mdHtml); para baixar, sai em .md ou em texto puro (mdTxt).
+  function tceMd(r) {
     const e = econ(r),
       p = r.prr || emptyPrr(),
       n = nivel(r),
@@ -1310,81 +1326,73 @@ export function mountMira(root) {
     const ap = (p.aprov || [])
       .map(
         a =>
-          '  - ' +
+          '- ' +
           fd(a.ts) +
           ' · ' +
-          a.por +
+          mdc(a.por) +
           ' (' +
           PAPEL[a.papel] +
           '): ' +
           a.decisao +
-          (a.motivo ? ' — ' + a.motivo : ''),
+          (a.motivo ? ' — ' + mdc(a.motivo) : ''),
       )
       .join('\n');
-    return (
-      'JUSTIFICATIVA DE DESPESA · GESTÃO DE RISCOS DE TIC\nRisco ' +
-      r.id +
-      ' · ' +
-      r.unit +
-      ' · ' +
-      r.titulo +
-      '\n\nDescrição: Devido a ' +
-      r.causa +
-      ', poderá ocorrer ' +
-      r.evento +
-      ', levando a ' +
-      r.impacto +
-      ', afetando ' +
-      r.objetivo +
-      '.\n\nSituação do risco: nível ' +
-      n +
-      ' (' +
-      LV[band(n)] +
-      '), probabilidade ' +
-      r.prob +
-      ' × impacto ' +
-      r.imp +
-      '.\nExposição financeira estimada: ' +
-      brl(r.exposicao) +
-      '. Exposição esperada: ' +
-      brl(e.cur) +
-      '.\n\nResposta adotada: ' +
-      p.tratamento +
-      '. ' +
-      p.acao +
-      '\nCusto estimado: ' +
-      brl(e.cost) +
-      '. Responsável: ' +
-      (p.responsavel || '—') +
-      '. Prazo: ' +
-      fd(p.prazo) +
-      '.\nRisco residual esperado: nível ' +
-      nr +
-      ' (' +
-      LV[band(nr)] +
-      '). Exposição residual: ' +
-      brl(e.res) +
-      '. Redução esperada: ' +
-      brl(e.gain) +
-      (e.ratio != null
-        ? ' (' + e.ratio.toFixed(1).replace('.', ',') + ' reais de redução para cada real investido)'
-        : '') +
-      '.\nAcompanhamento: ' +
-      (p.metrica
-        ? p.metrica +
-          ' (' +
-          p.unidadeMetrica +
-          '), crítico ' +
-          p.critico +
-          ', alerta ' +
-          p.alerta +
-          ', ideal ' +
-          p.ideal
-        : 'métrica ainda não definida') +
-      '.\n\nTramitação do PRR:\n' +
-      (ap || '  - sem registros') +
-      '\n\nPremissas: probabilidades convertidas em 5%, 15%, 35%, 60% e 85%. Todas as alterações deste risco estão registradas no histórico do MIRA (quem, quando e o quê).'
-    );
+    return [
+      '# Justificativa de despesa · gestão de riscos de TIC',
+      '**Risco ' + r.id + ' · ' + mdc(r.unit) + ' · ' + mdc(r.titulo) + '**',
+      '',
+      '## Descrição',
+      'Devido a ' +
+        mdc(r.causa) +
+        ', poderá ocorrer ' +
+        mdc(r.evento) +
+        ', levando a ' +
+        mdc(r.impacto) +
+        ', afetando ' +
+        mdc(r.objetivo) +
+        '.',
+      '',
+      '## Situação do risco',
+      '- Nível ' + n + ' (' + LV[band(n)] + '): probabilidade ' + r.prob + ' × impacto ' + r.imp + '.',
+      '- Exposição financeira estimada: ' + brl(r.exposicao) + '.',
+      '- Exposição esperada: ' + brl(e.cur) + '.',
+      '',
+      '## Resposta adotada',
+      '- Forma de tratamento: ' + cap(p.tratamento) + '. ' + mdc(p.acao),
+      '- Custo estimado: ' + brl(e.cost) + '.',
+      '- Responsável: ' + mdc(p.responsavel || '—') + '. Prazo: ' + fd(p.prazo) + '.',
+      '- Risco residual esperado: nível ' +
+        nr +
+        ' (' +
+        LV[band(nr)] +
+        '). Exposição residual: ' +
+        brl(e.res) +
+        '.',
+      '- Redução esperada: ' +
+        brl(e.gain) +
+        (e.ratio != null
+          ? ' (' + e.ratio.toFixed(1).replace('.', ',') + ' reais de redução para cada real investido)'
+          : '') +
+        '.',
+      '- Acompanhamento: ' +
+        (p.metrica
+          ? mdc(p.metrica) +
+            ' (' +
+            mdc(p.unidadeMetrica) +
+            '), crítico ' +
+            p.critico +
+            ', alerta ' +
+            p.alerta +
+            ', ideal ' +
+            p.ideal +
+            '.'
+          : 'métrica ainda não definida.'),
+      '',
+      '## Tramitação do PRR',
+      ap || '- sem registros',
+      '',
+      'Premissas: probabilidades convertidas em 5%, 15%, 35%, 60% e 85%. Todas as alterações deste risco estão registradas no histórico do MIRA (quem, quando e o quê).',
+    ].join('\n');
   }
 
   /* ===== Tela do risco: 5 fases ===== */
@@ -2419,6 +2427,7 @@ export function mountMira(root) {
       fact('Custo do PRR', has ? brlc(p.custo) : '—') +
       fact('Prazo da ação', p && p.prazo ? prazoCell(r) : '—') +
       fact('Responsável', p && p.responsavel ? esc(p.responsavel) : '—') +
+      fact('Resolve', r.delegado ? esc(r.delegado.nome) : '—') +
       fact('Aberto por', esc(r.criadoPor) + ' · ' + fd(r.criadoEm));
     return (
       '<div class="card rhead"><div class="rhead-top"><button class="btn sm" data-nav="riscos">← Riscos</button><span class="mono muted">' +
@@ -2505,8 +2514,7 @@ export function mountMira(root) {
         all.length + ' risco(s) cadastrado(s) · ' + alto + ' de nível alto ou extremo',
         (u.papel === 'cadastrador'
           ? '<button class="btn primary" data-act="novo">+ Novo risco</button>'
-          : '') +
-          '<button class="btn" data-act="dl-xlsx" data-tip="Planilha com colunas ajustadas e valores em reais">Exportar Excel</button><button class="btn" data-act="dl-csv">Exportar CSV</button>',
+          : '') + dlMenu(DL_RISCOS),
       ) +
       '<div class="card"><div class="table-tools">' +
       filterBar(u) +
@@ -2625,6 +2633,143 @@ export function mountMira(root) {
       '</div>'
     );
   }
+  /* ===== Quadro: etapas do processo e quem resolve cada risco ===== */
+  // Colunas do quadro, na ordem do processo: [chave, nome, situações do risco que entram nela].
+  const ETAPAS = [
+    ['identificar', 'Identificar e avaliar', ['rascunho']],
+    ['prr', 'Elaborar o PRR', ['avaliado', 'devolvido']],
+    ['validacao', 'Em validação', ['ag_gestor', 'ag_csgr']],
+    ['tratamento', 'Em tratamento', ['em_tratamento']],
+    ['ocorrido', 'Evento ocorreu', ['ocorrido']],
+    ['encerrado', 'Encerrado', ['encerrado']],
+  ];
+  // Coluna do quadro em que o risco está, pela situação.
+  const etapaOf = r => ETAPAS.find(e => e[2].includes(r.status)) || ETAPAS[0];
+  // Pessoas da coordenadoria que podem receber a delegação: cadastradores e o gestor, ativos.
+  const delegaveis = unit =>
+    S.team.filter(t => t.unit === unit && (t.papel === 'cadastrador' || t.papel === 'gestor'));
+  // Cartão de um risco no quadro. O gestor da coordenadoria delega ali mesmo, sem sair do quadro.
+  function qCard(u, r) {
+    const d = r.delegado,
+      n = nivel(r);
+    const quem = d
+      ? '<span class="q-quem"><span class="avatar sm" aria-hidden="true">' +
+        esc(initials(d.nome)) +
+        '</span><span><b>' +
+        esc(d.nome) +
+        '</b><small>delegado por ' +
+        esc(d.por) +
+        ' · ' +
+        fd(d.ts) +
+        '</small></span></span>' +
+        (d.nota ? '<p class="q-nota">' + esc(d.nota) + '</p>' : '')
+      : '<span class="q-quem muted small">Sem responsável pela resolução</span>';
+    const form =
+      UI.delegFor === r.id
+        ? '<div class="q-form"><label for="dg-para">Quem vai resolver</label><select id="dg-para" style="width:100%"><option value="">Ninguém (retirar)</option>' +
+          delegaveis(r.unit)
+            .map(
+              t =>
+                '<option value="' +
+                esc(t.id) +
+                '"' +
+                (d && d.id === t.id ? ' selected' : '') +
+                '>' +
+                esc(t.nome) +
+                ' · ' +
+                PAPEL[t.papel] +
+                '</option>',
+            )
+            .join('') +
+          '</select><label for="dg-nota">O que resolver (opcional)</label><textarea id="dg-nota" rows="2" maxlength="300" style="width:100%"></textarea><div class="row"><button class="btn sm primary" data-act="deleg-save" data-id="' +
+          r.id +
+          '">Salvar</button><button class="btn sm" data-act="deleg-cancel">Cancelar</button></div></div>'
+        : canDel(u, r)
+          ? '<button class="btn sm" data-act="deleg-ask" data-id="' +
+            r.id +
+            '">' +
+            (d ? 'Trocar' : 'Delegar') +
+            '</button>'
+          : '';
+    return (
+      '<li class="q-card"><div class="q-top"><span class="mono muted small">' +
+      r.id +
+      '</span>' +
+      (n ? lvc(n) : '') +
+      '</div><button class="q-tit" data-open="' +
+      r.id +
+      '">' +
+      esc(r.titulo) +
+      '</button><div class="q-meta">' +
+      stChip(r) +
+      (r.prr && r.prr.prazo ? ' ' + prazoCell(r) : '') +
+      (u.unit ? '' : ' <span class="unit">' + esc(r.unit) + '</span>') +
+      '</div>' +
+      quem +
+      form +
+      '</li>'
+    );
+  }
+  // Tela Quadro: os riscos em colunas pelas etapas do processo, com quem vai resolver cada um.
+  // O gestor (supervisor da coordenadoria) delega; os demais perfis só acompanham.
+  function viewQuadro(u) {
+    const f = UI.qfilt || '';
+    const L = scope().filter(r =>
+      !f
+        ? true
+        : f === 'sem'
+          ? !r.delegado
+          : f === 'meus'
+            ? r.delegado && r.delegado.id === u.id
+            : r.delegado && r.delegado.id === f,
+    );
+    const pessoas = u.unit ? delegaveis(u.unit) : [];
+    const filtro =
+      '<select data-qfilt aria-label="Filtrar por responsável"><option value="">Todos os responsáveis</option>' +
+      '<option value="sem"' +
+      (f === 'sem' ? ' selected' : '') +
+      '>Sem responsável</option>' +
+      (u.unit ? '<option value="meus"' + (f === 'meus' ? ' selected' : '') + '>Comigo</option>' : '') +
+      pessoas
+        .map(
+          t =>
+            '<option value="' +
+            esc(t.id) +
+            '"' +
+            (f === t.id ? ' selected' : '') +
+            '>' +
+            esc(t.nome) +
+            '</option>',
+        )
+        .join('') +
+      '</select>';
+    const cols = ETAPAS.map(e => {
+      const xs = L.filter(r => e[2].includes(r.status)).sort((a, b) => nivel(b) - nivel(a));
+      return (
+        '<section class="q-col" aria-label="' +
+        e[1] +
+        '"><h3>' +
+        e[1] +
+        '<span class="count">' +
+        xs.length +
+        '</span></h3><ul>' +
+        (xs.length ? xs.map(r => qCard(u, r)).join('') : '<li class="q-vazio">Nada nesta etapa.</li>') +
+        '</ul></section>'
+      );
+    }).join('');
+    return (
+      pageHead(
+        'Quadro',
+        u.papel === 'gestor'
+          ? 'Cada risco na etapa do processo. Delegue quem vai resolver cada um.'
+          : 'Cada risco na etapa do processo e quem vai resolver.',
+        filtro + dlMenu([DL_RISCOS.find(o => o[0] === 'dl-csv-quadro')]),
+      ) +
+      '<div class="quadro">' +
+      cols +
+      '</div>'
+    );
+  }
   // Tela Alertas: avisos do momento e avisos guardados.
   function viewAlertas(u) {
     const st = S.alerts,
@@ -2638,6 +2783,7 @@ export function mountMira(root) {
       prazo: 'Prazo',
       nivel: 'Nível',
       evento: 'Evento',
+      delegado: 'Delegação',
     };
     const row = (tn, kind, msg, meta, id, isNew) =>
       '<li><button class="qi" data-open="' +
@@ -2701,10 +2847,9 @@ export function mountMira(root) {
       '<p class="hint">No protótipo, os e-mails são simulados.</p>'
     );
   }
-  // Texto do relatório anual da CSGR.
-  function reportText() {
-    const L = S.risks.filter(r => r.status !== 'encerrado' && r.prob && r.imp),
-      E = L.map(r => econ(r));
+  // Relatório anual da CSGR em Markdown. Na tela vira HTML (mdHtml); para baixar, sai em .md ou em texto puro.
+  function reportMd() {
+    const L = S.risks.filter(r => r.status !== 'encerrado' && r.prob && r.imp);
     const ap = S.audit.filter(a => a.action === 'Aprovou o PRR').length,
       dv = S.audit.filter(a => a.action === 'Devolveu o PRR').length;
     const inv = L.filter(r => ['em_tratamento', 'ocorrido'].includes(r.status)).reduce(
@@ -2717,86 +2862,91 @@ export function mountMira(root) {
     );
     const gain = L.reduce((a, r) => a + econ(r).gain, 0);
     const faixa = LV.map((l, i) => l + ': ' + L.filter(r => band(nivel(r)) === i).length).join(' · ');
-    const un = units()
-      .map(
-        x =>
-          '  - ' +
-          x +
-          ': ' +
-          L.filter(r => r.unit === x).length +
-          ' riscos, ' +
-          L.filter(r => r.unit === x && nivel(r) >= 12).length +
-          ' de nível alto ou extremo',
-      )
-      .join('\n');
-    const altos = L.filter(r => nivel(r) >= 12)
-      .sort((a, b) => nivel(b) - nivel(a))
-      .map(
-        r =>
-          '  - ' +
-          r.id +
-          ' ' +
-          r.titulo +
-          ' (' +
-          r.unit +
-          ') · nível ' +
-          nivel(r) +
-          ' · ' +
-          STAT[r.status][0],
-      )
-      .join('\n');
+    const un = units().length
+      ? [
+          '| Coordenadoria | Riscos | Alto ou extremo |',
+          '|---|---|---|',
+          ...units().map(
+            x =>
+              '| ' +
+              mdc(x) +
+              ' | ' +
+              L.filter(r => r.unit === x).length +
+              ' | ' +
+              L.filter(r => r.unit === x && nivel(r) >= 12).length +
+              ' |',
+          ),
+        ].join('\n')
+      : '- nenhuma coordenadoria criada';
+    const altos =
+      L.filter(r => nivel(r) >= 12)
+        .sort((a, b) => nivel(b) - nivel(a))
+        .map(
+          r =>
+            '- **' +
+            r.id +
+            '** ' +
+            mdc(r.titulo) +
+            ' (' +
+            mdc(r.unit) +
+            ') · nível ' +
+            nivel(r) +
+            ' · ' +
+            STAT[r.status][0],
+        )
+        .join('\n') || '- nenhum';
     const oc =
       L.filter(r => r.status === 'ocorrido')
-        .map(r => '  - ' + r.id + ' ' + r.titulo + ' (' + r.unit + ')')
-        .join('\n') || '  - nenhum';
+        .map(r => '- **' + r.id + '** ' + mdc(r.titulo) + ' (' + mdc(r.unit) + ')')
+        .join('\n') || '- nenhum';
     const mt =
       L.filter(r => ['alerta', 'critico'].includes(metricSt(r)))
         .map(
           r =>
-            '  - ' +
+            '- **' +
             r.id +
-            ' ' +
-            r.prr.metrica +
+            '** ' +
+            mdc(r.prr.metrica) +
             ': ' +
             lastMed(r).valor +
             ' ' +
-            r.prr.unidadeMetrica +
+            mdc(r.prr.unidadeMetrica) +
             ' (' +
-            metricSt(r) +
+            MST[metricSt(r)] +
             ')',
         )
-        .join('\n') || '  - nenhuma';
-    return (
-      'RELATÓRIO ANUAL DA CSGR · GESTÃO DE RISCOS DE TIC · ' +
-      new Date().getFullYear() +
-      '\nGerado pelo MIRA em ' +
-      fd(new Date().toISOString()) +
-      '\n\n1. PANORAMA\n' +
-      L.length +
-      ' riscos ativos. ' +
-      faixa +
-      '\n\n2. POR COORDENADORIA\n' +
-      un +
-      '\n\n3. PLANOS DE RESPOSTA (PRR)\nAprovados: ' +
-      ap +
-      ' · Devolvidos: ' +
-      dv +
-      ' · Em análise: ' +
-      L.filter(r => ['ag_gestor', 'ag_csgr'].includes(r.status)).length +
-      '\nInvestimento aprovado: ' +
-      brl(inv) +
-      ' · aguardando decisão: ' +
-      brl(pnd) +
-      '\nReduções esperadas de exposição: ' +
-      brl(gain) +
-      '\n\n4. RISCOS DE NÍVEL ALTO E EXTREMO\n' +
-      (altos || '  - nenhum') +
-      '\n\n5. EVENTOS QUE OCORRERAM\n' +
-      oc +
-      '\n\n6. MÉTRICAS EM ALERTA OU CRÍTICAS\n' +
-      mt +
-      '\n\nTodas as alterações estão no histórico do MIRA.'
-    );
+        .join('\n') || '- nenhuma';
+    return [
+      '# Relatório anual da CSGR · gestão de riscos de TIC · ' + new Date().getFullYear(),
+      'Gerado pelo MIRA em ' + fd(new Date().toISOString()) + '.',
+      '',
+      '## 1. Panorama',
+      '**' + L.length + ' riscos ativos.** ' + faixa,
+      '',
+      '## 2. Por coordenadoria',
+      un,
+      '',
+      '## 3. Planos de resposta (PRR)',
+      '- Aprovados: ' +
+        ap +
+        ' · Devolvidos: ' +
+        dv +
+        ' · Em análise: ' +
+        L.filter(r => ['ag_gestor', 'ag_csgr'].includes(r.status)).length,
+      '- Investimento aprovado: ' + brl(inv) + ' · aguardando decisão: ' + brl(pnd),
+      '- Reduções esperadas de exposição: ' + brl(gain),
+      '',
+      '## 4. Riscos de nível alto e extremo',
+      altos,
+      '',
+      '## 5. Eventos que ocorreram',
+      oc,
+      '',
+      '## 6. Métricas em alerta ou críticas',
+      mt,
+      '',
+      'Todas as alterações estão no histórico do MIRA.',
+    ].join('\n');
   }
   // Tela Relatório: indicadores, tabela por coordenadoria e faixa e o texto do relatório.
   function viewRel(u) {
@@ -2863,16 +3013,16 @@ export function mountMira(root) {
       pageHead(
         'Relatório anual da CSGR',
         'Riscos, planos de resposta e métricas.',
-        '<button class="btn" data-act="copyrep">Copiar texto</button><button class="btn primary" data-act="dl-rep">Baixar .txt</button>',
+        '<button class="btn" data-act="copyrep">Copiar Markdown</button>' + dlMenu(DL_REL),
       ) +
       tiles +
       '<div class="card">' +
       cardH('Riscos por coordenadoria e faixa', 'Mais escuro, mais riscos.') +
       grid +
       '</div><div class="card">' +
-      cardH('Texto do relatório') +
-      '<div class="pre" id="reptext">' +
-      esc(reportText()) +
+      cardH('Texto do relatório', 'Para ler aqui, em Markdown. Para baixar, escolha o formato em Baixar.') +
+      '<div id="reptext">' +
+      mdHtml(reportMd()) +
       '</div></div>'
     );
   }
@@ -2959,23 +3109,119 @@ export function mountMira(root) {
   }
   // Telas do administrador. Ele não tem coordenadoria e não vê riscos.
   const ADMIN_VIEWS = ['usuarios', 'unidades', 'historico'];
-  // Documento SEI de uma pessoa na lista: nome, número e o PDF para baixar.
-  function seiCell(x) {
+  // Tipos do relatório de pedido, como aparecem na tela.
+  const TIPO_PEDIDO = { sei: 'SEI', formal: 'Pedido formal' };
+  // Contas de teste teste1 a teste20 (a mesma regra do servidor): podem existir sem relatório de pedido.
+  const CONTA_TESTE = /^teste([1-9]|1\d|20)$/;
+  // Opções de download do relatório de pedido de uma pessoa.
+  const DL_PEDIDO = [
+    ['ped-md', 'Markdown (.md)', 'Tipo, documento, número SEI, data e quem registrou'],
+    ['ped-txt', 'Texto (.txt)', 'O mesmo, sem marcação'],
+  ];
+  // Campos do relatório de pedido num formulário (px = prefixo dos ids). O servidor confere as regras:
+  // número SEI e data sempre; PDF obrigatório no tipo SEI e opcional no pedido formal.
+  const pedidoFields = (px, hint) =>
+    '<fieldset class="sei-box"><legend>Relatório de pedido que autoriza o acesso</legend>' +
+    '<div class="field"><label for="' +
+    px +
+    '-ped-tipo">Tipo</label><select id="' +
+    px +
+    '-ped-tipo" style="width:100%"><option value="sei">SEI</option><option value="formal">Pedido formal</option></select></div>' +
+    '<div class="field"><label for="' +
+    px +
+    '-ped-nome">Nome do documento</label><input id="' +
+    px +
+    '-ped-nome" style="width:100%" maxlength="200" placeholder="Ex.: Portaria de designação"></div>' +
+    '<div class="field"><label for="' +
+    px +
+    '-ped-num">Número SEI</label><input id="' +
+    px +
+    '-ped-num" style="width:100%" maxlength="30" inputmode="numeric" placeholder="Ex.: 0045123456"></div>' +
+    '<div class="field"><label for="' +
+    px +
+    '-ped-data">Data do documento</label><input id="' +
+    px +
+    '-ped-data" type="date" style="width:100%"></div>' +
+    '<div class="field"><label for="' +
+    px +
+    '-ped-pdf">PDF do documento</label><input id="' +
+    px +
+    '-ped-pdf" type="file" accept="application/pdf,.pdf" style="width:100%"><div class="hint">Obrigatório no tipo SEI e opcional no pedido formal. Só PDF, até 10 MB.</div></div>' +
+    (hint ? '<div class="hint">' + hint + '</div>' : '') +
+    '</fieldset>';
+  // Relatório de pedido de uma pessoa em Markdown, para baixar.
+  const pedidoMd = x =>
+    [
+      '# Relatório de pedido · ' + mdc(x.username),
+      '- Tipo: ' + (TIPO_PEDIDO[x.seiTipo] || 'SEI'),
+      '- Documento: ' + mdc(x.seiNome),
+      '- Número SEI: ' + mdc(x.seiNumero),
+      '- Data do documento: ' + (x.seiData ? fd(x.seiData) : 'não informada'),
+      '- Perfil: ' + PAPEL[x.papel] + (x.unit ? ' · Coordenadoria: ' + mdc(x.unit) : ''),
+      '- PDF anexado: ' +
+        (x.seiTamanho
+          ? mdc(x.seiArquivo) +
+            ' (' +
+            Math.max(1, Math.round(x.seiTamanho / 1024)) +
+            ' KB) · SHA-256 ' +
+            x.seiHash
+          : 'sem PDF'),
+      '- Registrado por ' +
+        mdc(x.seiPor) +
+        ' em ' +
+        (x.seiEm ? new Date(x.seiEm).toLocaleString('pt-BR') : '—'),
+    ].join('\n');
+  // Relatório de pedido de uma pessoa na lista: tipo, documento, número SEI, data, PDF e o relatório para baixar.
+  function pedidoCell(x) {
     if (x.papel === 'admin') return '<span class="muted small">Conta criada na implantação</span>';
-    if (!x.seiNumero) return '<span class="muted small">Cadastro anterior à exigência do SEI</span>';
+    const novo =
+      '<button class="btn sm" data-act="ped-ask" data-id="' +
+      x.id +
+      '">' +
+      (x.seiNumero ? 'Novo pedido' : 'Registrar pedido') +
+      '</button>';
+    if (!x.seiNumero)
+      return (
+        '<div class="sei-doc"><span class="muted small">' +
+        (CONTA_TESTE.test(x.username) ? 'Conta de teste, sem pedido' : 'Sem relatório de pedido') +
+        '</span>' +
+        novo +
+        '</div>'
+      );
     return (
-      '<div class="sei-doc"><b>' +
+      '<div class="sei-doc"><span class="st info">' +
+      (TIPO_PEDIDO[x.seiTipo] || 'SEI') +
+      '</span><b>' +
       esc(x.seiNome) +
       '</b><span class="muted small mono">SEI nº ' +
       esc(x.seiNumero) +
-      '</span><a class="btn sm" href="/api/users/' +
-      x.id +
-      '/sei" download data-tip="' +
-      esc(x.seiArquivo) +
-      '">Baixar PDF</a></div>'
+      (x.seiData ? ' · ' + fd(x.seiData) : '') +
+      '</span><div class="row sei-acts">' +
+      (x.seiTamanho
+        ? '<a class="btn sm" href="/api/users/' +
+          x.id +
+          '/sei" download data-tip="' +
+          esc(x.seiArquivo) +
+          '">PDF</a>'
+        : '<span class="muted small">Sem PDF</span>') +
+      dlMenu(DL_PEDIDO, true, ' data-id="' + x.id + '"', 'Relatório') +
+      novo +
+      '</div></div>'
     );
   }
-  // Tela Usuários (só administrador): cobertura das coordenadorias, cadastro com o PDF do SEI e lista de pessoas.
+  // Cartão para registrar o relatório de pedido de quem já tem conta; aparece acima da lista.
+  function pedidoCard() {
+    const x = UI.pedFor && S.users.find(p => p.id === UI.pedFor);
+    if (!x) return '';
+    return (
+      '<div class="card"><h3>Registrar relatório de pedido · ' +
+      esc(x.username) +
+      '</h3><form id="ped-form" autocomplete="off" style="max-width:440px">' +
+      pedidoFields('p') +
+      '<div class="row"><button class="btn primary" type="submit">Registrar</button><button class="btn" type="button" data-act="ped-cancel">Cancelar</button></div></form></div>'
+    );
+  }
+  // Tela Usuários (só administrador): cobertura das coordenadorias, cadastro com o relatório de pedido e lista de pessoas.
   function viewUsers(u) {
     if (u.papel !== 'admin')
       return '<div class="card"><div class="empty">Só o administrador cadastra pessoas.</div></div>';
@@ -3018,7 +3264,7 @@ export function mountMira(root) {
           '</td><td>' +
           (x.unit ? esc(x.unit) : '—') +
           '</td><td>' +
-          seiCell(x) +
+          pedidoCell(x) +
           '</td><td>' +
           (x.ativo ? toneTag('ok', 'Ativo') : '<span class="st">Desativado</span>') +
           '</td><td class="num">' +
@@ -3038,7 +3284,14 @@ export function mountMira(root) {
                   (x.ativo ? 0 : 1) +
                   '">' +
                   (x.ativo ? 'Desativar' : 'Reativar') +
-                  '</button>'
+                  '</button> ' +
+                  (UI.delFor === x.id
+                    ? '<button class="btn sm danger" data-act="user-del" data-id="' +
+                      x.id +
+                      '">Confirmar: apagar</button> <button class="btn sm" data-act="user-del-cancel">Cancelar</button>'
+                    : '<button class="btn sm danger" data-act="user-del-ask" data-id="' +
+                      x.id +
+                      '">Apagar</button>')
                 : '')) +
           '</td></tr>',
       )
@@ -3050,7 +3303,12 @@ export function mountMira(root) {
         '</select><div class="hint">Até 2 cadastradores e 1 gestor por coordenadoria.</div>'
       : '<select id="n-unit" style="width:100%" disabled><option value="">Nenhuma coordenadoria criada</option></select><div class="hint">Crie a coordenadoria em Coordenadorias antes de cadastrar quem trabalha nela.</div>';
     return (
-      pageHead('Usuários', S.users.length + ' pessoa(s) com acesso. Todo cadastro exige o documento SEI.') +
+      pageHead(
+        'Usuários',
+        S.users.length +
+          ' pessoa(s) com acesso. Todo cadastro exige o relatório de pedido (SEI ou pedido formal).',
+      ) +
+      pedidoCard() +
       '<div class="row"><div class="card grow" style="max-width:440px"><h3>Cadastrar pessoa</h3><form id="user-form" autocomplete="off">' +
       '<div class="field"><label for="n-user">Usuário de acesso</label><input id="n-user" style="width:100%" required><div class="hint">Minúsculas, números, ponto, hífen ou sublinhado.</div></div>' +
       '<div class="field"><label for="n-papel">Perfil</label><select id="n-papel" style="width:100%"><option value="cadastrador">Cadastrador(a) · registra riscos da coordenadoria</option><option value="gestor">Gestor(a) de riscos · titular da coordenadoria</option><option value="csgr">CSGR · aprova PRRs e gera o relatório</option><option value="cgge">CGGE · só consulta</option></select></div>' +
@@ -3058,11 +3316,7 @@ export function mountMira(root) {
       unitSel +
       '</div>' +
       '<div class="field"><label for="n-pw">Senha inicial</label><input id="n-pw" type="password" style="width:100%" required minlength="8"><div class="hint">Mínimo de 8 caracteres.</div></div>' +
-      '<fieldset class="sei-box"><legend>Documento SEI que autoriza o acesso</legend>' +
-      '<div class="field"><label for="n-sei-nome">Nome do documento</label><input id="n-sei-nome" style="width:100%" required maxlength="200" placeholder="Ex.: Portaria de designação"></div>' +
-      '<div class="field"><label for="n-sei-num">Número SEI</label><input id="n-sei-num" style="width:100%" required maxlength="30" inputmode="numeric" placeholder="Ex.: 0045123456"></div>' +
-      '<div class="field"><label for="n-sei-pdf">PDF do documento</label><input id="n-sei-pdf" type="file" accept="application/pdf,.pdf" required style="width:100%"><div class="hint">Só PDF, até 10 MB. Fica guardado com o cadastro.</div></div>' +
-      '</fieldset>' +
+      pedidoFields('n', 'Contas de teste (teste1 a teste20) podem ser criadas sem o relatório de pedido.') +
       '<button class="btn primary" type="submit">Cadastrar</button></form></div>' +
       '<div class="card grow">' +
       cardH('Pessoas por coordenadoria', 'Cada uma indica até 2 cadastradores e 1 gestor.') +
@@ -3074,7 +3328,7 @@ export function mountMira(root) {
         '',
         '<input type="search" data-ubusca aria-label="Buscar pessoa" placeholder="Nome, usuário ou nº SEI" class="ubusca">',
       ) +
-      '<div class="scroll"><table class="tbl"><thead><tr><th>Pessoa</th><th>Perfil</th><th>Coordenadoria</th><th>Documento SEI</th><th>Situação</th><th></th></tr></thead><tbody>' +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Pessoa</th><th>Perfil</th><th>Coordenadoria</th><th>Relatório de pedido</th><th>Situação</th><th></th></tr></thead><tbody>' +
       rows +
       '</tbody></table></div></div>'
     );
@@ -3091,7 +3345,16 @@ export function mountMira(root) {
           '<tr><td><b>' +
           esc(x.sigla) +
           '</b></td><td>' +
-          (x.nome ? esc(x.nome) : '<span class="muted">—</span>') +
+          (UI.unitEdit === x.sigla
+            ? '<input id="ue-nome" maxlength="120" style="width:100%" value="' +
+              esc(x.nome) +
+              '"> <button class="btn sm primary" data-act="unit-edit-save" data-sigla="' +
+              esc(x.sigla) +
+              '">Salvar</button> <button class="btn sm" data-act="unit-edit-cancel">Cancelar</button>'
+            : (x.nome ? esc(x.nome) : '<span class="muted">Sem nome por extenso</span>') +
+              ' <button class="btn sm" data-act="unit-edit" data-sigla="' +
+              esc(x.sigla) +
+              '">Editar nome</button>') +
           '</td><td class="num">' +
           n +
           '</td><td class="num">' +
@@ -3201,7 +3464,7 @@ export function mountMira(root) {
           ];
     if (u.papel !== 'admin') {
       if (u.papel === 'cadastrador') nav.push(['novo', 'Novo risco']);
-      nav.push(['matriz', 'Matriz']);
+      nav.push(['quadro', 'Quadro'], ['matriz', 'Matriz']);
       if (u.papel !== 'cgge') nav.push(['aprov', 'Pendências', pendingFor(u).length]);
       nav.push(['contexto', 'Contexto'], ['historico', 'Histórico'], ['alertas', 'Alertas', unreadCount(u)]);
       if (u.papel !== 'cadastrador') nav.push(['relatorio', 'Relatório']);
@@ -3213,6 +3476,7 @@ export function mountMira(root) {
       else if (UI.view === 'riscos') v = viewRiscos(u);
       else if (UI.view === 'risco') v = viewRisk(u);
       else if (UI.view === 'matriz') v = viewMatriz(u);
+      else if (UI.view === 'quadro') v = viewQuadro(u);
       else if (UI.view === 'aprov') v = viewAprov(u);
       else if (UI.view === 'contexto') v = viewCtx(u);
       else if (UI.view === 'historico') v = viewHist(u);
@@ -3229,13 +3493,15 @@ export function mountMira(root) {
     root.innerHTML =
       '<header class="top"><div class="bar"><div class="logo">' +
       LOGO +
-      '<div>MIRA<small>Monitoramento Integrado de Riscos e Ações · SETIC</small></div></div><span class="spacer"></span><span class="who"><span class="avatar" aria-hidden="true">' +
+      '<div>MIRA<small>' +
+      esc(unitLabel(u.unit) || 'Monitoramento Integrado de Riscos e Ações · SETIC') +
+      '</small></div></div><span class="spacer"></span><span class="who"><span class="avatar" aria-hidden="true">' +
       esc(initials(u.nome)) +
       '</span><span class="who-t"><b>' +
       esc(u.nome) +
       '</b><span>' +
       PAPEL[u.papel] +
-      (u.unit ? ' · ' + u.unit : '') +
+      (u.unit ? ' · ' + esc(siglaUp(u.unit)) : '') +
       '</span></span></span><button class="btn sm" data-act="logout">Sair</button></div><nav class="nav" aria-label="Seções">' +
       nav
         .map(
@@ -3367,10 +3633,11 @@ export function mountMira(root) {
     };
   }
   // Copia o texto de um elemento; usa seleção manual se a área de transferência não estiver disponível.
-  function copyText(id) {
+  // Copia o texto informado (ou, sem ele, o texto do elemento); sem permissão, seleciona o elemento.
+  function copyText(id, text) {
     const el = document.getElementById(id);
     if (!el) return;
-    const t = el.textContent;
+    const t = text != null ? text : el.textContent;
     const fb = () => {
       const rg = document.createRange();
       rg.selectNodeContents(el);
@@ -3428,6 +3695,7 @@ export function mountMira(root) {
     ['Métrica', 'txt', 40, r => r.prr && r.prr.metrica],
     ['Última medição', 'num', 0, r => (lastMed(r) ? lastMed(r).valor : '')],
     ['Estado da métrica', 'txt', 12, r => MST[metricSt(r)] || ''],
+    ['Responsável pela resolução', 'txt', 24, r => (r.delegado ? r.delegado.nome : '')],
   ];
   // Linhas da exportação, do nível mais alto para o mais baixo.
   const expRows = () =>
@@ -3435,36 +3703,67 @@ export function mountMira(root) {
       .slice()
       .sort((a, b) => nivel(b) - nivel(a))
       .map(r => EXPORT.map(c => c[3](r)));
-  // Célula do CSV entre aspas, com aspas internas duplicadas.
-  const csvq = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  // Excel em português lê ";" como separador e vírgula como decimal; o BOM garante os acentos.
-  const csvv = (v, k) =>
-    v == null || v === '' || v === false
-      ? ''
-      : k === 'data'
-        ? fd(v)
-        : k === 'brl' || k === 'x'
-          ? String(Math.round(Number(v) * 100) / 100).replace('.', ',')
-          : v;
-  // CSV dos riscos visíveis, separado por ";".
-  function csvAll() {
-    return (
-      '\ufeff' +
-      EXPORT.map(c => csvq(c[0])).join(';') +
-      '\r\n' +
-      expRows()
-        .map(r => r.map((v, i) => csvq(csvv(v, EXPORT[i][1]))).join(';'))
-        .join('\r\n')
-    );
-  }
-  // Planilha Excel com a aba Riscos e a aba Por coordenadoria (app/planilha.js).
-  function xlsxAll() {
-    const cols = EXPORT.map(c => ({ t: c[0], k: c[1], w: c[2] || 22 }));
-    const rows = expRows().map(r => r.map(v => (v === false || v == null ? '' : v)));
+  // Botão "Baixar" que abre as opções de formato. Cada opção é uma ação (data-act) tratada em doAct.
+  // extra: atributos acrescentados a cada opção (por exemplo, data-id da pessoa); label: texto do botão.
+  const dlMenu = (opts, sm, extra, label) =>
+    '<details class="dl-menu"><summary class="btn' +
+    (sm ? ' sm' : '') +
+    '">' +
+    (label || 'Baixar') +
+    '</summary><div class="dl-opts">' +
+    opts
+      .map(
+        o =>
+          '<button class="dl-opt" data-act="' +
+          o[0] +
+          '"' +
+          (extra || '') +
+          '><b>' +
+          o[1] +
+          '</b><small>' +
+          o[2] +
+          '</small></button>',
+      )
+      .join('') +
+    '</div></details>';
+  // Opções de download das listas de riscos e dos painéis.
+  const DL_RISCOS = [
+    ['dl-xlsx', 'Excel (.xlsx)', 'Colunas ajustadas, valores em reais e aba por coordenadoria'],
+    ['dl-csv', 'CSV · riscos', 'Uma linha por risco, com todas as colunas'],
+    ['dl-csv-unid', 'CSV · por coordenadoria', 'Totais de riscos e valores de cada coordenadoria'],
+    ['dl-csv-med', 'CSV · medições', 'Cada medição das métricas dos PRRs'],
+    ['dl-csv-quadro', 'CSV · quadro', 'Etapa do processo e quem resolve cada risco'],
+    ['dl-csv-hist', 'CSV · histórico', 'Cada alteração: quem, quando, campo, de e para'],
+  ];
+  // Opções de download do relatório anual.
+  const DL_REL = [
+    ['dl-rep-md', 'Markdown (.md)', 'O relatório com títulos e tabelas'],
+    ['dl-rep-txt', 'Texto (.txt)', 'O mesmo texto, sem marcação'],
+    ['dl-csv-faixa', 'CSV · por coordenadoria e faixa', 'A tabela de riscos por faixa de nível'],
+    ['dl-csv-unid', 'CSV · por coordenadoria', 'Totais de riscos e valores de cada coordenadoria'],
+    ['dl-xlsx', 'Excel (.xlsx)', 'Riscos e totais por coordenadoria'],
+  ];
+  // Opções de download da justificativa de despesa.
+  const DL_TCE = [
+    ['dl-tce-md', 'Markdown (.md)', 'Com títulos e listas'],
+    ['dl-tce-txt', 'Texto (.txt)', 'Sem marcação, para colar no processo'],
+  ];
+  // Colunas dos totais por coordenadoria (CSV e aba do Excel).
+  const UCOLS = [
+    ['Coordenadoria', 'txt'],
+    ['Riscos ativos', 'num'],
+    ['Alto ou extremo', 'num'],
+    ['Exposição esperada', 'brl'],
+    ['Depois dos PRRs', 'brl'],
+    ['Redução esperada', 'brl'],
+    ['Custo dos PRRs', 'brl'],
+  ];
+  // Totais por coordenadoria dos riscos avaliados e não encerrados; coordenadoria sem risco fica de fora.
+  function porUnid() {
     const E = scope()
       .filter(r => r.status !== 'encerrado' && nivel(r))
       .map(r => ({ r, e: econ(r) }));
-    const por = units()
+    return units()
       .map(un => {
         const xs = E.filter(q => q.r.unit === un),
           s = k => xs.reduce((a, q) => a + q.e[k], 0);
@@ -3479,18 +3778,215 @@ export function mountMira(root) {
         ];
       })
       .filter(l => l[1]);
-    const ucols = [
-      ['Coordenadoria', 'txt'],
-      ['Riscos ativos', 'num'],
-      ['Alto ou extremo', 'num'],
-      ['Exposição esperada', 'brl'],
-      ['Depois dos PRRs', 'brl'],
-      ['Redução esperada', 'brl'],
-      ['Custo dos PRRs', 'brl'],
-    ].map(c => ({ t: c[0], k: c[1], w: 22 }));
+  }
+  // Colunas do CSV por coordenadoria e faixa: uma coluna por faixa de nível e o total.
+  const FCOLS = () =>
+    [['Coordenadoria', 'txt']].concat(
+      LV.map(l => [l, 'num']),
+      [['Total', 'num']],
+    );
+  // Riscos avaliados e não encerrados por coordenadoria e faixa (a mesma tabela da tela Relatório).
+  function porFaixa() {
+    const L = scope().filter(r => r.status !== 'encerrado' && nivel(r));
+    return units().map(x =>
+      [x].concat(
+        LV.map((l, i) => L.filter(r => r.unit === x && band(nivel(r)) === i).length),
+        [L.filter(r => r.unit === x).length],
+      ),
+    );
+  }
+  // Colunas do CSV de medições.
+  const MCOLS = [
+    ['ID', 'txt'],
+    ['Coordenadoria', 'txt'],
+    ['Título', 'txt'],
+    ['Métrica', 'txt'],
+    ['Unidade', 'txt'],
+    ['Data', 'data'],
+    ['Valor', 'dec'],
+    ['Estado', 'txt'],
+    ['Registrado por', 'txt'],
+  ];
+  // Uma linha por medição, com o estado que aquele valor teve nos limites do PRR (mesma regra de metricSt).
+  function medRows() {
+    const out = [];
+    scope().forEach(r => {
+      const p = r.prr;
+      if (!p || !p.medicoes) return;
+      p.medicoes.forEach(m =>
+        out.push([
+          r.id,
+          r.unit,
+          r.titulo,
+          p.metrica,
+          p.unidadeMetrica,
+          m.ts,
+          m.valor,
+          MST[metricSt({ prr: Object.assign({}, p, { medicoes: [m] }) })] || '',
+          m.por,
+        ]),
+      );
+    });
+    return out;
+  }
+  // Colunas do CSV do quadro.
+  const QCOLS = [
+    ['ID', 'txt'],
+    ['Coordenadoria', 'txt'],
+    ['Título', 'txt'],
+    ['Etapa', 'txt'],
+    ['Situação', 'txt'],
+    ['Nível', 'num'],
+    ['Responsável pela resolução', 'txt'],
+    ['Delegado por', 'txt'],
+    ['Delegado em', 'data'],
+    ['Observação', 'txt'],
+  ];
+  // Uma linha por risco: etapa do quadro e quem resolve.
+  const quadroRows = () =>
+    scope().map(r => {
+      const d = r.delegado;
+      return [
+        r.id,
+        r.unit,
+        r.titulo,
+        etapaOf(r)[1],
+        STAT[r.status][0],
+        nivel(r) || '',
+        d ? d.nome : '',
+        d ? d.por : '',
+        d ? d.ts : '',
+        d ? d.nota : '',
+      ];
+    });
+  // Colunas do CSV do histórico.
+  const HCOLS = [
+    ['Data e hora', 'txt'],
+    ['Pessoa', 'txt'],
+    ['Perfil', 'txt'],
+    ['Coordenadoria', 'txt'],
+    ['Risco', 'txt'],
+    ['Ação', 'txt'],
+    ['Campo', 'txt'],
+    ['Valor anterior', 'txt'],
+    ['Valor novo', 'txt'],
+    ['Observação', 'txt'],
+  ];
+  // Uma linha por campo alterado (ou uma por ação sem campos), com os valores já legíveis (fmtV).
+  function histRows() {
+    const out = [];
+    S.audit.forEach(a => {
+      const base = [
+        new Date(a.ts).toLocaleString('pt-BR'),
+        a.user,
+        PAPEL[a.role] || a.role,
+        a.unit || '',
+        a.riskId || '',
+        a.action,
+      ];
+      (a.changes && a.changes.length ? a.changes : [null]).forEach(c =>
+        out.push(
+          base.concat(c ? [c.campo, fmtV(c.campo, c.de), fmtV(c.campo, c.para)] : ['', '', ''], [
+            a.note || '',
+          ]),
+        ),
+      );
+    });
+    return out;
+  }
+  // Markdown simples para ler na tela: títulos (#, ##, ###), listas (-), tabelas (|), **negrito** e parágrafos.
+  // O texto é escapado antes (esc); só essa marcação vira HTML.
+  function mdHtml(md) {
+    const inl = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    const cells = l =>
+      l
+        .replace(/^\||\|$/g, '')
+        .split('|')
+        .map(c => c.trim());
+    const L = String(md).split('\n'),
+      out = [];
+    for (let i = 0; i < L.length; i++) {
+      const l = L[i],
+        h = l.match(/^(#{1,3}) (.*)$/);
+      if (h) out.push('<h' + (h[1].length + 2) + '>' + inl(h[2]) + '</h' + (h[1].length + 2) + '>');
+      else if (/^- /.test(l)) {
+        const it = [];
+        while (i < L.length && /^- /.test(L[i])) it.push('<li>' + inl(L[i++].slice(2)) + '</li>');
+        i--;
+        out.push('<ul>' + it.join('') + '</ul>');
+      } else if (/^\|/.test(l)) {
+        const rows = [];
+        while (i < L.length && /^\|/.test(L[i])) rows.push(L[i++]);
+        i--;
+        // A segunda linha da tabela é o separador (|---|---|).
+        const body = rows.filter((r, k) => k !== 1);
+        out.push(
+          '<div class="scroll"><table class="tbl compact"><thead><tr>' +
+            cells(body[0])
+              .map(c => '<th>' + inl(c) + '</th>')
+              .join('') +
+            '</tr></thead><tbody>' +
+            body
+              .slice(1)
+              .map(
+                r =>
+                  '<tr>' +
+                  cells(r)
+                    .map(c => '<td>' + inl(c) + '</td>')
+                    .join('') +
+                  '</tr>',
+              )
+              .join('') +
+            '</tbody></table></div>',
+        );
+      } else if (l.trim()) out.push('<p>' + inl(l) + '</p>');
+    }
+    return '<div class="md">' + out.join('') + '</div>';
+  }
+  // O mesmo Markdown como texto puro, para o .txt: sem #, sem ** e com as tabelas em linhas "a · b · c".
+  const mdTxt = md =>
+    String(md)
+      .split('\n')
+      .filter(l => !/^\|[\s|:-]+\|$/.test(l))
+      .map(l =>
+        l
+          .replace(/^#{1,3} /, '')
+          .replace(/\*\*/g, '')
+          .replace(/^\| ?(.*?) ?\|$/, (x, c) => c.split(' | ').join(' · ')),
+      )
+      .join('\n');
+  // Texto de dado dentro do Markdown: sem quebra de linha e sem "|" (que quebraria a tabela).
+  const mdc = t =>
+    String(t == null ? '' : t)
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/\|/g, '/');
+  // Célula do CSV entre aspas, com aspas internas duplicadas.
+  const csvq = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  // Excel em português lê ";" como separador e vírgula como decimal; o BOM garante os acentos.
+  const csvv = (v, k) =>
+    v == null || v === '' || v === false
+      ? ''
+      : k === 'data'
+        ? fd(v)
+        : k === 'brl' || k === 'x' || k === 'dec'
+          ? String(Math.round(Number(v) * 100) / 100).replace('.', ',')
+          : v;
+  // CSV genérico, no mesmo formato do CSV de riscos: cabeçalho e linhas, cada coluna com o seu tipo.
+  const csvOf = (cols, rows) =>
+    '\ufeff' +
+    cols.map(c => csvq(c[0])).join(';') +
+    '\r\n' +
+    rows.map(r => r.map((v, i) => csvq(csvv(v, cols[i][1]))).join(';')).join('\r\n');
+  // CSV dos riscos visíveis, separado por ";".
+  const csvAll = () => csvOf(EXPORT, expRows());
+  // Planilha Excel com a aba Riscos e a aba Por coordenadoria (app/planilha.js).
+  function xlsxAll() {
+    const cols = EXPORT.map(c => ({ t: c[0], k: c[1], w: c[2] || 22 }));
+    const rows = expRows().map(r => r.map(v => (v === false || v == null ? '' : v)));
+    const ucols = UCOLS.map(c => ({ t: c[0], k: c[1], w: 22 }));
     return xlsx([
       { nome: 'Riscos', cols, rows },
-      { nome: 'Por coordenadoria', cols: ucols, rows: por },
+      { nome: 'Por coordenadoria', cols: ucols, rows: porUnid() },
     ]);
   }
   // Pede ao assistente de IA para estruturar um texto livre ou revisar o que já foi escrito.
@@ -3728,20 +4224,44 @@ export function mountMira(root) {
         break;
       // Textos para copiar e arquivos para baixar
       case 'copytce':
-        copyText('tcetext');
+        copyText('tcetext', tceMd(rk(UI.tce)));
+        break;
+      case 'dl-tce-md':
+        download('justificativa-' + UI.tce + '.md', tceMd(rk(UI.tce)), 'text/markdown;charset=utf-8');
+        break;
+      case 'dl-tce-txt':
+        download('justificativa-' + UI.tce + '.txt', mdTxt(tceMd(rk(UI.tce))), 'text/plain;charset=utf-8');
         break;
       case 'closetce':
         UI.tce = null;
         render(true);
         break;
       case 'copyrep':
-        copyText('reptext');
+        copyText('reptext', reportMd());
         break;
-      case 'dl-rep':
-        download('relatorio-csgr-mira.txt', reportText(), 'text/plain;charset=utf-8');
+      case 'dl-rep-md':
+        download('relatorio-csgr-mira.md', reportMd(), 'text/markdown;charset=utf-8');
+        break;
+      case 'dl-rep-txt':
+        download('relatorio-csgr-mira.txt', mdTxt(reportMd()), 'text/plain;charset=utf-8');
         break;
       case 'dl-csv':
         download('riscos-mira.csv', csvAll(), 'text/csv;charset=utf-8');
+        break;
+      case 'dl-csv-unid':
+        download('riscos-por-coordenadoria-mira.csv', csvOf(UCOLS, porUnid()), 'text/csv;charset=utf-8');
+        break;
+      case 'dl-csv-faixa':
+        download('riscos-por-faixa-mira.csv', csvOf(FCOLS(), porFaixa()), 'text/csv;charset=utf-8');
+        break;
+      case 'dl-csv-med':
+        download('medicoes-mira.csv', csvOf(MCOLS, medRows()), 'text/csv;charset=utf-8');
+        break;
+      case 'dl-csv-quadro':
+        download('quadro-mira.csv', csvOf(QCOLS, quadroRows()), 'text/csv;charset=utf-8');
+        break;
+      case 'dl-csv-hist':
+        download('historico-mira.csv', csvOf(HCOLS, histRows()), 'text/csv;charset=utf-8');
         break;
       case 'dl-xlsx':
         download(
@@ -3768,6 +4288,81 @@ export function mountMira(root) {
       case 'toggle-ativo':
         await api('POST', 'users/' + el.dataset.id + '/ativo', { ativo: el.dataset.v === '1' });
         await refresh(true);
+        break;
+      // Quadro: o gestor abre o formulário de delegação no cartão, grava ou cancela
+      case 'deleg-ask':
+        UI.delegFor = el.dataset.id;
+        render(true);
+        break;
+      case 'deleg-cancel':
+        UI.delegFor = null;
+        render(true);
+        break;
+      case 'deleg-save': {
+        // Lê o formulário antes de redesenhar: depois do refresh os campos já não existem.
+        const para = val('dg-para');
+        await api('POST', 'risks/' + el.dataset.id + '/action', {
+          action: 'delegar',
+          para,
+          nota: val('dg-nota').trim(),
+        });
+        UI.delegFor = null;
+        await refresh(true);
+        toast(para ? 'Responsável definido.' : 'Responsável retirado.');
+        break;
+      }
+      // Coordenadorias: editar o nome por extenso
+      case 'unit-edit':
+        UI.unitEdit = el.dataset.sigla;
+        render(true);
+        break;
+      case 'unit-edit-cancel':
+        UI.unitEdit = null;
+        render(true);
+        break;
+      case 'unit-edit-save':
+        await api('POST', 'units/nome', { sigla: el.dataset.sigla, nome: val('ue-nome').trim() });
+        UI.unitEdit = null;
+        await refresh(true);
+        toast('Nome da coordenadoria atualizado.');
+        break;
+      case 'ped-ask':
+        UI.pedFor = el.dataset.id;
+        render();
+        break;
+      case 'ped-cancel':
+        UI.pedFor = null;
+        render(true);
+        break;
+      case 'ped-md': {
+        const x = S.users.find(p => p.id === el.dataset.id);
+        if (x)
+          download('relatorio-de-pedido-' + x.username + '.md', pedidoMd(x), 'text/markdown;charset=utf-8');
+        break;
+      }
+      case 'ped-txt': {
+        const x = S.users.find(p => p.id === el.dataset.id);
+        if (x)
+          download(
+            'relatorio-de-pedido-' + x.username + '.txt',
+            mdTxt(pedidoMd(x)),
+            'text/plain;charset=utf-8',
+          );
+        break;
+      }
+      case 'user-del-ask':
+        UI.delFor = el.dataset.id;
+        render(true);
+        break;
+      case 'user-del-cancel':
+        UI.delFor = null;
+        render(true);
+        break;
+      case 'user-del':
+        await api('POST', 'users/' + el.dataset.id + '/apagar', {});
+        UI.delFor = null;
+        await refresh(true);
+        toast('Pessoa apagada.');
         break;
       case 'unit-remove':
         await api('POST', 'units/remove', { sigla: el.dataset.sigla });
@@ -3804,6 +4399,8 @@ export function mountMira(root) {
     setBusy(true);
     try {
       await doAct(a, el);
+      const dm = el && el.closest ? el.closest('details.dl-menu') : null;
+      if (dm) dm.open = false;
     } catch (e) {
       toast(e.message || 'Não foi possível concluir a ação.');
     } finally {
@@ -3940,6 +4537,11 @@ export function mountMira(root) {
       render(true);
       return;
     }
+    if (t.dataset.qfilt !== undefined) {
+      UI.qfilt = t.value;
+      render(true);
+      return;
+    }
     if (t.dataset.ctxunit !== undefined) {
       UI.ctxUnit = t.value;
       render(true);
@@ -4014,25 +4616,52 @@ export function mountMira(root) {
         papel,
         unit: papel === 'csgr' || papel === 'cgge' ? null : val('n-unit'),
         password: val('n-pw'),
-        sei: { nome: val('n-sei-nome'), numero: val('n-sei-num').trim() },
       });
+      return;
+    }
+    if (e.target.id === 'ped-form') {
+      act2pedido(UI.pedFor);
       return;
     }
     if (e.target.id === 'unit-form') act2unit({ sigla: val('u-sigla').trim(), nome: val('u-nome').trim() });
   };
-  // Cadastra uma pessoa (só administrador). O PDF do SEI vai junto, em base64; o servidor confere se é PDF.
+  // Lê o relatório de pedido de um formulário (prefixo dos ids). O PDF vai em base64; o servidor confere tudo.
+  async function readPedido(px) {
+    const f = fileOf(px + '-ped-pdf');
+    if (f && f.size > SEI_MAX) throw new Error('O PDF pode ter no máximo 10 MB.');
+    return {
+      tipo: val(px + '-ped-tipo'),
+      nome: val(px + '-ped-nome').trim(),
+      numero: val(px + '-ped-num').trim(),
+      data: val(px + '-ped-data'),
+      arquivo: f ? f.name : '',
+      pdf: f ? toB64(await f.arrayBuffer()) : '',
+    };
+  }
+  // Cadastra uma pessoa (só administrador), com o relatório de pedido.
   async function act2user(b) {
     if (isBusy()) return;
     setBusy(true);
     try {
-      const f = fileOf('n-sei-pdf');
-      if (!f) throw new Error('Anexe o PDF do documento SEI.');
-      if (f.size > SEI_MAX) throw new Error('O PDF pode ter no máximo 10 MB.');
-      b.sei.arquivo = f.name;
-      b.sei.pdf = toB64(await f.arrayBuffer());
+      b.pedido = await readPedido('n');
       await api('POST', 'users', b);
       await refresh(true);
       toast('Pessoa cadastrada.');
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  // Registra o relatório de pedido de quem já tem conta (só administrador).
+  async function act2pedido(id) {
+    if (isBusy() || !id) return;
+    setBusy(true);
+    try {
+      await api('POST', 'users/' + id + '/pedido', { pedido: await readPedido('p') });
+      UI.pedFor = null;
+      await refresh(true);
+      toast('Relatório de pedido registrado.');
     } catch (e) {
       toast(e.message);
     } finally {

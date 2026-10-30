@@ -505,3 +505,43 @@ main>.card.decide{box-shadow:0 0 0 1px var(--accent),var(--shadow)}
 .ctx-marcos{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:6px}
 .ctx-marcos li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:13px}
 @media (max-width:760px){.ctx-peek-b{grid-template-columns:1fr;gap:4px}}
+
+/* ===== Menu "Baixar": opções de formato ===== */
+.dl-menu{position:relative;display:inline-block}
+.dl-menu>summary{list-style:none}
+.dl-menu>summary::-webkit-details-marker{display:none}
+.dl-menu>summary::after{content:"▾";margin-left:6px;font-size:10px}
+.dl-opts{position:absolute;right:0;top:calc(100% + 4px);z-index:30;width:300px;max-width:calc(100vw - 32px);display:grid;gap:2px;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
+.dl-opt{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:8px 10px;border:0;border-radius:6px;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.dl-opt:hover,.dl-opt:focus-visible{background:var(--surface2)}
+.dl-opt b{font-size:13px}
+.dl-opt small{font-size:12px;color:var(--muted)}
+
+/* ===== Texto em Markdown lido na tela (relatório e justificativa) ===== */
+.md{font-size:14px;line-height:1.55;overflow-wrap:anywhere}
+.md h3{font-size:18px;margin:0 0 6px}
+.md h4{font-size:15px;margin:18px 0 6px}
+.md h5{font-size:14px;margin:14px 0 4px}
+.md p{margin:0 0 8px}
+.md ul{margin:0 0 10px;padding-left:20px}
+.md li{margin:2px 0}
+.md .tbl{margin:4px 0 12px}
+
+/* ===== Quadro: colunas pelas etapas do processo ===== */
+.quadro{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(180px,1fr);gap:10px;overflow-x:auto;padding-bottom:8px;align-items:start}
+.q-col{background:var(--surface2);border-radius:8px;padding:10px;min-width:0}
+.q-col h3{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;font-size:13px}
+.q-col ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.q-card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:6px}
+.q-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.q-tit{border:0;background:none;padding:0;text-align:left;font:600 14px/1.35 var(--font-body);color:var(--ink);cursor:pointer}
+.q-tit:hover{text-decoration:underline}
+.q-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.q-quem{display:flex;align-items:center;gap:8px;font-size:13px}
+.q-quem small{display:block;font-size:11px;color:var(--muted)}
+.q-nota{margin:0;font-size:12px;color:var(--muted);border-left:3px solid var(--accent);padding-left:8px}
+.q-form{display:grid;gap:6px;font-size:13px}
+.q-vazio{font-size:12px;color:var(--muted);padding:6px 2px}
+.avatar.sm{width:24px;height:24px;font-size:10px}
+@media (max-width:640px){.quadro{grid-auto-flow:row;grid-auto-columns:auto}}
+.sei-acts{gap:6px;margin-top:4px}

@@ -87,8 +87,10 @@ const ok = (c, m) => {
   r = await call('adm', 'POST', 'units/remove', { sigla: 'Teste-1' });
   ok(r.s === 200 && !r.units.some(x => x.sigla === 'Teste-1'), 'remove coordenadoria vazia');
 
-  // Cadastro de pessoas: só o administrador, sempre com o PDF do SEI (nome e número)
+  // Cadastro de pessoas: só o administrador, sempre com o relatório de pedido (tipo, documento, número SEI e data)
   const sei = n => ({
+    tipo: 'sei',
+    data: '2026-10-30',
     nome: 'Portaria de designação ' + n,
     numero: '00451234' + n,
     arquivo: 'portaria-' + n + '.pdf',
@@ -96,19 +98,37 @@ const ok = (c, m) => {
   });
   const base = { nome: 'Pessoa Sem SEI', username: 'sem.sei', papel: 'cgge', password: 'senha-forte-2' };
   r = await call('adm', 'POST', 'users', base);
-  ok(r.s === 422, 'cadastro sem documento SEI é barrado');
-  r = await call('adm', 'POST', 'users', { ...base, sei: { ...sei(90), numero: 'abc' } });
+  ok(r.s === 422, 'cadastro sem relatório de pedido é barrado');
+  r = await call('adm', 'POST', 'users', { ...base, pedido: { ...sei(89), data: '' } });
+  ok(r.s === 422 && /data/.test(r.error), 'relatório de pedido sem data é barrado');
+  r = await call('adm', 'POST', 'users', { ...base, pedido: { ...sei(88), pdf: '' } });
+  ok(r.s === 422 && /PDF/.test(r.error), 'tipo SEI sem PDF é barrado');
+  r = await call('adm', 'POST', 'users', {
+    ...base,
+    username: 'formal.sem.pdf',
+    pedido: { ...sei(87), tipo: 'formal', pdf: '', arquivo: '' },
+  });
+  ok(r.s === 200, 'pedido formal com número SEI e data é aceito sem PDF');
+  for (const [u, s, m] of [
+    ['teste1', 200, 'teste1 é criada sem relatório de pedido'],
+    ['teste20', 200, 'teste20 é criada sem relatório de pedido'],
+    ['teste21', 422, 'teste21 já não é conta de teste e exige o pedido'],
+  ]) {
+    r = await call('adm', 'POST', 'users', { ...base, username: u });
+    ok(r.s === s, m);
+  }
+  r = await call('adm', 'POST', 'users', { ...base, pedido: { ...sei(90), numero: 'abc' } });
   ok(r.s === 422, 'número SEI inválido é barrado');
   r = await call('adm', 'POST', 'users', {
     ...base,
-    sei: { ...sei(91), pdf: Buffer.from('não é pdf').toString('base64') },
+    pedido: { ...sei(91), pdf: Buffer.from('não é pdf').toString('base64') },
   });
   ok(r.s === 422 && /não é um PDF/.test(r.error), 'arquivo que não é PDF é barrado');
   r = await call('adm', 'POST', 'users', {
     ...base,
     papel: 'cadastrador',
     unit: 'Inexistente',
-    sei: sei(92),
+    pedido: sei(92),
   });
   ok(r.s === 422, 'coordenadoria que não foi criada é barrada');
   for (const [nome, username, papel, unit, i] of [
@@ -124,11 +144,11 @@ const ok = (c, m) => {
       papel,
       unit,
       password: 'senha-forte-2',
-      sei: sei(i),
+      pedido: sei(i),
     });
     ok(r.s === 200, 'cria ' + username + ' com o PDF do SEI');
   }
-  r = await call('adm', 'POST', 'users', { ...base, papel: 'admin', sei: sei(93) });
+  r = await call('adm', 'POST', 'users', { ...base, papel: 'admin', pedido: sei(93) });
   ok(r.s === 422, 'não se cria um segundo administrador pela tela');
   r = await call('adm', 'POST', 'users', {
     nome: 'Gestor 2',
@@ -136,14 +156,27 @@ const ok = (c, m) => {
     papel: 'gestor',
     unit: 'Cosegi',
     password: 'senha-forte-2',
-    sei: sei(15),
+    pedido: sei(15),
   });
   ok(r.s === 422, 'segundo gestor da unidade bloqueado');
   r = await call('adm', 'POST', 'units/remove', { sigla: 'Cosegi' });
   ok(r.s === 422, 'coordenadoria com pessoas não pode ser removida');
   st = await call('adm', 'GET', 'state');
   const cadCosegi = st.users.find(x => x.username === 'cad.cosegi');
-  ok(cadCosegi && cadCosegi.seiNumero === '0045123411', 'lista de pessoas traz o número SEI');
+  ok(
+    cadCosegi &&
+      cadCosegi.seiNumero === '0045123411' &&
+      cadCosegi.seiTipo === 'sei' &&
+      cadCosegi.seiData === '2026-10-30',
+    'lista de pessoas traz tipo, número SEI e data do pedido',
+  );
+  const t1 = st.users.find(x => x.username === 'teste1');
+  r = await call('adm', 'POST', 'users/' + t1.id + '/pedido', { pedido: sei(40) });
+  st = await call('adm', 'GET', 'state');
+  ok(
+    r.s === 200 && st.users.find(x => x.username === 'teste1').seiNumero === '0045123440',
+    'administrador registra o pedido de quem já tem conta',
+  );
   const pdfRes = await handle(
     new Request('http://x/api/users/' + cadCosegi.id + '/sei', {
       headers: { cookie: 'mira_sid=' + jars.adm },
@@ -164,7 +197,7 @@ const ok = (c, m) => {
   );
   r = await call('csgr', 'POST', 'login', { username: 'csgr.admin', password: 'senha-forte-2' });
   ok(r.s === 200, 'login csgr.admin');
-  r = await call('csgr', 'POST', 'users', { ...base, sei: sei(94) });
+  r = await call('csgr', 'POST', 'users', { ...base, pedido: sei(94) });
   ok(r.s === 403, 'CSGR não cadastra pessoas');
   r = await call('csgr', 'POST', 'units', { sigla: 'Outra' });
   ok(r.s === 403, 'CSGR não cria coordenadoria');
@@ -300,6 +333,65 @@ const ok = (c, m) => {
   );
   r = await call('adm', 'POST', 'risks/R-001/aval', { prob: 1, imp: 1 });
   ok(r.s === 404, 'administrador não acessa risco por id');
+
+  // Quadro: só o gestor da coordenadoria delega quem resolve, e só para gente da própria coordenadoria
+  st = await call('ges', 'GET', 'state');
+  const cadId = st.team.find(t => t.nome === 'cad.cosegi').id;
+  const outraId = (await call('adm', 'GET', 'state')).users.find(x => x.username === 'cad.coinfra').id;
+  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'delegar', para: cadId });
+  ok(r.s === 403, 'cadastrador não delega');
+  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'delegar', para: outraId });
+  ok(r.s === 422, 'não delega a pessoa de outra coordenadoria');
+  r = await call('ges', 'POST', 'risks/R-001/action', {
+    action: 'delegar',
+    para: cadId,
+    nota: 'Corrigir as vulnerabilidades críticas',
+  });
+  ok(
+    r.s === 200 && r.risk.delegado.nome === 'cad.cosegi' && r.risk.delegado.por === 'ges.cosegi',
+    'gestor delega o risco',
+  );
+  st = await call('cad', 'GET', 'state');
+  ok(
+    st.alerts.some(a => a.tipo === 'delegado') &&
+      st.audit.some(a => a.action === 'Delegou o risco' && a.changes[0].para === 'cad.cosegi'),
+    'delegação gera aviso e fica na auditoria',
+  );
+  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'delegar', para: '' });
+  ok(r.s === 200 && r.risk.delegado === null, 'gestor retira o responsável');
+
+  // Coordenadoria: nome por extenso editável pelo administrador; pessoa apagada de vez (menos o administrador)
+  r = await call('adm', 'POST', 'units/nome', { sigla: 'Cosegi', nome: 'Nome por extenso de teste' });
+  ok(
+    r.s === 200 && r.units.find(x => x.sigla === 'Cosegi').nome === 'Nome por extenso de teste',
+    'administrador altera o nome por extenso',
+  );
+  r = await call('csgr', 'POST', 'units/nome', { sigla: 'Cosegi', nome: 'Outro' });
+  ok(r.s === 403, 'CSGR não altera o nome da coordenadoria');
+  st = await call('cad', 'GET', 'state');
+  ok(
+    st.units.length === 1 && st.units[0].nome === 'Nome por extenso de teste',
+    'cadastrador recebe o nome por extenso da própria coordenadoria',
+  );
+  r = await call('adm', 'POST', 'users/' + adm.id + '/apagar', {});
+  ok(r.s === 422, 'a conta do administrador não pode ser apagada');
+  const cgge = (
+    await call('adm', 'POST', 'users', {
+      username: 'apagar.teste',
+      papel: 'cgge',
+      password: 'senha-forte-2',
+      pedido: sei(30),
+    })
+  ).user;
+  await call('apagar', 'POST', 'login', { username: 'apagar.teste', password: 'senha-forte-2' });
+  r = await call('csgr', 'POST', 'users/' + cgge.id + '/apagar', {});
+  ok(r.s === 403, 'CSGR não apaga pessoas');
+  r = await call('adm', 'POST', 'users/' + cgge.id + '/apagar', {});
+  ok(r.s === 200, 'administrador apaga uma pessoa');
+  r = await call('apagar', 'GET', 'state');
+  ok(r.s === 401, 'pessoa apagada perde a sessão');
+  r = await call('x', 'POST', 'login', { username: 'apagar.teste', password: 'senha-forte-2' });
+  ok(r.s === 401, 'pessoa apagada não entra mais');
 
   // Contexto (fase 1), assistente de IA sem chave, avisos e segurança da sessão
   r = await call('cad', 'POST', 'ctx/escopo', { escopo: 'Riscos de segurança da informação' });

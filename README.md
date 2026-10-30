@@ -31,9 +31,11 @@ Abra http://localhost:3000. O servidor só escuta em 127.0.0.1.
    e um usuário que não existe é recusado sem gravar nada no banco.
 2. O administrador abre **Coordenadorias** e cria as que vão usar o sistema. O MIRA começa sem nenhuma.
 3. Em **Usuários**, o administrador cadastra as pessoas: até 2 *cadastradores* e 1 *gestor de riscos* (titular)
-   por coordenadoria, além de CSGR e CGGE. Todo cadastro exige o PDF do documento SEI que autoriza o acesso,
-   com o nome e o número SEI.
+   por coordenadoria, além de CSGR e CGGE. Todo cadastro exige o **relatório de pedido** que autoriza o acesso:
+   tipo (SEI ou pedido formal), nome do documento, número SEI e data; o PDF é obrigatório no tipo SEI.
+   As contas de teste `teste1` a `teste20` podem ser criadas sem o pedido.
 4. Cada cadastrador entra, preenche o **Contexto** da coordenadoria e começa a registrar riscos.
+5. No **Quadro**, o gestor da coordenadoria delega a quem vai resolver cada risco.
 
 Para uso em produção: `npm run build && npm start`.
 
@@ -41,9 +43,9 @@ Para uso em produção: `npm run build && npm start`.
 
 | Perfil | O que faz |
 |---|---|
-| Administrador | Implantação: cria as coordenadorias e é o único que cadastra pessoas, sempre com o PDF do SEI. Redefine senhas e desativa contas. Não vê riscos. |
+| Administrador | Implantação: cria e renomeia as coordenadorias e é o único que cadastra pessoas, sempre com o relatório de pedido. Redefine senhas, desativa e apaga contas (a dele não). Não vê riscos. |
 | Cadastrador | Registra e edita riscos da própria coordenadoria, elabora o PRR, registra medições e reavalia. |
-| Gestor de riscos | Titular da coordenadoria. Valida o PRR e o encaminha à CSGR (ou devolve). Encerra riscos. |
+| Gestor de riscos | Titular da coordenadoria. Valida o PRR e o encaminha à CSGR (ou devolve). Delega no Quadro quem resolve cada risco. Encerra riscos. |
 | CSGR | Aprova ou devolve PRRs e gera o relatório anual. |
 | CGGE | Só consulta. |
 

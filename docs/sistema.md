@@ -16,9 +16,9 @@ As coordenadorias não vêm prontas: o administrador cria cada uma na hora, com 
 
 | Perfil | O que faz |
 |---|---|
-| Administrador · implantação | Conta criada na implantação, no servidor (`npm run admin -- <usuario>`). Cria as coordenadorias e é o único que cadastra pessoas, sempre com o PDF do documento SEI (nome e número). Redefine senhas e desativa contas. Não tem coordenadoria e não vê riscos; no histórico vê só o que ele fez. |
+| Administrador · implantação | Conta criada na implantação, no servidor (`npm run admin -- <usuario>`). Cria e renomeia as coordenadorias e é o único que cadastra pessoas, sempre com o relatório de pedido (SEI ou pedido formal, com número SEI e data). Redefine senhas, desativa e apaga contas; a conta dele não pode ser apagada. Não tem coordenadoria e não vê riscos; no histórico vê só o que ele fez. |
 | Cadastrador(a) | Registra e edita os riscos da própria coordenadoria, elabora o PRR, registra medições, reavalia o nível e informa quando o evento ocorreu. |
-| Gestor(a) de riscos | Titular da coordenadoria. Valida o PRR e o encaminha à CSGR, ou devolve com motivo. Encerra riscos. |
+| Gestor(a) de riscos | Titular da coordenadoria. Valida o PRR e o encaminha à CSGR, ou devolve com motivo. Delega no Quadro quem resolve cada risco. Encerra riscos. |
 | CSGR | Aprova ou devolve PRRs e gera o relatório anual. Vê todas as coordenadorias. |
 | CGGE | Só consulta, em todas as coordenadorias. |
 
@@ -100,15 +100,20 @@ Todos os perfis alternam entre os dois painéis. CSGR e CGGE abrem na Alta Gest�
 
 | Tela | Para quê | Quem vê |
 |---|---|---|
-| Riscos | Lista com filtros por coordenadoria, nível e situação; exportação em CSV | Todos |
+| Riscos | Lista com filtros por coordenadoria, nível e situação; menu Baixar com Excel e os CSVs | Todos |
+| Quadro | Colunas pelas etapas do processo (identificar e avaliar, elaborar o PRR, em validação, em tratamento, evento ocorreu, encerrado), com quem resolve cada risco e filtro por responsável. O gestor da coordenadoria delega a um cadastrador ou a si mesmo, com uma observação; a delegação vai para o histórico e gera um aviso | Todos menos o administrador; delega o gestor |
 | Matriz | Matriz 5 × 5 com a distribuição por nível e a lista da célula escolhida | Todos |
 | Pendências | O que depende do perfil: rascunhos e devoluções (cadastrador), validações (gestor), aprovações com custo e retorno (CSGR) | Todos, menos CGGE |
 | Contexto | Fase 1 da coordenadoria | Todos; edita o cadastrador |
 | Histórico | Linha do tempo de todas as alterações, com valor anterior e novo | Todos, filtrado pela coordenadoria |
 | Alertas | Avisos do momento e avisos guardados | Todos |
-| Relatório | Indicadores, tabela de riscos por coordenadoria e faixa e o texto do relatório anual | Gestor, CSGR e CGGE |
-| Usuários | Cadastro de pessoas com o PDF do SEI, busca por nome ou número SEI, download do PDF, redefinição de senha, desativação e cobertura de cada coordenadoria | Administrador |
-| Coordenadorias | Criação das coordenadorias; remoção só enquanto não têm pessoas, riscos nem contexto | Administrador |
+| Relatório | Indicadores, tabela de riscos por coordenadoria e faixa e o texto do relatório anual, lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, CSGR e CGGE |
+| Usuários | Cadastro de pessoas com o relatório de pedido (SEI ou pedido formal, número SEI, data e PDF), registro de pedido de quem já tem conta, busca por nome ou número SEI, download do PDF e do relatório de pedido (.md ou .txt), redefinição de senha, desativação, exclusão e cobertura de cada coordenadoria | Administrador |
+| Coordenadorias | Criação das coordenadorias, edição do nome por extenso e remoção enquanto não têm pessoas, riscos nem contexto | Administrador |
+
+Quem é de uma coordenadoria vê no cabeçalho a sigla em maiúsculas e o nome por extenso dela (por exemplo, "COSEGI · nome por extenso"). Os dois vêm do cadastro feito pelo administrador; nenhuma coordenadoria é fixa no código.
+
+**Downloads.** Na tela, os textos longos (relatório anual e justificativa para o TCE) aparecem em Markdown formatado. O botão **Baixar** abre as opções de formato: Excel; CSV de riscos, por coordenadoria, por coordenadoria e faixa, de medições, do quadro e do histórico; e Markdown ou texto puro para o relatório e a justificativa. Os CSVs usam ";", vírgula decimal e acentos preservados, para abrir direto no Excel.
 
 ## Assistente de IA (opcional)
 
@@ -145,7 +150,7 @@ lib/logic.js: regras do MGR usadas tanto no servidor quanto no navegador
 
 - **Next.js 15 (App Router) e React 19**, com Node 22.13 ou mais novo. O banco é o `node:sqlite`, que já vem no Node, sem dependências extras.
 - **Interface:** `mira-ui.js` monta todas as telas como HTML e conversa só com a API. O mesmo arquivo de regras (`logic.js`) decide no navegador o que mostrar e no servidor o que permitir.
-- **Banco:** um arquivo `./data/mira.db` (a pasta muda com `MIRA_DATA_DIR`). As tabelas são `users`, `sessions`, `risks` (cada risco em JSON), `audit`, `alerts` , `ctx` (contexto por coordenadoria), `units` (coordenadorias criadas) e `user_docs` (PDF do SEI de cada cadastro, indexado pelo número SEI). O backup é a cópia desse arquivo.
+- **Banco:** um arquivo `./data/mira.db` (a pasta muda com `MIRA_DATA_DIR`). As tabelas são `users`, `sessions`, `risks` (cada risco em JSON), `audit`, `alerts` , `ctx` (contexto por coordenadoria), `units` (coordenadorias criadas) e `user_docs` (relatório de pedido de cada cadastro: tipo, documento, número SEI, data e o PDF quando houver, indexado pelo número SEI). O backup é a cópia desse arquivo.
 - **Começa vazio:** sem pessoas, sem coordenadorias e sem dados de exemplo. A conta do administrador é criada na implantação com `npm run admin -- <usuario>`; não existe rota da API que crie conta sem login. Num banco anterior a este perfil, as coordenadorias que já têm dados entram na lista e as pessoas continuam entrando; basta criar o administrador com o mesmo comando.
 - **Conta só pelo usuário:** não há campo de nome. O usuário de acesso é o que aparece nas telas e na trilha de auditoria.
 
