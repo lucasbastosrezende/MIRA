@@ -6,6 +6,15 @@ com histórico de toda alteração, alertas e dois painéis (Operacional de TI e
 
 O sistema começa **vazio**: sem riscos, sem pessoas e sem dados de exemplo.
 
+## Documentação
+
+| Documento | Para quê |
+|---|---|
+| [docs/sistema.md](docs/sistema.md) | O que é o MIRA e como ele funciona por dentro |
+| [docs/pitch.md](docs/pitch.md) | Roteiro para apresentar o projeto |
+| [docs/testes.md](docs/testes.md) | Tabela de testes e resultados |
+| [CLAUDE.md](CLAUDE.md) | Regras de trabalho do repositório |
+
 ## Como rodar (localhost)
 
 Requisitos: Node.js 22.13 ou mais novo (o banco usa o módulo `node:sqlite`, que já vem no Node).
@@ -52,9 +61,12 @@ Não existe rota para editar ou apagar a trilha.
 ## Testes
 
 ```bash
+npm test                  # roda as duas suítes abaixo
 npm run test:api          # fluxo completo pela API, com banco temporário
-node --no-warnings tests/ui.smoke.mjs   # executa o código da interface contra a API com um DOM mínimo
+npm run test:ui           # executa o código da interface contra a API com um DOM mínimo
 ```
+
+A tabela com todos os cenários testados, incluindo o roteiro de ponta a ponta no navegador, está em [docs/testes.md](docs/testes.md).
 
 ## Premissas para conferir com o MGR oficial
 
@@ -76,5 +88,8 @@ lib/logic.js         regras do MGR (escalas, níveis, permissões, validações)
 lib/service.js       regras de negócio e auditoria no servidor
 lib/api.js           roteador da API
 lib/db.js            SQLite e senhas (scrypt)
-tests/               testes
+tests/               testes automáticos
+docs/                documentação (sistema, pitch e tabela de testes)
+.github/             modelo de descrição de pull request
+CLAUDE.md            regras do repositório (Git, commits, PRs, dados)
 ```
