@@ -5,7 +5,7 @@
 ## O que o sistema resolve
 
 - **Riscos descritos de jeitos diferentes.** O formulário guiado obriga a escrever no formato do MGR ("Devido a… poderá ocorrer… levando a… afetando…") e avisa quando o texto descreve um problema que já acontece, e não um risco.
-- **Plano de resposta aprovado fora do sistema.** O Plano de Respostas a Riscos (PRR) tramita dentro do MIRA: cadastrador elabora, gestor da coordenadoria valida e a CSGR aprova, com devolução e motivo registrados.
+- **Plano de resposta aprovado fora do sistema.** O Plano de Respostas a Riscos (PRR) tramita dentro do MIRA: cadastrador elabora, gestor da coordenadoria valida e a Alta Gestão de Riscos aprova, com devolução e motivo registrados.
 - **Monitoramento sem limites definidos.** Cada PRR tem uma métrica com valores crítico, alerta e ideal; cada medição é comparada a esses limites e gera aviso quando sai do ideal.
 - **Alta gestão sem visão de custo.** O painel de Alta Gestão converte probabilidade em percentual e mostra quanto cada risco expõe em reais, quanto custa tratá-lo e quanto a exposição cai com o tratamento.
 - **Prestação de contas.** A trilha de auditoria não pode ser editada nem apagada, e o sistema gera a justificativa de despesa e o relatório anual em texto.
@@ -18,8 +18,8 @@ As coordenadorias não vêm prontas: o administrador cria cada uma na hora, com 
 |---|---|
 | Administrador · implantação | Conta criada na implantação, no servidor (`npm run admin -- <usuario>`). Cria e renomeia as coordenadorias e é o único que cadastra pessoas, sempre com o relatório de pedido (SEI ou pedido formal, com número SEI e data). Redefine senhas, desativa e apaga contas; a conta dele não pode ser apagada. Não tem coordenadoria e não vê riscos; no histórico vê só o que ele fez. |
 | Cadastrador(a) | Registra e edita os riscos da própria coordenadoria, elabora o PRR, registra medições, reavalia o nível e informa quando o evento ocorreu. |
-| Gestor(a) de riscos | Titular da coordenadoria. Valida o PRR e o encaminha à CSGR, ou devolve com motivo. Delega no Quadro quem resolve cada risco. Encerra riscos. |
-| CSGR | Aprova ou devolve PRRs e gera o relatório anual. Vê todas as coordenadorias. |
+| Gestor(a) de riscos | Titular da coordenadoria. Valida o PRR e o encaminha à Alta Gestão de Riscos, ou devolve com motivo. Delega no Quadro quem resolve cada risco. Encerra riscos. |
+| Alta Gestão de Riscos | Aprova ou devolve PRRs e gera o relatório anual. Vê todas as coordenadorias. No código e no banco, o perfil é `altagestao` (antes se chamava CSGR; bancos antigos são migrados sozinhos). |
 | CGGE | Só consulta, em todas as coordenadorias. |
 
 Quem é de uma coordenadoria não enxerga nem acessa por endereço os riscos de outra. A regra é conferida no servidor, não só escondida na tela.
@@ -37,7 +37,7 @@ Quem é de uma coordenadoria não enxerga nem acessa por endereço os riscos de 
 ## Situações de um risco
 
 ```
-rascunho → avaliado → aguardando gestor → aguardando CSGR → em tratamento → encerrado
+rascunho → avaliado → aguardando gestor → aguardando Alta Gestão → em tratamento → encerrado
                           │                    │                  │
                           └──── devolvido ◄────┘                  └→ evento ocorreu → encerrado
                                   │
@@ -46,10 +46,10 @@ rascunho → avaliado → aguardando gestor → aguardando CSGR → em tratament
 
 - **Rascunho:** identificado, ainda sem avaliação.
 - **Avaliado:** tem probabilidade e impacto; falta o PRR.
-- **Aguardando gestor / aguardando CSGR:** PRR em validação. Ninguém edita o risco nessa etapa.
-- **Devolvido:** gestor ou CSGR devolveu com motivo obrigatório; o motivo aparece no topo do PRR para quem vai corrigir.
+- **Aguardando gestor / aguardando Alta Gestão:** PRR em validação. Ninguém edita o risco nessa etapa.
+- **Devolvido:** gestor ou Alta Gestão de Riscos devolveu com motivo obrigatório; o motivo aparece no topo do PRR para quem vai corrigir.
 - **Em tratamento:** PRR aprovado; começa o monitoramento da métrica.
-- **Evento ocorreu:** o risco se materializou; gestor e CSGR são avisados para reavaliar.
+- **Evento ocorreu:** o risco se materializou; gestor e Alta Gestão de Riscos são avisados para reavaliar.
 - **Encerrado:** fechado pelo gestor; sai dos riscos ativos e dos painéis.
 
 ## Como os números são calculados
@@ -71,7 +71,7 @@ As faixas de nível, as descrições das notas e os percentuais são premissas q
 
 Há dois tipos de aviso, reunidos na aba Alertas:
 
-- **Avisos guardados**, gerados por um acontecimento: PRR enviado (para o gestor), PRR encaminhado (para a CSGR), PRR devolvido e aprovado (para cadastrador e gestor), métrica que entrou em alerta ou crítico (para cadastrador, gestor e CSGR), nível que subiu e evento ocorrido (para gestor e CSGR). Cada pessoa marca os seus como lidos.
+- **Avisos guardados**, gerados por um acontecimento: PRR enviado (para o gestor), PRR encaminhado (para a Alta Gestão de Riscos), PRR devolvido e aprovado (para cadastrador e gestor), métrica que entrou em alerta ou crítico (para cadastrador, gestor e Alta Gestão de Riscos), nível que subiu e evento ocorrido (para gestor e Alta Gestão de Riscos). Cada pessoa marca os seus como lidos.
 - **Avisos do momento**, calculados a cada acesso: prazo da ação em até 15 dias ou vencido, e métrica em alerta ou crítico. Aparecem em "Exigem ação agora" e na fila de ação do painel Operacional.
 
 No protótipo os e-mails são simulados: o aviso aparece no sistema, mas nada sai por e-mail.
@@ -94,7 +94,7 @@ No protótipo os e-mails são simulados: o aviso aparece no sistema, mas nada sa
 - Maiores exposições, com a justificativa de despesa pronta para o TCE.
 - Respostas por forma de tratamento e as premissas usadas nos cálculos.
 
-Todos os perfis alternam entre os dois painéis. CSGR e CGGE abrem na Alta Gestão; os demais, no Operacional.
+Todos os perfis alternam entre os dois painéis. Alta Gestão de Riscos e CGGE abrem na Alta Gestão; os demais, no Operacional.
 
 ## Demais telas
 
@@ -103,11 +103,11 @@ Todos os perfis alternam entre os dois painéis. CSGR e CGGE abrem na Alta Gest�
 | Riscos | Lista com filtros por coordenadoria, nível e situação; menu Baixar com Excel e os CSVs | Todos |
 | Quadro | Colunas pelas etapas do processo (identificar e avaliar, elaborar o PRR, em validação, em tratamento, evento ocorreu, encerrado), com quem resolve cada risco e filtro por responsável. O gestor da coordenadoria delega a um cadastrador ou a si mesmo, com uma observação; a delegação vai para o histórico e gera um aviso | Todos menos o administrador; delega o gestor |
 | Matriz | Matriz 5 × 5 com a distribuição por nível e a lista da célula escolhida | Todos |
-| Pendências | O que depende do perfil: rascunhos e devoluções (cadastrador), validações (gestor), aprovações com custo e retorno (CSGR) | Todos, menos CGGE |
+| Pendências | O que depende do perfil: rascunhos e devoluções (cadastrador), validações (gestor), aprovações com custo e retorno (Alta Gestão de Riscos) | Todos, menos CGGE |
 | Contexto | Fase 1 da coordenadoria | Todos; edita o cadastrador |
 | Histórico | Linha do tempo de todas as alterações, com valor anterior e novo | Todos, filtrado pela coordenadoria |
 | Alertas | Avisos do momento e avisos guardados | Todos |
-| Relatório | Indicadores, tabela de riscos por coordenadoria e faixa e o texto do relatório anual, lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, CSGR e CGGE |
+| Relatório | Indicadores, tabela de riscos por coordenadoria e faixa e o texto do relatório anual, lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, Alta Gestão de Riscos e CGGE |
 | Usuários | Cadastro de pessoas com o relatório de pedido (SEI ou pedido formal, número SEI, data e PDF), registro de pedido de quem já tem conta, busca por nome ou número SEI, download do PDF e do relatório de pedido (.md ou .txt), redefinição de senha, desativação, exclusão e cobertura de cada coordenadoria | Administrador |
 | Coordenadorias | Criação das coordenadorias, edição do nome por extenso e remoção enquanto não têm pessoas, riscos nem contexto | Administrador |
 

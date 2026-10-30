@@ -132,7 +132,7 @@ const ok = (c, m) => {
   });
   ok(r.s === 422, 'coordenadoria que não foi criada é barrada');
   for (const [nome, username, papel, unit, i] of [
-    ['Administrador CSGR', 'csgr.admin', 'csgr', null, 10],
+    ['Alta gestão teste', 'altagestao.teste', 'altagestao', null, 10],
     ['Pessoa Cad', 'cad.cosegi', 'cadastrador', 'Cosegi', 11],
     ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi', 12],
     ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra', 13],
@@ -195,21 +195,24 @@ const ok = (c, m) => {
     st.audit.some(a => a.changes.some(c => c.campo === 'Número SEI' && c.para === '0045123411')),
     'auditoria registra o número SEI do cadastro',
   );
-  r = await call('csgr', 'POST', 'login', { username: 'csgr.admin', password: 'senha-forte-2' });
-  ok(r.s === 200, 'login csgr.admin');
-  r = await call('csgr', 'POST', 'users', { ...base, pedido: sei(94) });
-  ok(r.s === 403, 'CSGR não cadastra pessoas');
-  r = await call('csgr', 'POST', 'units', { sigla: 'Outra' });
-  ok(r.s === 403, 'CSGR não cria coordenadoria');
-  const pdfCsgr = await handle(
+  r = await call('altagestao', 'POST', 'login', { username: 'altagestao.teste', password: 'senha-forte-2' });
+  ok(r.s === 200, 'login altagestao.teste');
+  r = await call('altagestao', 'POST', 'users', { ...base, pedido: sei(94) });
+  ok(r.s === 403, 'Alta Gestão não cadastra pessoas');
+  r = await call('altagestao', 'POST', 'units', { sigla: 'Outra' });
+  ok(r.s === 403, 'Alta Gestão não cria coordenadoria');
+  const pdfAlta = await handle(
     new Request('http://x/api/users/' + cadCosegi.id + '/sei', {
-      headers: { cookie: 'mira_sid=' + jars.csgr },
+      headers: { cookie: 'mira_sid=' + jars.altagestao },
     }),
     ['users', cadCosegi.id, 'sei'],
   );
-  ok(pdfCsgr.status === 403, 'CSGR não baixa o PDF do SEI');
-  r = await call('csgr', 'GET', 'state');
-  ok(r.users.length === 0 && r.units.length === 2, 'CSGR vê as coordenadorias, mas não a lista de pessoas');
+  ok(pdfAlta.status === 403, 'Alta Gestão não baixa o PDF do SEI');
+  r = await call('altagestao', 'GET', 'state');
+  ok(
+    r.users.length === 0 && r.units.length === 2,
+    'Alta Gestão vê as coordenadorias, mas não a lista de pessoas',
+  );
   r = await call('cad', 'POST', 'login', { username: 'cad.cosegi', password: 'errada' });
   ok(r.s === 401, 'senha errada');
   for (const [k, u] of [
@@ -283,10 +286,10 @@ const ok = (c, m) => {
   // Tramitação do PRR: cada perfil só decide na sua vez; devolver exige motivo
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
   ok(r.s === 200 && r.risk.status === 'ag_gestor', 'envia ao gestor');
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'csgr-ok' });
+  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
   ok(r.s === 403, 'cadastrador não aprova');
-  r = await call('csgr', 'POST', 'risks/R-001/action', { action: 'csgr-ok' });
-  ok(r.s === 403, 'CSGR não aprova antes do gestor');
+  r = await call('altagestao', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
+  ok(r.s === 403, 'Alta Gestão não aprova antes do gestor');
   r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-dev' });
   ok(r.s === 422, 'devolver exige motivo');
   r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-dev', motivo: 'Detalhar a ação' });
@@ -297,14 +300,14 @@ const ok = (c, m) => {
   ok(r.s === 200, 'cadastrador ajusta após devolução');
   await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
   r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-ok' });
-  ok(r.s === 200 && r.risk.status === 'ag_csgr', 'gestor encaminha');
-  r = await call('csgr', 'POST', 'risks/R-001/action', { action: 'csgr-ok' });
-  ok(r.s === 200 && r.risk.status === 'em_tratamento', 'CSGR aprova');
+  ok(r.s === 200 && r.risk.status === 'ag_altagestao', 'gestor encaminha');
+  r = await call('altagestao', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
+  ok(r.s === 200 && r.risk.status === 'em_tratamento', 'Alta Gestão aprova');
 
   // Monitoramento (fase 5) e trilha de auditoria
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'add-med', valor: 12 });
   ok(r.s === 200, 'medição 12 (crítico)');
-  st = await call('csgr', 'GET', 'state');
+  st = await call('altagestao', 'GET', 'state');
   ok(
     st.alerts.some(a => a.tipo === 'metrica'),
     'alerta de métrica gerado',
@@ -366,8 +369,8 @@ const ok = (c, m) => {
     r.s === 200 && r.units.find(x => x.sigla === 'Cosegi').nome === 'Nome por extenso de teste',
     'administrador altera o nome por extenso',
   );
-  r = await call('csgr', 'POST', 'units/nome', { sigla: 'Cosegi', nome: 'Outro' });
-  ok(r.s === 403, 'CSGR não altera o nome da coordenadoria');
+  r = await call('altagestao', 'POST', 'units/nome', { sigla: 'Cosegi', nome: 'Outro' });
+  ok(r.s === 403, 'Alta Gestão não altera o nome da coordenadoria');
   st = await call('cad', 'GET', 'state');
   ok(
     st.units.length === 1 && st.units[0].nome === 'Nome por extenso de teste',
@@ -384,8 +387,8 @@ const ok = (c, m) => {
     })
   ).user;
   await call('apagar', 'POST', 'login', { username: 'apagar.teste', password: 'senha-forte-2' });
-  r = await call('csgr', 'POST', 'users/' + cgge.id + '/apagar', {});
-  ok(r.s === 403, 'CSGR não apaga pessoas');
+  r = await call('altagestao', 'POST', 'users/' + cgge.id + '/apagar', {});
+  ok(r.s === 403, 'Alta Gestão não apaga pessoas');
   r = await call('adm', 'POST', 'users/' + cgge.id + '/apagar', {});
   ok(r.s === 200, 'administrador apaga uma pessoa');
   r = await call('apagar', 'GET', 'state');

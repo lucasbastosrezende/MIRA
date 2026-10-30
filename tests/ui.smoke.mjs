@@ -148,7 +148,7 @@ const sei = n => ({
   pdf: Buffer.from('%PDF-1.4\n%%EOF\n').toString('base64'),
 });
 for (const [nome, username, papel, unit, n] of [
-  ['Administrador CSGR', 'csgr.admin', 'csgr', null, 10],
+  ['Alta gestão teste', 'altagestao.teste', 'altagestao', null, 10],
   ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi', 11],
   ['Consulta', 'cgge.user', 'cgge', null, 12],
   ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra', 13],
@@ -161,7 +161,7 @@ for (const [nome, username, papel, unit, n] of [
     password: 'senha-forte-2',
     pedido: sei(n),
   });
-await call('csgr', 'POST', 'login', { username: 'csgr.admin', password: 'senha-forte-2' });
+await call('altagestao', 'POST', 'login', { username: 'altagestao.teste', password: 'senha-forte-2' });
 // dados via API
 for (const [k, u] of [
   ['cad', 'cad.cosegi'],
@@ -195,8 +195,8 @@ async function mkRisk(who, f, prob, imp, exp, upTo) {
   await call(who, 'POST', `risks/${r.id}/action`, { action: 'send-prr' });
   if (upTo === 'gestor') return r;
   await call('ges', 'POST', `risks/${r.id}/action`, { action: 'gestor-ok' });
-  if (upTo === 'csgr') return r;
-  await call('csgr', 'POST', `risks/${r.id}/action`, { action: 'csgr-ok' });
+  if (upTo === 'altagestao') return r;
+  await call('altagestao', 'POST', `risks/${r.id}/action`, { action: 'altagestao-ok' });
   await call(who, 'POST', `risks/${r.id}/action`, { action: 'add-med', valor: 7 });
   return r;
 }
@@ -210,7 +210,7 @@ const F = (t, c) => ({
 });
 await mkRisk('cad', F('Risco A', 'falha sem redundância no servidor principal'), 2, 5, 4000000, 'ativo');
 await mkRisk('cad', F('Risco B', 'ausência de rotina de backup testada'), 3, 5, 6000000, 'gestor');
-await mkRisk('cad', F('Risco C', 'dependência de fornecedor único de licenças'), 3, 3, 250000, 'csgr');
+await mkRisk('cad', F('Risco C', 'dependência de fornecedor único de licenças'), 3, 3, 250000, 'altagestao');
 await mkRisk('cad', F('Risco D', 'equipe pequena para a demanda de suporte'), 0);
 await mkRisk('cad2', F('Risco E', 'link de internet sem contingência definida'), 4, 4, 900000, 'ativo');
 // navegação por perfil
@@ -263,8 +263,8 @@ async function browse(label, user, pw, nameChk) {
 }
 await browse('Administrador', 'admin.teste', 'senha-forte-0', 'admin.teste');
 ok(!/data-open="R-/.test(html()), 'Administrador: não vê nenhum risco');
-await browse('CSGR', 'csgr.admin', 'senha-forte-2', 'csgr.admin');
-ok(!html().includes('data-nav="usuarios"'), 'CSGR: não tem mais a tela Usuários');
+await browse('Alta Gestão', 'altagestao.teste', 'senha-forte-2', 'altagestao.teste');
+ok(!html().includes('data-nav="usuarios"'), 'Alta Gestão: não tem mais a tela Usuários');
 await browse('Cadastrador Cosegi', 'cad.cosegi', 'senha-forte-2', 'cad.cosegi');
 await browse('Gestor Cosegi', 'ges.cosegi', 'senha-forte-2', 'ges.cosegi');
 await browse('CGGE', 'cgge.user', 'senha-forte-2', 'cgge.user');

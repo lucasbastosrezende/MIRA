@@ -35,7 +35,7 @@ export function mountMira(root) {
     canEdit,
     canMon,
     canGes,
-    canCsg,
+    canAlta,
     canDel,
     visible,
     checkRisk,
@@ -331,7 +331,7 @@ export function mountMira(root) {
   // Barra de filtros da lista de riscos.
   function filterBar(u) {
     const uopt =
-      u.papel === 'csgr' || u.papel === 'cgge'
+      u.papel === 'altagestao' || u.papel === 'cgge'
         ? '<select data-filter="unit" aria-label="Coordenadoria"><option value="">Todas as coordenadorias</option>' +
           units()
             .map(x => '<option' + (UI.filt.unit === x ? ' selected' : '') + '>' + esc(x) + '</option>')
@@ -428,7 +428,7 @@ export function mountMira(root) {
       '</tbody></table></div>'
     );
   }
-  // O que depende da pessoa agora: rascunhos e devoluções (cadastrador), validações (gestor), aprovações (CSGR).
+  // O que depende da pessoa agora: rascunhos e devoluções (cadastrador), validações (gestor), aprovações (Alta Gestão).
   function pendingFor(u) {
     const l = scope(u);
     if (u.papel === 'cadastrador')
@@ -438,7 +438,7 @@ export function mountMira(root) {
           r,
           txt:
             r.status === 'devolvido'
-              ? 'PRR devolvido pela CSGR: ajustar e reenviar'
+              ? 'PRR devolvido pela Alta Gestão de Riscos: ajustar e reenviar'
               : r.status === 'rascunho'
                 ? 'Rascunho: complete a avaliação e o PRR'
                 : 'Avaliado: falta elaborar o PRR',
@@ -448,10 +448,10 @@ export function mountMira(root) {
       return l
         .filter(r => r.status === 'ag_gestor')
         .map(r => ({ r, txt: 'PRR aguardando sua validação', crit: false }));
-    if (u.papel === 'csgr')
+    if (u.papel === 'altagestao')
       return l
-        .filter(r => r.status === 'ag_csgr')
-        .map(r => ({ r, txt: 'PRR aguardando aprovação da CSGR', crit: false }));
+        .filter(r => r.status === 'ag_altagestao')
+        .map(r => ({ r, txt: 'PRR aguardando aprovação da Alta Gestão de Riscos', crit: false }));
     return [];
   }
   /* ===== Painéis: peças comuns ===== */
@@ -656,7 +656,7 @@ export function mountMira(root) {
   // Quantidade de riscos em cada etapa do fluxo do PRR; cada etapa filtra a lista.
   function flow(all) {
     const n = s => all.filter(r => r.status === s).length,
-      main = ['rascunho', 'avaliado', 'ag_gestor', 'ag_csgr', 'em_tratamento'],
+      main = ['rascunho', 'avaliado', 'ag_gestor', 'ag_altagestao', 'em_tratamento'],
       mx = Math.max(1, ...main.map(n));
     const pr = s => ' data-stfilt="' + s + '" aria-pressed="' + (UI.filt.st === s) + '"';
     return (
@@ -1099,7 +1099,7 @@ export function mountMira(root) {
       red = tot - res,
       nPrr = E.filter(x => x.r.prr).length;
     const aprov = E.filter(x => ['em_tratamento', 'ocorrido'].includes(x.r.status)),
-      pend = E.filter(x => ['ag_gestor', 'ag_csgr'].includes(x.r.status));
+      pend = E.filter(x => ['ag_gestor', 'ag_altagestao'].includes(x.r.status));
     const invA = aprov.reduce((a, x) => a + x.e.cost, 0),
       invP = pend.reduce((a, x) => a + x.e.cost, 0);
     const withC = E.filter(x => x.e.cost > 0),
@@ -1193,7 +1193,7 @@ export function mountMira(root) {
       tile(
         'PRRs aguardando decisão',
         pend.length,
-        pend.length ? 'Com o gestor ou com a CSGR' : 'Nenhum PRR em análise',
+        pend.length ? 'Com o gestor ou com a Alta Gestão de Riscos' : 'Nenhum PRR em análise',
         pend.length ? 'info' : 'ok',
       ) +
       '</div>';
@@ -1437,7 +1437,7 @@ export function mountMira(root) {
     '<svg class="ico-t" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-6.5"/></svg>';
   // Hora e minuto de um registro.
   const fhm = s => (s ? new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '');
-  // O histórico guarda valores brutos (ag_csgr, 2026-12-15, 85000). Aqui viram o texto que a pessoa lê.
+  // O histórico guarda valores brutos (ag_altagestao, 2026-12-15, 85000). Aqui viram o texto que a pessoa lê.
   const FMTV = {
     Situação: v => (STAT[v] || [v])[0],
     Prazo: fd,
@@ -1960,7 +1960,7 @@ export function mountMira(root) {
                 ')</span> ' +
                 {
                   enviado: 'enviou para validação do gestor',
-                  encaminhado: 'validou e encaminhou à CSGR',
+                  encaminhado: 'validou e encaminhou à Alta Gestão de Riscos',
                   aprovado: 'aprovou o PRR',
                   devolvido: 'devolveu o PRR',
                 }[a.decisao] +
@@ -1974,19 +1974,19 @@ export function mountMira(root) {
           '</ul>'
       : '<p class="muted">O PRR ainda não foi enviado.</p>';
   }
-  // Botões de decisão do PRR para quem decide agora: gestor (validar ou devolver) e CSGR (aprovar ou devolver).
+  // Botões de decisão do PRR para quem decide agora: gestor (validar ou devolver) e Alta Gestão (aprovar ou devolver).
   function prrActions(u, r) {
     const mot =
       '<div class="field"><label for="ap-motivo">Observação (obrigatória para devolver)</label><textarea id="ap-motivo" rows="3"></textarea></div>';
     if (canGes(u, r))
       return (
         mot +
-        '<div class="actions"><button class="btn primary" data-act="gestor-ok">Validar e encaminhar à CSGR</button><button class="btn danger" data-act="gestor-dev">Devolver ao cadastrador</button></div>'
+        '<div class="actions"><button class="btn primary" data-act="gestor-ok">Validar e encaminhar à Alta Gestão</button><button class="btn danger" data-act="gestor-dev">Devolver ao cadastrador</button></div>'
       );
-    if (canCsg(u, r))
+    if (canAlta(u, r))
       return (
         mot +
-        '<div class="actions"><button class="btn primary" data-act="csgr-ok">Aprovar PRR</button><button class="btn danger" data-act="csgr-dev">Devolver</button></div>'
+        '<div class="actions"><button class="btn primary" data-act="altagestao-ok">Aprovar PRR</button><button class="btn danger" data-act="altagestao-dev">Devolver</button></div>'
       );
     return '';
   }
@@ -2137,14 +2137,14 @@ export function mountMira(root) {
       thr
     );
   }
-  // Fase 4 · Tratamento (PRR): formulário em 4 seções, ou leitura e decisão para gestor e CSGR.
+  // Fase 4 · Tratamento (PRR): formulário em 4 seções, ou leitura e decisão para gestor e Alta Gestão.
   function tabPrr(u, r) {
     if (!r.prob || !r.imp)
       return '<div class="card"><h3>Fase 4 · Tratamento</h3><div class="empty">Avalie probabilidade e impacto antes de elaborar o PRR.</div></div>';
     const ed = canEdit(u, r),
       p = r.prr || emptyPrr(),
       ia = UI.ia && UI.ia[r.id],
-      dec = canGes(u, r) || canCsg(u, r);
+      dec = canGes(u, r) || canAlta(u, r);
     if (!ed && !r.prr)
       return '<div class="card"><h3>Fase 4 · Tratamento</h3><div class="empty">O PRR ainda não foi elaborado.</div></div>';
     const inp = (id, lab, val, type, extra) =>
@@ -2303,7 +2303,7 @@ export function mountMira(root) {
     const decide =
       '<div class="card decide"><div class="card-h"><div><h3>Decisão do PRR</h3><p>' +
       (canGes(u, r)
-        ? 'Valide e encaminhe à CSGR, ou devolva com o motivo.'
+        ? 'Valide e encaminhe à Alta Gestão de Riscos, ou devolva com o motivo.'
         : 'Aprove para iniciar o monitoramento, ou devolva com o motivo.') +
       '</p></div>' +
       stat +
@@ -2334,7 +2334,7 @@ export function mountMira(root) {
   // Fase 5 · Monitoramento: gráfico das medições, nova medição, reavaliação, evento ocorrido e encerramento.
   function tabMon(u, r) {
     if (!['em_tratamento', 'ocorrido', 'encerrado'].includes(r.status))
-      return '<div class="card"><h3>Fase 5 · Monitoramento e reavaliação</h3><div class="empty">Disponível depois que a CSGR aprovar o PRR.</div></div>';
+      return '<div class="card"><h3>Fase 5 · Monitoramento e reavaliação</h3><div class="empty">Disponível depois que a Alta Gestão de Riscos aprovar o PRR.</div></div>';
     const p = r.prr,
       m = lastMed(r),
       ms = metricSt(r),
@@ -2563,11 +2563,11 @@ export function mountMira(root) {
     const t = {
       cadastrador: 'Suas pendências',
       gestor: 'PRRs para você validar',
-      csgr: 'PRRs para a CSGR decidir',
+      altagestao: 'PRRs para a Alta Gestão de Riscos decidir',
       cgge: 'Consulta',
     }[u.papel];
     const money = r =>
-      (u.papel === 'gestor' || u.papel === 'csgr') && r.prr && r.prob && r.imp
+      (u.papel === 'gestor' || u.papel === 'altagestao') && r.prr && r.prob && r.imp
         ? '<span class="qi-m"><b>' +
           brlc(r.prr.custo) +
           '</b><small>custo</small></span><span class="qi-m"><b>' +
@@ -2624,7 +2624,7 @@ export function mountMira(root) {
   // Tela Histórico: toda a trilha de auditoria visível para o perfil.
   function viewHist(u) {
     const list = S.audit
-      .filter(a => u.papel === 'csgr' || u.papel === 'cgge' || a.unit === u.unit)
+      .filter(a => u.papel === 'altagestao' || u.papel === 'cgge' || a.unit === u.unit)
       .slice(0, 80);
     return (
       pageHead('Histórico de alterações', 'Quem alterou, quando e o quê. Nada é apagado.') +
@@ -2638,7 +2638,7 @@ export function mountMira(root) {
   const ETAPAS = [
     ['identificar', 'Identificar e avaliar', ['rascunho']],
     ['prr', 'Elaborar o PRR', ['avaliado', 'devolvido']],
-    ['validacao', 'Em validação', ['ag_gestor', 'ag_csgr']],
+    ['validacao', 'Em validação', ['ag_gestor', 'ag_altagestao']],
     ['tratamento', 'Em tratamento', ['em_tratamento']],
     ['ocorrido', 'Evento ocorreu', ['ocorrido']],
     ['encerrado', 'Encerrado', ['encerrado']],
@@ -2847,7 +2847,7 @@ export function mountMira(root) {
       '<p class="hint">No protótipo, os e-mails são simulados.</p>'
     );
   }
-  // Relatório anual da CSGR em Markdown. Na tela vira HTML (mdHtml); para baixar, sai em .md ou em texto puro.
+  // Relatório anual da Alta Gestão de Riscos em Markdown. Na tela vira HTML (mdHtml); para baixar, sai em .md ou em texto puro.
   function reportMd() {
     const L = S.risks.filter(r => r.status !== 'encerrado' && r.prob && r.imp);
     const ap = S.audit.filter(a => a.action === 'Aprovou o PRR').length,
@@ -2856,7 +2856,7 @@ export function mountMira(root) {
       (a, r) => a + econ(r).cost,
       0,
     );
-    const pnd = L.filter(r => ['ag_gestor', 'ag_csgr'].includes(r.status)).reduce(
+    const pnd = L.filter(r => ['ag_gestor', 'ag_altagestao'].includes(r.status)).reduce(
       (a, r) => a + econ(r).cost,
       0,
     );
@@ -2917,7 +2917,7 @@ export function mountMira(root) {
         )
         .join('\n') || '- nenhuma';
     return [
-      '# Relatório anual da CSGR · gestão de riscos de TIC · ' + new Date().getFullYear(),
+      '# Relatório anual da Alta Gestão de Riscos · TIC · ' + new Date().getFullYear(),
       'Gerado pelo MIRA em ' + fd(new Date().toISOString()) + '.',
       '',
       '## 1. Panorama',
@@ -2932,7 +2932,7 @@ export function mountMira(root) {
         ' · Devolvidos: ' +
         dv +
         ' · Em análise: ' +
-        L.filter(r => ['ag_gestor', 'ag_csgr'].includes(r.status)).length,
+        L.filter(r => ['ag_gestor', 'ag_altagestao'].includes(r.status)).length,
       '- Investimento aprovado: ' + brl(inv) + ' · aguardando decisão: ' + brl(pnd),
       '- Reduções esperadas de exposição: ' + brl(gain),
       '',
@@ -3011,7 +3011,7 @@ export function mountMira(root) {
       '</tbody></table></div>';
     return (
       pageHead(
-        'Relatório anual da CSGR',
+        'Relatório anual da Alta Gestão de Riscos',
         'Riscos, planos de resposta e métricas.',
         '<button class="btn" data-act="copyrep">Copiar Markdown</button>' + dlMenu(DL_REL),
       ) +
@@ -3077,7 +3077,7 @@ export function mountMira(root) {
       pageHead(
         'Contexto da ' + un,
         'Escopo, responsáveis e cronograma.',
-        u.papel === 'csgr' || u.papel === 'cgge'
+        u.papel === 'altagestao' || u.papel === 'cgge'
           ? '<select data-ctxunit aria-label="Coordenadoria">' +
               units()
                 .map(x => '<option' + (x === un ? ' selected' : '') + '>' + esc(x) + '</option>')
@@ -3097,7 +3097,7 @@ export function mountMira(root) {
       '<h3 style="margin-top:16px">Responsáveis designados</h3>' +
       (chips
         ? '<p>' + chips + '</p>'
-        : '<p class="muted">Nenhuma pessoa designada. A CSGR cadastra as pessoas na aba Usuários.</p>') +
+        : '<p class="muted">Nenhuma pessoa designada. O administrador cadastra as pessoas na tela Usuários.</p>') +
       '<p class="hint">Até 2 cadastradores; o titular aprova.</p></div>' +
       '<div class="card grow"><h3>Cronograma de implementação</h3>' +
       marcos +
@@ -3296,7 +3296,7 @@ export function mountMira(root) {
           '</td></tr>',
       )
       .join('');
-    // Sem coordenadoria criada, só dá para cadastrar CSGR e CGGE (que não têm coordenadoria).
+    // Sem coordenadoria criada, só dá para cadastrar Alta Gestão e CGGE (que não têm coordenadoria).
     const unitSel = us.length
       ? '<select id="n-unit" style="width:100%">' +
         us.map(x => '<option>' + esc(x) + '</option>').join('') +
@@ -3311,7 +3311,7 @@ export function mountMira(root) {
       pedidoCard() +
       '<div class="row"><div class="card grow" style="max-width:440px"><h3>Cadastrar pessoa</h3><form id="user-form" autocomplete="off">' +
       '<div class="field"><label for="n-user">Usuário de acesso</label><input id="n-user" style="width:100%" required><div class="hint">Minúsculas, números, ponto, hífen ou sublinhado.</div></div>' +
-      '<div class="field"><label for="n-papel">Perfil</label><select id="n-papel" style="width:100%"><option value="cadastrador">Cadastrador(a) · registra riscos da coordenadoria</option><option value="gestor">Gestor(a) de riscos · titular da coordenadoria</option><option value="csgr">CSGR · aprova PRRs e gera o relatório</option><option value="cgge">CGGE · só consulta</option></select></div>' +
+      '<div class="field"><label for="n-papel">Perfil</label><select id="n-papel" style="width:100%"><option value="cadastrador">Cadastrador(a) · registra riscos da coordenadoria</option><option value="gestor">Gestor(a) de riscos · titular da coordenadoria</option><option value="altagestao">Alta Gestão de Riscos · aprova PRRs e gera o relatório</option><option value="cgge">CGGE · só consulta</option></select></div>' +
       '<div class="field" id="n-unit-wrap"><label for="n-unit">Coordenadoria</label>' +
       unitSel +
       '</div>' +
@@ -4158,21 +4158,21 @@ export function mountMira(root) {
         toast('PRR enviado ao gestor da ' + r.unit + '.');
         break;
       }
-      // Decisões sobre o PRR: gestor valida, CSGR aprova, ambos podem devolver com motivo
+      // Decisões sobre o PRR: gestor valida, Alta Gestão aprova, ambos podem devolver com motivo
       case 'gestor-ok':
         await act2('gestor-ok', { motivo: val('ap-motivo') });
         await refresh(true);
-        toast('PRR encaminhado à CSGR.');
+        toast('PRR encaminhado à Alta Gestão de Riscos.');
         break;
-      case 'csgr-ok':
-        await act2('csgr-ok', { motivo: val('ap-motivo') });
+      case 'altagestao-ok':
+        await act2('altagestao-ok', { motivo: val('ap-motivo') });
         UI.tab = 5;
         await load();
         render();
         toast('PRR aprovado.');
         break;
       case 'gestor-dev':
-      case 'csgr-dev':
+      case 'altagestao-dev':
         await act2(a, { motivo: val('ap-motivo') });
         await refresh(true);
         toast('PRR devolvido ao cadastrador.');
@@ -4240,10 +4240,10 @@ export function mountMira(root) {
         copyText('reptext', reportMd());
         break;
       case 'dl-rep-md':
-        download('relatorio-csgr-mira.md', reportMd(), 'text/markdown;charset=utf-8');
+        download('relatorio-alta-gestao-mira.md', reportMd(), 'text/markdown;charset=utf-8');
         break;
       case 'dl-rep-txt':
-        download('relatorio-csgr-mira.txt', mdTxt(reportMd()), 'text/plain;charset=utf-8');
+        download('relatorio-alta-gestao-mira.txt', mdTxt(reportMd()), 'text/plain;charset=utf-8');
         break;
       case 'dl-csv':
         download('riscos-mira.csv', csvAll(), 'text/csv;charset=utf-8');
@@ -4414,11 +4414,11 @@ export function mountMira(root) {
     const e = document.getElementById('av-res');
     if (e) e.innerHTML = avRes(p, i);
   }
-  // Depois de entrar: o administrador abre em Usuários; CSGR e CGGE na Alta Gestão; os demais, no Operacional.
+  // Depois de entrar: o administrador abre em Usuários; Alta Gestão e CGGE na Alta Gestão; os demais, no Operacional.
   function afterLogin() {
     const u = me();
     UI.view = u.papel === 'admin' ? 'usuarios' : 'paineis';
-    UI.panel = u.papel === 'csgr' || u.papel === 'cgge' ? 'alta' : 'op';
+    UI.panel = u.papel === 'altagestao' || u.papel === 'cgge' ? 'alta' : 'op';
     UI.rid = null;
     UI.draft = null;
     UI.tce = null;
@@ -4557,7 +4557,7 @@ export function mountMira(root) {
     }
     if (t.id === 'n-papel') {
       const w = document.getElementById('n-unit-wrap');
-      if (w) w.hidden = t.value === 'csgr' || t.value === 'cgge';
+      if (w) w.hidden = t.value === 'altagestao' || t.value === 'cgge';
       return;
     }
     if (t.dataset.marco !== undefined) {
@@ -4614,7 +4614,7 @@ export function mountMira(root) {
       act2user({
         username: val('n-user'),
         papel,
-        unit: papel === 'csgr' || papel === 'cgge' ? null : val('n-unit'),
+        unit: papel === 'altagestao' || papel === 'cgge' ? null : val('n-unit'),
         password: val('n-pw'),
       });
       return;

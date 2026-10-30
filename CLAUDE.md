@@ -89,7 +89,7 @@ Antes de commitar: `npm run test:api` e `node --no-warnings tests/ui.smoke.mjs` 
 ## Dados e privacidade
 
 - O sistema começa vazio. Não coloque dados de exemplo, nomes de pessoas nem riscos inventados no código, no README ou em commits.
-- Nunca use nomes de pessoas fictícias ou reais em dados de demonstração. Os únicos usuários de demonstração permitidos são `criadordeusuario` (administrador, cria coordenadorias e pessoas), `altagestao1` (perfil CSGR, alta gestão), `testeusuario` (cadastrador da Cosegi) e `supervisortesteusuario` (gestor de riscos da Cosegi, supervisor do `testeusuario`), além das contas de teste `teste1` a `teste20`. Só o `criadordeusuario` é fixo: coordenadorias, as demais contas e os dados de demonstração podem ser apagados quando o usuário pedir. O campo de usuário só aceita letras minúsculas sem acento, por isso `altagestao1`.
+- Nunca use nomes de pessoas fictícias ou reais em dados de demonstração. Os únicos usuários de demonstração permitidos são `criadordeusuario` (administrador, cria coordenadorias e pessoas), `altagestao1` (perfil Alta Gestão de Riscos, código `altagestao`), `testeusuario` (cadastrador da Cosegi) e `supervisortesteusuario` (gestor de riscos da Cosegi, supervisor do `testeusuario`), além das contas de teste `teste1` a `teste20`. Só o `criadordeusuario` é fixo: coordenadorias, as demais contas e os dados de demonstração podem ser apagados quando o usuário pedir. O campo de usuário só aceita letras minúsculas sem acento, por isso `altagestao1`.
 - Banco de demonstração e capturas de tela ficam fora do repositório (pasta temporária). Nunca commite `data/`, `.env.local`, chaves ou tokens.
 
 ## Código
@@ -107,4 +107,4 @@ Antes de commitar: `npm run test:api` e `node --no-warnings tests/ui.smoke.mjs` 
 - Todo texto que vem de dados passa por `esc()`; dicas flutuantes usam `data-tip` (texto puro).
 - Datas sem hora ("2026-12-15") passam por `pd()`/`fd()`, nunca por `new Date()` direto.
 - Confira em largura de computador e de celular (390px) e em tema claro e escuro.
-- Não deixe valores brutos do sistema (`ag_csgr`, `2026-12-15`) na tela.
+- Não deixe valores brutos do sistema (`ag_altagestao`, `2026-12-15`) na tela.
