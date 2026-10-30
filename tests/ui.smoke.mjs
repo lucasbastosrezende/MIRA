@@ -89,39 +89,65 @@ const html = () => root.innerHTML;
 // Sinais de tela quebrada: mensagem de erro de tela ou valores que não deviam aparecer.
 const bad = () => /Não foi possível abrir esta tela|undefined|NaN|\[object/.test(html());
 
-// --- Primeiro acesso pela tela: cria a CSGR e cadastra uma pessoa ---
+// --- Implantação: o administrador é criado pelo comando no servidor; pela tela ele cria uma
+// coordenadoria e uma pessoa com o PDF do SEI ---
+(await import('../lib/service.js')).default.createAdmin({
+  username: 'admin.teste',
+  password: 'senha-forte-0',
+});
 const stop = mountMira(root);
 await sleep(150);
-ok(html().includes('Primeiro acesso'), 'tela de primeiro acesso quando o sistema está vazio');
-setVals({ 'a-nome': 'Administrador CSGR', 'a-user': 'csgr.admin', 'a-pw': 'senha-forte-1' });
+ok(
+  html().includes('Entrar') && !html().includes('Primeiro acesso') && !html().includes('a-nome'),
+  'tela de entrada só com usuário e senha',
+);
+setVals({ 'a-user': 'admin.teste', 'a-pw': 'senha-forte-0' });
 await submit('auth-form');
 ok(
-  html().includes('Painel Alta Gestão') && html().includes('Usuários'),
-  'após o setup, CSGR entra no painel de alta gestão e vê Usuários',
+  html().includes('Cadastrar pessoa') && html().includes('Coordenadorias') && !html().includes('Painéis'),
+  'o administrador entra em Usuários e não vê os painéis',
 );
-ok(
-  !html().includes('R$ NaN') && html().includes('Exposição esperada hoje'),
-  'painel de alta gestão vazio renderiza sem NaN',
-);
-await click({ panel: 'op' });
-ok(html().includes('Riscos ativos') && !bad(), 'painel operacional vazio renderiza');
+ok(html().includes('Nenhuma coordenadoria criada') && !bad(), 'sistema começa sem coordenadorias');
+await click({ nav: 'unidades' });
+setVals({ 'u-sigla': 'Cosegi', 'u-nome': 'Coordenadoria de teste' });
+await submit('unit-form');
+ok(html().includes('Coordenadoria de teste') && !bad(), 'cria coordenadoria pela tela');
 await click({ nav: 'usuarios' });
 setVals({
-  'n-nome': 'Pessoa Cad',
   'n-user': 'cad.cosegi',
   'n-papel': 'cadastrador',
   'n-unit': 'Cosegi',
   'n-pw': 'senha-forte-2',
+  'n-sei-nome': 'Portaria de designação',
+  'n-sei-num': '0045123401',
 });
 await submit('user-form');
-ok(html().includes('cad.cosegi'), 'cadastra pessoa pela tela de usuários');
-await call('csgr', 'POST', 'login', { username: 'csgr.admin', password: 'senha-forte-1' });
-for (const [nome, username, papel, unit] of [
-  ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi'],
-  ['Consulta', 'cgge.user', 'cgge', null],
-  ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra'],
+ok(!html().includes('cad.cosegi'), 'sem o PDF do SEI a pessoa não é cadastrada');
+els['n-sei-pdf'] = {
+  files: [new File([Buffer.from('%PDF-1.4\n%%EOF\n')], 'portaria.pdf', { type: 'application/pdf' })],
+};
+await submit('user-form');
+ok(
+  html().includes('cad.cosegi') && html().includes('SEI nº 0045123401') && html().includes('Baixar PDF'),
+  'cadastra pessoa pela tela com o PDF do SEI',
+);
+await call('adm', 'POST', 'login', { username: 'admin.teste', password: 'senha-forte-0' });
+await call('adm', 'POST', 'units', { sigla: 'Coinfra' });
+// PDF mínimo de teste para os cadastros feitos direto pela API.
+const sei = n => ({
+  nome: 'Portaria de designação',
+  numero: '00451234' + n,
+  arquivo: 'portaria.pdf',
+  pdf: Buffer.from('%PDF-1.4\n%%EOF\n').toString('base64'),
+});
+for (const [nome, username, papel, unit, n] of [
+  ['Administrador CSGR', 'csgr.admin', 'csgr', null, 10],
+  ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi', 11],
+  ['Consulta', 'cgge.user', 'cgge', null, 12],
+  ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra', 13],
 ])
-  await call('csgr', 'POST', 'users', { nome, username, papel, unit, password: 'senha-forte-2' });
+  await call('adm', 'POST', 'users', { nome, username, papel, unit, password: 'senha-forte-2', sei: sei(n) });
+await call('csgr', 'POST', 'login', { username: 'csgr.admin', password: 'senha-forte-2' });
 // dados via API
 for (const [k, u] of [
   ['cad', 'cad.cosegi'],
@@ -217,11 +243,14 @@ async function browse(label, user, pw, nameChk) {
     label + ': abriu ' + ids.length + ' riscos em todas as fases',
   );
 }
-await browse('CSGR', 'csgr.admin', 'senha-forte-1', 'Administrador CSGR');
-await browse('Cadastrador Cosegi', 'cad.cosegi', 'senha-forte-2', 'Pessoa Cad');
-await browse('Gestor Cosegi', 'ges.cosegi', 'senha-forte-2', 'Pessoa Ges');
-await browse('CGGE', 'cgge.user', 'senha-forte-2', 'Consulta');
-await browse('Cadastrador Coinfra', 'cad.coinfra', 'senha-forte-2', 'Outra Cad');
+await browse('Administrador', 'admin.teste', 'senha-forte-0', 'admin.teste');
+ok(!/data-open="R-/.test(html()), 'Administrador: não vê nenhum risco');
+await browse('CSGR', 'csgr.admin', 'senha-forte-2', 'csgr.admin');
+ok(!html().includes('data-nav="usuarios"'), 'CSGR: não tem mais a tela Usuários');
+await browse('Cadastrador Cosegi', 'cad.cosegi', 'senha-forte-2', 'cad.cosegi');
+await browse('Gestor Cosegi', 'ges.cosegi', 'senha-forte-2', 'ges.cosegi');
+await browse('CGGE', 'cgge.user', 'senha-forte-2', 'cgge.user');
+await browse('Cadastrador Coinfra', 'cad.coinfra', 'senha-forte-2', 'cad.coinfra');
 // ação de tela: cadastrador registra medição
 await click({ act: 'logout' });
 setVals({ 'a-user': 'cad.cosegi', 'a-pw': 'senha-forte-2' });

@@ -17,7 +17,6 @@ import { xlsx } from './planilha.js';
 export function mountMira(root) {
   /* ===== Núcleo: estado, utilidades e chamadas à API ===== */
   const {
-    UNITS,
     PAPEL,
     LV,
     band,
@@ -98,7 +97,7 @@ export function mountMira(root) {
   // Falso depois que a interface é desmontada; impede renderizar numa tela que já saiu.
   let alive = true;
   // Dados vindos do servidor (GET /api/state). O servidor já filtra pelo perfil: o navegador só recebe o que pode ver.
-  let S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [] };
+  let S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [], units: [] };
   // Estado da tela: o que está aberto, filtros, rascunhos e sinais de carregamento. Nunca é enviado ao servidor.
   const UI = {
     view: 'paineis',
@@ -111,7 +110,6 @@ export function mountMira(root) {
     warnAck: false,
     tce: null,
     ready: false,
-    needsSetup: false,
     sampleOk: false,
     authErr: '',
     busy: false,
@@ -123,6 +121,8 @@ export function mountMira(root) {
   const rk = id => S.risks.find(r => r.id === id);
   // Riscos que o perfil pode ver.
   const scope = () => S.risks; // o servidor já entrega só o que o perfil pode ver
+  // Siglas das coordenadorias que o perfil pode ver. Não há lista fixa: o administrador cria cada uma.
+  const units = () => (S.units || []).map(x => x.sigla);
   // Nomes dos cadastradores de uma coordenadoria.
   const respOf = unit => S.team.filter(t => t.unit === unit && t.papel === 'cadastrador').map(t => t.nome);
   // Nome do gestor de riscos de uma coordenadoria.
@@ -216,7 +216,7 @@ export function mountMira(root) {
     }
     if (!res.ok) {
       if (res.status === 401 && S.me && path !== 'login') {
-        S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [] };
+        S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [], units: [] };
         render();
       }
       const e = new Error(j.error || 'Não foi possível concluir a ação.');
@@ -321,9 +321,9 @@ export function mountMira(root) {
     const uopt =
       u.papel === 'csgr' || u.papel === 'cgge'
         ? '<select data-filter="unit" aria-label="Coordenadoria"><option value="">Todas as coordenadorias</option>' +
-          UNITS.map(x => '<option' + (UI.filt.unit === x ? ' selected' : '') + '>' + x + '</option>').join(
-            '',
-          ) +
+          units()
+            .map(x => '<option' + (UI.filt.unit === x ? ' selected' : '') + '>' + esc(x) + '</option>')
+            .join('') +
           '</select>'
         : '';
     return (
@@ -987,15 +987,17 @@ export function mountMira(root) {
   }
   /* ===== Painel Alta Gestão (decisão de custo e prestação de contas) ===== */
   function unitBars(E) {
-    const U = UNITS.map(un => {
-      const xs = E.filter(x => x.r.unit === un);
-      return {
-        un,
-        n: xs.length,
-        c: xs.reduce((a, x) => a + x.e.cur, 0),
-        p: xs.reduce((a, x) => a + x.e.res, 0),
-      };
-    }).sort((a, b) => b.c - a.c || b.n - a.n);
+    const U = units()
+      .map(un => {
+        const xs = E.filter(x => x.r.unit === un);
+        return {
+          un,
+          n: xs.length,
+          c: xs.reduce((a, x) => a + x.e.cur, 0),
+          p: xs.reduce((a, x) => a + x.e.res, 0),
+        };
+      })
+      .sort((a, b) => b.c - a.c || b.n - a.n);
     const mx = Math.max(1, ...U.map(x => Math.max(x.c, x.p))),
       w = v => 'width:calc((100% - 76px) * ' + (v / mx).toFixed(4) + ')';
     return (
@@ -2715,16 +2717,18 @@ export function mountMira(root) {
     );
     const gain = L.reduce((a, r) => a + econ(r).gain, 0);
     const faixa = LV.map((l, i) => l + ': ' + L.filter(r => band(nivel(r)) === i).length).join(' · ');
-    const un = UNITS.map(
-      x =>
-        '  - ' +
-        x +
-        ': ' +
-        L.filter(r => r.unit === x).length +
-        ' riscos, ' +
-        L.filter(r => r.unit === x && nivel(r) >= 12).length +
-        ' de nível alto ou extremo',
-    ).join('\n');
+    const un = units()
+      .map(
+        x =>
+          '  - ' +
+          x +
+          ': ' +
+          L.filter(r => r.unit === x).length +
+          ' riscos, ' +
+          L.filter(r => r.unit === x && nivel(r) >= 12).length +
+          ' de nível alto ou extremo',
+      )
+      .join('\n');
     const altos = L.filter(r => nivel(r) >= 12)
       .sort((a, b) => nivel(b) - nivel(a))
       .map(
@@ -2807,7 +2811,7 @@ export function mountMira(root) {
       gain = E.reduce((a, x) => a + x.e.gain, 0),
       alto = L.filter(r => nivel(r) >= 12).length;
     const cnt = (x, i) => L.filter(r => r.unit === x && band(nivel(r)) === i).length,
-      mx = Math.max(1, ...UNITS.flatMap(x => LV.map((l, i) => cnt(x, i))));
+      mx = Math.max(1, ...units().flatMap(x => LV.map((l, i) => cnt(x, i))));
     const tiles =
       '<div class="tiles">' +
       tile('Riscos ativos', L.length, 'Avaliados e em andamento') +
@@ -2825,33 +2829,35 @@ export function mountMira(root) {
       '<div class="scroll"><table class="tbl hm"><thead><tr><th>Coordenadoria</th>' +
       LV.map(l => '<th class="num">' + l + '</th>').join('') +
       '<th class="num">Total</th></tr></thead><tbody>' +
-      UNITS.map(
-        x =>
-          '<tr><td><b>' +
-          x +
-          '</b></td>' +
-          LV.map((l, i) => {
-            const n = cnt(x, i);
-            return (
-              '<td class="num hmcell"' +
-              (n
-                ? ' style="background:color-mix(in srgb,var(--l' +
-                  i +
-                  ') ' +
-                  Math.round(35 + (65 * n) / mx) +
-                  '%,transparent);color:var(--f' +
-                  i +
-                  ')"'
-                : '') +
-              '>' +
-              (n ? '<b>' + n + '</b>' : '<span class="muted">0</span>') +
-              '</td>'
-            );
-          }).join('') +
-          '<td class="num"><b>' +
-          L.filter(r => r.unit === x).length +
-          '</b></td></tr>',
-      ).join('') +
+      units()
+        .map(
+          x =>
+            '<tr><td><b>' +
+            x +
+            '</b></td>' +
+            LV.map((l, i) => {
+              const n = cnt(x, i);
+              return (
+                '<td class="num hmcell"' +
+                (n
+                  ? ' style="background:color-mix(in srgb,var(--l' +
+                    i +
+                    ') ' +
+                    Math.round(35 + (65 * n) / mx) +
+                    '%,transparent);color:var(--f' +
+                    i +
+                    ')"'
+                  : '') +
+                '>' +
+                (n ? '<b>' + n + '</b>' : '<span class="muted">0</span>') +
+                '</td>'
+              );
+            }).join('') +
+            '<td class="num"><b>' +
+            L.filter(r => r.unit === x).length +
+            '</b></td></tr>',
+        )
+        .join('') +
       '</tbody></table></div>';
     return (
       pageHead(
@@ -2872,7 +2878,12 @@ export function mountMira(root) {
   }
   /* ===== Contexto (fase 1), usuários, login e estrutura da página ===== */
   function viewCtx(u) {
-    const un = u.unit || UI.ctxUnit || UNITS[0];
+    const un = u.unit || UI.ctxUnit || units()[0];
+    if (!un)
+      return (
+        pageHead('Contexto', 'Escopo, responsáveis e cronograma.', '', 'Fase 1') +
+        '<div class="card"><div class="empty"><p>Nenhuma coordenadoria criada ainda. O administrador cria as coordenadorias na hora.</p></div></div>'
+      );
     const c = S.ctx[un] || { escopo: '', marcos: [] };
     const ed = u.papel === 'cadastrador' && u.unit === un;
     const resp = respOf(un),
@@ -2918,7 +2929,9 @@ export function mountMira(root) {
         'Escopo, responsáveis e cronograma.',
         u.papel === 'csgr' || u.papel === 'cgge'
           ? '<select data-ctxunit aria-label="Coordenadoria">' +
-              UNITS.map(x => '<option' + (x === un ? ' selected' : '') + '>' + x + '</option>').join('') +
+              units()
+                .map(x => '<option' + (x === un ? ' selected' : '') + '>' + esc(x) + '</option>')
+                .join('') +
               '</select>'
           : '',
         'Fase 1',
@@ -2944,83 +2957,179 @@ export function mountMira(root) {
       '</div></div>'
     );
   }
-  // Tela Usuários (só CSGR): cobertura das coordenadorias, cadastro e lista de pessoas.
-  function viewUsers(u) {
-    if (u.papel !== 'csgr')
-      return '<div class="card"><div class="empty">Só a CSGR cadastra pessoas.</div></div>';
-    const cover = UNITS.map(x => {
-      const n = S.users.filter(p => p.ativo && p.unit === x);
-      const c = n.filter(p => p.papel === 'cadastrador').length,
-        g = n.filter(p => p.papel === 'gestor').length;
-      return (
-        '<div class="cover"><b>' +
-        x +
-        '</b>' +
-        toneTag(c ? 'ok' : 'warn', c + ' de 2 cadastradores') +
-        toneTag(g ? 'ok' : 'warn', g ? 'Com gestor' : 'Sem gestor') +
-        '</div>'
-      );
-    }).join('');
-    const rows = S.users.length
-      ? S.users
-          .map(
-            x =>
-              '<tr><td><div class="usr"><span class="avatar" aria-hidden="true">' +
-              esc(initials(x.nome)) +
-              '</span><span><b>' +
-              esc(x.nome) +
-              '</b><div class="muted small mono">' +
-              esc(x.username) +
-              '</div></span></div></td><td>' +
-              PAPEL[x.papel] +
-              '</td><td>' +
-              (x.unit || '—') +
-              '</td><td>' +
-              (x.ativo ? toneTag('ok', 'Ativo') : '<span class="st">Desativado</span>') +
-              '</td><td class="num">' +
-              (UI.pwFor === x.id
-                ? '<input id="pw-new" type="password" placeholder="Nova senha (8+)" style="width:150px"> <button class="btn sm primary" data-act="reset-pw" data-id="' +
-                  x.id +
-                  '">Salvar</button> <button class="btn sm" data-act="pw-cancel">Cancelar</button>'
-                : '<button class="btn sm" data-act="pw-ask" data-id="' +
-                  x.id +
-                  '">Redefinir senha</button> ' +
-                  (x.id !== S.me.id
-                    ? '<button class="btn sm ' +
-                      (x.ativo ? 'danger' : '') +
-                      '" data-act="toggle-ativo" data-id="' +
-                      x.id +
-                      '" data-v="' +
-                      (x.ativo ? 0 : 1) +
-                      '">' +
-                      (x.ativo ? 'Desativar' : 'Reativar') +
-                      '</button>'
-                    : '')) +
-              '</td></tr>',
-          )
-          .join('')
-      : '';
+  // Telas do administrador. Ele não tem coordenadoria e não vê riscos.
+  const ADMIN_VIEWS = ['usuarios', 'unidades', 'historico'];
+  // Documento SEI de uma pessoa na lista: nome, número e o PDF para baixar.
+  function seiCell(x) {
+    if (x.papel === 'admin') return '<span class="muted small">Conta criada na implantação</span>';
+    if (!x.seiNumero) return '<span class="muted small">Cadastro anterior à exigência do SEI</span>';
     return (
-      pageHead('Usuários', S.users.length + ' pessoa(s) com acesso.') +
-      '<div class="card">' +
+      '<div class="sei-doc"><b>' +
+      esc(x.seiNome) +
+      '</b><span class="muted small mono">SEI nº ' +
+      esc(x.seiNumero) +
+      '</span><a class="btn sm" href="/api/users/' +
+      x.id +
+      '/sei" download data-tip="' +
+      esc(x.seiArquivo) +
+      '">Baixar PDF</a></div>'
+    );
+  }
+  // Tela Usuários (só administrador): cobertura das coordenadorias, cadastro com o PDF do SEI e lista de pessoas.
+  function viewUsers(u) {
+    if (u.papel !== 'admin')
+      return '<div class="card"><div class="empty">Só o administrador cadastra pessoas.</div></div>';
+    const us = units();
+    const cover = us.length
+      ? '<div class="covers">' +
+        us
+          .map(x => {
+            const n = S.users.filter(p => p.ativo && p.unit === x);
+            const c = n.filter(p => p.papel === 'cadastrador').length,
+              g = n.filter(p => p.papel === 'gestor').length;
+            return (
+              '<div class="cover"><b>' +
+              esc(x) +
+              '</b>' +
+              toneTag(c ? 'ok' : 'warn', c + ' de 2 cadastradores') +
+              toneTag(g ? 'ok' : 'warn', g ? 'Com gestor' : 'Sem gestor') +
+              '</div>'
+            );
+          })
+          .join('') +
+        '</div>'
+      : '<div class="empty"><p>Nenhuma coordenadoria criada.</p><button class="btn" data-nav="unidades">Criar coordenadoria</button></div>';
+    // Texto de busca de cada linha: nome, usuário, perfil, coordenadoria e documento SEI.
+    const busca = x =>
+      esc([x.nome, x.username, PAPEL[x.papel], x.unit, x.seiNome, x.seiNumero].join(' ').toLowerCase());
+    const rows = S.users
+      .map(
+        x =>
+          '<tr data-busca="' +
+          busca(x) +
+          '"><td><div class="usr"><span class="avatar" aria-hidden="true">' +
+          esc(initials(x.nome)) +
+          '</span><span><b>' +
+          esc(x.nome) +
+          '</b><div class="muted small mono">' +
+          esc(x.username) +
+          '</div></span></div></td><td>' +
+          PAPEL[x.papel] +
+          '</td><td>' +
+          (x.unit ? esc(x.unit) : '—') +
+          '</td><td>' +
+          seiCell(x) +
+          '</td><td>' +
+          (x.ativo ? toneTag('ok', 'Ativo') : '<span class="st">Desativado</span>') +
+          '</td><td class="num">' +
+          (UI.pwFor === x.id
+            ? '<input id="pw-new" type="password" placeholder="Nova senha (8+)" style="width:150px"> <button class="btn sm primary" data-act="reset-pw" data-id="' +
+              x.id +
+              '">Salvar</button> <button class="btn sm" data-act="pw-cancel">Cancelar</button>'
+            : '<button class="btn sm" data-act="pw-ask" data-id="' +
+              x.id +
+              '">Redefinir senha</button> ' +
+              (x.id !== S.me.id
+                ? '<button class="btn sm ' +
+                  (x.ativo ? 'danger' : '') +
+                  '" data-act="toggle-ativo" data-id="' +
+                  x.id +
+                  '" data-v="' +
+                  (x.ativo ? 0 : 1) +
+                  '">' +
+                  (x.ativo ? 'Desativar' : 'Reativar') +
+                  '</button>'
+                : '')) +
+          '</td></tr>',
+      )
+      .join('');
+    // Sem coordenadoria criada, só dá para cadastrar CSGR e CGGE (que não têm coordenadoria).
+    const unitSel = us.length
+      ? '<select id="n-unit" style="width:100%">' +
+        us.map(x => '<option>' + esc(x) + '</option>').join('') +
+        '</select><div class="hint">Até 2 cadastradores e 1 gestor por coordenadoria.</div>'
+      : '<select id="n-unit" style="width:100%" disabled><option value="">Nenhuma coordenadoria criada</option></select><div class="hint">Crie a coordenadoria em Coordenadorias antes de cadastrar quem trabalha nela.</div>';
+    return (
+      pageHead('Usuários', S.users.length + ' pessoa(s) com acesso. Todo cadastro exige o documento SEI.') +
+      '<div class="row"><div class="card grow" style="max-width:440px"><h3>Cadastrar pessoa</h3><form id="user-form" autocomplete="off">' +
+      '<div class="field"><label for="n-user">Usuário de acesso</label><input id="n-user" style="width:100%" required><div class="hint">Minúsculas, números, ponto, hífen ou sublinhado.</div></div>' +
+      '<div class="field"><label for="n-papel">Perfil</label><select id="n-papel" style="width:100%"><option value="cadastrador">Cadastrador(a) · registra riscos da coordenadoria</option><option value="gestor">Gestor(a) de riscos · titular da coordenadoria</option><option value="csgr">CSGR · aprova PRRs e gera o relatório</option><option value="cgge">CGGE · só consulta</option></select></div>' +
+      '<div class="field" id="n-unit-wrap"><label for="n-unit">Coordenadoria</label>' +
+      unitSel +
+      '</div>' +
+      '<div class="field"><label for="n-pw">Senha inicial</label><input id="n-pw" type="password" style="width:100%" required minlength="8"><div class="hint">Mínimo de 8 caracteres.</div></div>' +
+      '<fieldset class="sei-box"><legend>Documento SEI que autoriza o acesso</legend>' +
+      '<div class="field"><label for="n-sei-nome">Nome do documento</label><input id="n-sei-nome" style="width:100%" required maxlength="200" placeholder="Ex.: Portaria de designação"></div>' +
+      '<div class="field"><label for="n-sei-num">Número SEI</label><input id="n-sei-num" style="width:100%" required maxlength="30" inputmode="numeric" placeholder="Ex.: 0045123456"></div>' +
+      '<div class="field"><label for="n-sei-pdf">PDF do documento</label><input id="n-sei-pdf" type="file" accept="application/pdf,.pdf" required style="width:100%"><div class="hint">Só PDF, até 10 MB. Fica guardado com o cadastro.</div></div>' +
+      '</fieldset>' +
+      '<button class="btn primary" type="submit">Cadastrar</button></form></div>' +
+      '<div class="card grow">' +
       cardH('Pessoas por coordenadoria', 'Cada uma indica até 2 cadastradores e 1 gestor.') +
-      '<div class="covers">' +
       cover +
       '</div></div>' +
-      '<div class="row"><div class="card grow" style="max-width:420px"><h3>Cadastrar pessoa</h3><form id="user-form" autocomplete="off"><div class="field"><label for="n-nome">Nome completo</label><input id="n-nome" style="width:100%" required></div><div class="field"><label for="n-user">Usuário de acesso</label><input id="n-user" style="width:100%" required><div class="hint">Minúsculas, números, ponto, hífen ou sublinhado.</div></div><div class="field"><label for="n-papel">Perfil</label><select id="n-papel" style="width:100%"><option value="cadastrador">Cadastrador(a) · registra riscos da coordenadoria</option><option value="gestor">Gestor(a) de riscos · titular da coordenadoria</option><option value="csgr">CSGR · aprova PRRs e gera o relatório</option><option value="cgge">CGGE · só consulta</option></select></div><div class="field" id="n-unit-wrap"><label for="n-unit">Coordenadoria</label><select id="n-unit" style="width:100%">' +
-      UNITS.map(x => '<option>' + x + '</option>').join('') +
-      '</select><div class="hint">Até 2 cadastradores e 1 gestor por coordenadoria.</div></div><div class="field"><label for="n-pw">Senha inicial</label><input id="n-pw" type="password" style="width:100%" required minlength="8"><div class="hint">Mínimo de 8 caracteres.</div></div><button class="btn primary" type="submit">Cadastrar</button></form></div>' +
-      '<div class="card grow"><h3>Pessoas com acesso</h3><div class="scroll"><table class="tbl"><thead><tr><th>Pessoa</th><th>Perfil</th><th>Coordenadoria</th><th>Situação</th><th></th></tr></thead><tbody>' +
+      '<div class="card">' +
+      cardH(
+        'Pessoas com acesso',
+        '',
+        '<input type="search" data-ubusca aria-label="Buscar pessoa" placeholder="Nome, usuário ou nº SEI" class="ubusca">',
+      ) +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Pessoa</th><th>Perfil</th><th>Coordenadoria</th><th>Documento SEI</th><th>Situação</th><th></th></tr></thead><tbody>' +
       rows +
-      '</tbody></table></div></div></div>'
+      '</tbody></table></div></div>'
+    );
+  }
+  // Tela Coordenadorias (só administrador): o MIRA começa sem nenhuma e o administrador cria cada uma na hora.
+  // Uma coordenadoria só pode ser removida enquanto não tem pessoas, riscos nem contexto (o servidor confere).
+  function viewUnits(u) {
+    if (u.papel !== 'admin')
+      return '<div class="card"><div class="empty">Só o administrador cria coordenadorias.</div></div>';
+    const rows = S.units
+      .map(x => {
+        const n = S.users.filter(p => p.unit === x.sigla).length;
+        return (
+          '<tr><td><b>' +
+          esc(x.sigla) +
+          '</b></td><td>' +
+          (x.nome ? esc(x.nome) : '<span class="muted">—</span>') +
+          '</td><td class="num">' +
+          n +
+          '</td><td class="num">' +
+          (n
+            ? '<span class="muted small">Tem pessoas cadastradas</span>'
+            : '<button class="btn sm danger" data-act="unit-remove" data-sigla="' +
+              esc(x.sigla) +
+              '">Remover</button>') +
+          '</td></tr>'
+        );
+      })
+      .join('');
+    return (
+      pageHead(
+        'Coordenadorias',
+        S.units.length
+          ? S.units.length + ' coordenadoria(s) no MIRA.'
+          : 'O MIRA começa sem coordenadorias. Crie as que vão usar o sistema.',
+      ) +
+      '<div class="row"><div class="card grow" style="max-width:440px"><h3>Nova coordenadoria</h3><form id="unit-form" autocomplete="off">' +
+      '<div class="field"><label for="u-sigla">Sigla</label><input id="u-sigla" style="width:100%" required maxlength="20" placeholder="Ex.: Coinfra"><div class="hint">Aparece em todas as telas. Letras, números ou hífen.</div></div>' +
+      '<div class="field"><label for="u-nome">Nome por extenso</label><input id="u-nome" style="width:100%" maxlength="120" placeholder="Opcional"></div>' +
+      '<button class="btn primary" type="submit">Criar coordenadoria</button></form></div>' +
+      '<div class="card grow"><h3>Coordenadorias criadas</h3>' +
+      (S.units.length
+        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Sigla</th><th>Nome</th><th class="num">Pessoas</th><th></th></tr></thead><tbody>' +
+          rows +
+          '</tbody></table></div>'
+        : '<div class="empty"><p>Nenhuma coordenadoria criada ainda.</p></div>') +
+      '</div></div>'
     );
   }
   // Marca do MIRA.
   const LOGO =
     '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/><path d="M16 2v7M16 23v7M2 16h7M23 16h7"/></svg>';
-  // Tela de entrada: login, ou criação da conta da CSGR no primeiro acesso.
+  // Tela de entrada: usuário e senha. Não há criação de conta por aqui: o administrador é criado na
+  // implantação (npm run admin) e cadastra as demais pessoas.
   function viewAuth() {
-    const setup = UI.needsSetup;
     const rail = PHASES.map(
       (x, i) =>
         '<li><span class="rail-n">' +
@@ -3050,28 +3159,14 @@ export function mountMira(root) {
       '</ul>' +
       '<svg class="login-bg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width=".5" aria-hidden="true"><circle cx="16" cy="16" r="15"/><circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="5"/><path d="M16 0v32M0 16h32"/></svg></section>' +
       '<section class="login-side"><div class="login-card"><h2>' +
-      (setup ? 'Primeiro acesso' : 'Entrar') +
-      '</h2>' +
-      '<p class="muted">' +
-      (setup ? 'Crie a conta da CSGR para começar.' : 'Use o usuário e a senha cadastrados pela CSGR.') +
-      '</p>' +
+      'Entrar</h2>' +
+      '<p class="muted">Use o usuário e a senha cadastrados pelo administrador.</p>' +
       '<form id="auth-form">' +
-      (setup
-        ? '<div class="field"><label for="a-nome">Nome completo</label><input id="a-nome" style="width:100%" required></div>'
-        : '') +
-      '<div class="field"><label for="a-user">Usuário</label><input id="a-user" style="width:100%" autocomplete="username" required></div><div class="field"><label for="a-pw">Senha</label><input id="a-pw" type="password" style="width:100%" autocomplete="' +
-      (setup ? 'new-password' : 'current-password') +
-      '" required' +
-      (setup ? ' minlength="8"' : '') +
-      '>' +
-      (setup ? '<div class="hint">Mínimo de 8 caracteres.</div>' : '') +
-      '</div>' +
+      '<div class="field"><label for="a-user">Usuário</label><input id="a-user" style="width:100%" autocomplete="username" required></div><div class="field"><label for="a-pw">Senha</label><input id="a-pw" type="password" style="width:100%" autocomplete="current-password" required></div>' +
       (UI.authErr
         ? '<div class="warn-box" role="alert" style="margin-bottom:10px">' + esc(UI.authErr) + '</div>'
         : '') +
-      '<button class="btn primary" type="submit" style="width:100%">' +
-      (setup ? 'Criar conta da CSGR' : 'Entrar') +
-      '</button></form></div></section></div>'
+      '<button class="btn primary" type="submit" style="width:100%">Entrar</button></form></div></section></div>'
     );
   }
   // Monta a tela inteira a partir de S e UI. keep = manter a rolagem.
@@ -3091,16 +3186,26 @@ export function mountMira(root) {
       return;
     }
     const u = me();
-    const nav = [
-      ['paineis', 'Painéis'],
-      ['riscos', 'Riscos'],
-    ];
-    if (u.papel === 'cadastrador') nav.push(['novo', 'Novo risco']);
-    nav.push(['matriz', 'Matriz']);
-    if (u.papel !== 'cgge') nav.push(['aprov', 'Pendências', pendingFor(u).length]);
-    nav.push(['contexto', 'Contexto'], ['historico', 'Histórico'], ['alertas', 'Alertas', unreadCount(u)]);
-    if (u.papel !== 'cadastrador') nav.push(['relatorio', 'Relatório']);
-    if (u.papel === 'csgr') nav.push(['usuarios', 'Usuários']);
+    // O administrador não vê riscos: o menu dele é só pessoas, coordenadorias e o histórico do que fez.
+    if (u.papel === 'admin' && !ADMIN_VIEWS.includes(UI.view)) UI.view = 'usuarios';
+    const nav =
+      u.papel === 'admin'
+        ? [
+            ['usuarios', 'Usuários'],
+            ['unidades', 'Coordenadorias'],
+            ['historico', 'Histórico'],
+          ]
+        : [
+            ['paineis', 'Painéis'],
+            ['riscos', 'Riscos'],
+          ];
+    if (u.papel !== 'admin') {
+      if (u.papel === 'cadastrador') nav.push(['novo', 'Novo risco']);
+      nav.push(['matriz', 'Matriz']);
+      if (u.papel !== 'cgge') nav.push(['aprov', 'Pendências', pendingFor(u).length]);
+      nav.push(['contexto', 'Contexto'], ['historico', 'Histórico'], ['alertas', 'Alertas', unreadCount(u)]);
+      if (u.papel !== 'cadastrador') nav.push(['relatorio', 'Relatório']);
+    }
     const cur = UI.view === 'risco' ? 'riscos' : UI.view;
     let v;
     try {
@@ -3113,6 +3218,7 @@ export function mountMira(root) {
       else if (UI.view === 'historico') v = viewHist(u);
       else if (UI.view === 'alertas') v = viewAlertas(u);
       else if (UI.view === 'usuarios') v = viewUsers(u);
+      else if (UI.view === 'unidades') v = viewUnits(u);
       else v = viewRel(u);
     } catch (e) {
       v =
@@ -3152,6 +3258,21 @@ export function mountMira(root) {
   }
 
   /* ===== Interação e chamadas à API ===== */
+  // Tamanho máximo do PDF do SEI (o servidor confere de novo).
+  const SEI_MAX = 10 * 1024 * 1024;
+  // Primeiro arquivo escolhido num campo de arquivo, ou null.
+  const fileOf = id => {
+    const el = document.getElementById(id);
+    return el && el.files && el.files[0] ? el.files[0] : null;
+  };
+  // Conteúdo binário em base64, em blocos para não estourar a pilha com arquivos grandes.
+  const toB64 = buf => {
+    const a = new Uint8Array(buf);
+    let t = '';
+    for (let i = 0; i < a.length; i += 0x8000)
+      t += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000));
+    return btoa(t);
+  };
   const val = id => {
     const e = document.getElementById(id);
     return e ? e.value : '';
@@ -3343,19 +3464,21 @@ export function mountMira(root) {
     const E = scope()
       .filter(r => r.status !== 'encerrado' && nivel(r))
       .map(r => ({ r, e: econ(r) }));
-    const por = UNITS.map(un => {
-      const xs = E.filter(q => q.r.unit === un),
-        s = k => xs.reduce((a, q) => a + q.e[k], 0);
-      return [
-        un,
-        xs.length,
-        xs.filter(q => nivel(q.r) >= 12).length,
-        s('cur'),
-        s('res'),
-        s('gain'),
-        s('cost'),
-      ];
-    }).filter(l => l[1]);
+    const por = units()
+      .map(un => {
+        const xs = E.filter(q => q.r.unit === un),
+          s = k => xs.reduce((a, q) => a + q.e[k], 0);
+        return [
+          un,
+          xs.length,
+          xs.filter(q => nivel(q.r) >= 12).length,
+          s('cur'),
+          s('res'),
+          s('gain'),
+          s('cost'),
+        ];
+      })
+      .filter(l => l[1]);
     const ucols = [
       ['Coordenadoria', 'txt'],
       ['Riscos ativos', 'num'],
@@ -3434,7 +3557,7 @@ export function mountMira(root) {
         break;
       case 'logout':
         await api('POST', 'logout');
-        S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [] };
+        S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [], units: [] };
         UI.view = 'paineis';
         UI.authErr = '';
         render();
@@ -3627,7 +3750,7 @@ export function mountMira(root) {
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         );
         break;
-      // Usuários (só CSGR): senha e desativação
+      // Usuários e coordenadorias (só administrador): senha, desativação e remoção de coordenadoria vazia
       case 'pw-ask':
         UI.pwFor = el.dataset.id;
         render(true);
@@ -3645,6 +3768,11 @@ export function mountMira(root) {
       case 'toggle-ativo':
         await api('POST', 'users/' + el.dataset.id + '/ativo', { ativo: el.dataset.v === '1' });
         await refresh(true);
+        break;
+      case 'unit-remove':
+        await api('POST', 'units/remove', { sigla: el.dataset.sigla });
+        await refresh(true);
+        toast('Coordenadoria removida.');
         break;
     }
   }
@@ -3689,24 +3817,22 @@ export function mountMira(root) {
     const e = document.getElementById('av-res');
     if (e) e.innerHTML = avRes(p, i);
   }
-  // Depois de entrar: CSGR e CGGE abrem na Alta Gestão; os demais, no Operacional.
+  // Depois de entrar: o administrador abre em Usuários; CSGR e CGGE na Alta Gestão; os demais, no Operacional.
   function afterLogin() {
     const u = me();
-    UI.view = 'paineis';
+    UI.view = u.papel === 'admin' ? 'usuarios' : 'paineis';
     UI.panel = u.papel === 'csgr' || u.papel === 'cgge' ? 'alta' : 'op';
     UI.rid = null;
     UI.draft = null;
     UI.tce = null;
     UI.filt = { unit: '', nv: '', st: '', cell: null };
   }
-  // Envia o login ou a criação da conta da CSGR.
-  async function onAuth(setup) {
+  // Envia o login.
+  async function onAuth() {
     UI.authErr = '';
     try {
       const body = { username: val('a-user').trim().toLowerCase(), password: val('a-pw') };
-      if (setup) body.nome = val('a-nome').trim();
-      await api('POST', setup ? 'setup' : 'login', body);
-      UI.needsSetup = false;
+      await api('POST', 'login', body);
       await load();
       afterLogin();
       render();
@@ -3860,39 +3986,67 @@ export function mountMira(root) {
     const g = document.getElementById('lim-guia');
     if (g) g.innerHTML = limGuia(readPrr());
   }
-  // Digitação: atualiza a identificação ou o resumo do PRR ao vivo.
+  // Digitação: atualiza a identificação ou o resumo do PRR ao vivo e filtra a lista de pessoas.
   const onInput = e => {
+    if (e.target.dataset.ubusca !== undefined) {
+      const q = e.target.value.trim().toLowerCase();
+      root
+        .querySelectorAll('tr[data-busca]')
+        .forEach(tr => (tr.hidden = !!q && !tr.dataset.busca.includes(q)));
+      return;
+    }
     if (e.target.dataset.live) {
       UI.warnAck = false;
       refreshIdent();
     } else if (isPrrField(e.target)) prrLive();
   };
-  // Envio de formulários: login e cadastro de pessoa.
+  // Envio de formulários: login, cadastro de pessoa e criação de coordenadoria.
   const onSubmit = e => {
     e.preventDefault();
     if (e.target.id === 'auth-form') {
-      onAuth(UI.needsSetup);
+      onAuth();
       return;
     }
     if (e.target.id === 'user-form') {
       const papel = val('n-papel');
       act2user({
-        nome: val('n-nome'),
         username: val('n-user'),
         papel,
         unit: papel === 'csgr' || papel === 'cgge' ? null : val('n-unit'),
         password: val('n-pw'),
+        sei: { nome: val('n-sei-nome'), numero: val('n-sei-num').trim() },
       });
+      return;
     }
+    if (e.target.id === 'unit-form') act2unit({ sigla: val('u-sigla').trim(), nome: val('u-nome').trim() });
   };
-  // Cadastra uma pessoa (só CSGR).
+  // Cadastra uma pessoa (só administrador). O PDF do SEI vai junto, em base64; o servidor confere se é PDF.
   async function act2user(b) {
     if (isBusy()) return;
     setBusy(true);
     try {
+      const f = fileOf('n-sei-pdf');
+      if (!f) throw new Error('Anexe o PDF do documento SEI.');
+      if (f.size > SEI_MAX) throw new Error('O PDF pode ter no máximo 10 MB.');
+      b.sei.arquivo = f.name;
+      b.sei.pdf = toB64(await f.arrayBuffer());
       await api('POST', 'users', b);
       await refresh(true);
       toast('Pessoa cadastrada.');
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  // Cria uma coordenadoria (só administrador).
+  async function act2unit(b) {
+    if (isBusy()) return;
+    setBusy(true);
+    try {
+      await api('POST', 'units', b);
+      await refresh(true);
+      toast('Coordenadoria ' + b.sigla + ' criada.');
     } catch (e) {
       toast(e.message);
     } finally {
@@ -3911,15 +4065,12 @@ export function mountMira(root) {
   (async () => {
     try {
       const st = await api('GET', 'status');
-      UI.needsSetup = st.needsSetup;
       UI.sampleOk = !!st.ai;
-      if (!st.needsSetup) {
-        try {
-          await load();
-          afterLogin();
-        } catch (e) {
-          /* sem sessão: mostra o login */
-        }
+      try {
+        await load();
+        afterLogin();
+      } catch (e) {
+        /* sem sessão: mostra o login */
       }
     } catch (e) {
       UI.authErr = 'Não foi possível falar com o servidor.';

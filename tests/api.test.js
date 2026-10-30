@@ -6,6 +6,13 @@ const os = require('node:os'),
 process.env.MIRA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mira-test-'));
 delete process.env.ANTHROPIC_API_KEY;
 const { handle } = require('../lib/api.js');
+const S = require('../lib/service.js');
+const { open } = require('../lib/db.js');
+// Quantidade de linhas de uma tabela, para conferir que uma ação recusada não gravou nada.
+const count = t =>
+  open()
+    .prepare('SELECT COUNT(*) n FROM ' + t)
+    .get().n;
 const jars = {};
 // Chama a API como a pessoa 'who', guardando o cookie de sessão de cada uma.
 async function call(who, method, path, body) {
@@ -33,41 +40,143 @@ const ok = (c, m) => {
   if (!c) process.exitCode = 1;
 };
 (async () => {
-  // Primeiro acesso: o sistema começa vazio e a conta da CSGR só pode ser criada uma vez
+  // Implantação: não há criação de conta pela API; o administrador é criado pelo comando no servidor
   let r = await call('x', 'GET', 'status');
-  ok(r.needsSetup === true, 'começa sem usuários');
-  r = await call('csgr', 'POST', 'setup', {
-    nome: 'Administrador CSGR',
-    username: 'csgr.admin',
-    password: 'senha-forte-1',
-  });
-  ok(r.s === 200 && r.user.papel === 'csgr', 'setup cria CSGR e entra');
-  r = await call('x', 'POST', 'setup', { nome: 'Outro', username: 'outro.user', password: 'senha-forte-1' });
-  ok(r.s === 403, 'setup bloqueado depois');
-  let st = await call('csgr', 'GET', 'state');
+  ok(r.s === 200 && r.needsSetup === undefined, 'status não oferece primeiro acesso');
+  r = await call('x', 'POST', 'setup', { username: 'outro.user', password: 'senha-forte-1' });
+  ok(r.s === 401 && count('users') === 0, 'não existe rota para criar conta sem login');
+  for (const [u, m] of [
+    ['ninguem.aqui', 'usuário inexistente'],
+    ["x' OR '1'='1", 'usuário fora do formato'],
+  ]) {
+    r = await call('x', 'POST', 'login', { username: u, password: 'qualquer-senha' });
+    ok(
+      r.s === 401 && count('users') === 0 && count('sessions') === 0 && count('audit') === 0,
+      m + ' é barrado e nada é gravado no banco',
+    );
+  }
+  const adm = S.createAdmin({ username: 'admin.teste', password: 'senha-forte-0' });
   ok(
-    st.risks.length === 0 && st.audit.length === 1 && st.alerts.length === 0,
-    'estado vazio (só auditoria do setup)',
+    adm.papel === 'admin' && adm.unit === null && adm.nome === 'admin.teste',
+    'comando de implantação cria o administrador',
+  );
+  let dup = null;
+  try {
+    S.createAdmin({ username: 'outro.admin', password: 'senha-forte-0' });
+  } catch (e) {
+    dup = e;
+  }
+  ok(dup && dup.status === 403 && count('users') === 1, 'só existe um administrador');
+  r = await call('adm', 'POST', 'login', { username: 'admin.teste', password: 'senha-forte-0' });
+  ok(r.s === 200 && r.user.papel === 'admin', 'administrador entra com usuário e senha');
+  let st = await call('adm', 'GET', 'state');
+  ok(
+    st.risks.length === 0 && st.units.length === 0 && st.audit.length === 1 && st.alerts.length === 0,
+    'estado vazio: sem riscos e sem coordenadorias (só a auditoria da implantação)',
   );
 
-  // Cadastro de pessoas e login
-  for (const [nome, username, papel, unit] of [
-    ['Pessoa Cad', 'cad.cosegi', 'cadastrador', 'Cosegi'],
-    ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi'],
-    ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra'],
-    ['Consulta', 'cgge.user', 'cgge', null],
-  ]) {
-    r = await call('csgr', 'POST', 'users', { nome, username, papel, unit, password: 'senha-forte-2' });
-    ok(r.s === 200, 'cria ' + username);
+  // Coordenadorias: criadas na hora pelo administrador
+  for (const sigla of ['Cosegi', 'Coinfra', 'Teste-1']) {
+    r = await call('adm', 'POST', 'units', { sigla, nome: 'Coordenadoria ' + sigla });
+    ok(r.s === 200 && r.units.some(x => x.sigla === sigla), 'cria a coordenadoria ' + sigla);
   }
-  r = await call('csgr', 'POST', 'users', {
+  r = await call('adm', 'POST', 'units', { sigla: 'cosegi' });
+  ok(r.s === 422, 'sigla repetida (sem diferença de maiúsculas) é barrada');
+  r = await call('adm', 'POST', 'units', { sigla: '<b>' });
+  ok(r.s === 422, 'sigla com caracteres inválidos é barrada');
+  r = await call('adm', 'POST', 'units/remove', { sigla: 'Teste-1' });
+  ok(r.s === 200 && !r.units.some(x => x.sigla === 'Teste-1'), 'remove coordenadoria vazia');
+
+  // Cadastro de pessoas: só o administrador, sempre com o PDF do SEI (nome e número)
+  const sei = n => ({
+    nome: 'Portaria de designação ' + n,
+    numero: '00451234' + n,
+    arquivo: 'portaria-' + n + '.pdf',
+    pdf: Buffer.from('%PDF-1.4\n% documento de teste ' + n + '\n%%EOF\n').toString('base64'),
+  });
+  const base = { nome: 'Pessoa Sem SEI', username: 'sem.sei', papel: 'cgge', password: 'senha-forte-2' };
+  r = await call('adm', 'POST', 'users', base);
+  ok(r.s === 422, 'cadastro sem documento SEI é barrado');
+  r = await call('adm', 'POST', 'users', { ...base, sei: { ...sei(90), numero: 'abc' } });
+  ok(r.s === 422, 'número SEI inválido é barrado');
+  r = await call('adm', 'POST', 'users', {
+    ...base,
+    sei: { ...sei(91), pdf: Buffer.from('não é pdf').toString('base64') },
+  });
+  ok(r.s === 422 && /não é um PDF/.test(r.error), 'arquivo que não é PDF é barrado');
+  r = await call('adm', 'POST', 'users', {
+    ...base,
+    papel: 'cadastrador',
+    unit: 'Inexistente',
+    sei: sei(92),
+  });
+  ok(r.s === 422, 'coordenadoria que não foi criada é barrada');
+  for (const [nome, username, papel, unit, i] of [
+    ['Administrador CSGR', 'csgr.admin', 'csgr', null, 10],
+    ['Pessoa Cad', 'cad.cosegi', 'cadastrador', 'Cosegi', 11],
+    ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi', 12],
+    ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra', 13],
+    ['Consulta', 'cgge.user', 'cgge', null, 14],
+  ]) {
+    r = await call('adm', 'POST', 'users', {
+      nome,
+      username,
+      papel,
+      unit,
+      password: 'senha-forte-2',
+      sei: sei(i),
+    });
+    ok(r.s === 200, 'cria ' + username + ' com o PDF do SEI');
+  }
+  r = await call('adm', 'POST', 'users', { ...base, papel: 'admin', sei: sei(93) });
+  ok(r.s === 422, 'não se cria um segundo administrador pela tela');
+  r = await call('adm', 'POST', 'users', {
     nome: 'Gestor 2',
     username: 'ges2.cosegi',
     papel: 'gestor',
     unit: 'Cosegi',
     password: 'senha-forte-2',
+    sei: sei(15),
   });
   ok(r.s === 422, 'segundo gestor da unidade bloqueado');
+  r = await call('adm', 'POST', 'units/remove', { sigla: 'Cosegi' });
+  ok(r.s === 422, 'coordenadoria com pessoas não pode ser removida');
+  st = await call('adm', 'GET', 'state');
+  const cadCosegi = st.users.find(x => x.username === 'cad.cosegi');
+  ok(cadCosegi && cadCosegi.seiNumero === '0045123411', 'lista de pessoas traz o número SEI');
+  const pdfRes = await handle(
+    new Request('http://x/api/users/' + cadCosegi.id + '/sei', {
+      headers: { cookie: 'mira_sid=' + jars.adm },
+    }),
+    ['users', cadCosegi.id, 'sei'],
+  );
+  const pdfTxt = Buffer.from(await pdfRes.arrayBuffer()).toString('latin1');
+  ok(
+    pdfRes.status === 200 &&
+      pdfRes.headers.get('content-type') === 'application/pdf' &&
+      /attachment/.test(pdfRes.headers.get('content-disposition')) &&
+      pdfTxt.includes('documento de teste 11'),
+    'administrador baixa o PDF do SEI da pessoa',
+  );
+  ok(
+    st.audit.some(a => a.changes.some(c => c.campo === 'Número SEI' && c.para === '0045123411')),
+    'auditoria registra o número SEI do cadastro',
+  );
+  r = await call('csgr', 'POST', 'login', { username: 'csgr.admin', password: 'senha-forte-2' });
+  ok(r.s === 200, 'login csgr.admin');
+  r = await call('csgr', 'POST', 'users', { ...base, sei: sei(94) });
+  ok(r.s === 403, 'CSGR não cadastra pessoas');
+  r = await call('csgr', 'POST', 'units', { sigla: 'Outra' });
+  ok(r.s === 403, 'CSGR não cria coordenadoria');
+  const pdfCsgr = await handle(
+    new Request('http://x/api/users/' + cadCosegi.id + '/sei', {
+      headers: { cookie: 'mira_sid=' + jars.csgr },
+    }),
+    ['users', cadCosegi.id, 'sei'],
+  );
+  ok(pdfCsgr.status === 403, 'CSGR não baixa o PDF do SEI');
+  r = await call('csgr', 'GET', 'state');
+  ok(r.users.length === 0 && r.units.length === 2, 'CSGR vê as coordenadorias, mas não a lista de pessoas');
   r = await call('cad', 'POST', 'login', { username: 'cad.cosegi', password: 'errada' });
   ok(r.s === 401, 'senha errada');
   for (const [k, u] of [
@@ -184,6 +293,13 @@ const ok = (c, m) => {
     ch.some(a => a.changes.some(c => c.campo === 'Probabilidade' && c.de === 2 && c.para === 3)),
     'auditoria guarda valor anterior e novo',
   );
+  st = await call('adm', 'GET', 'state');
+  ok(
+    st.risks.length === 0 && st.audit.length > 0 && st.audit.every(a => a.role === 'admin'),
+    'administrador não recebe riscos e só vê na trilha o que ele fez',
+  );
+  r = await call('adm', 'POST', 'risks/R-001/aval', { prob: 1, imp: 1 });
+  ok(r.s === 404, 'administrador não acessa risco por id');
 
   // Contexto (fase 1), assistente de IA sem chave, avisos e segurança da sessão
   r = await call('cad', 'POST', 'ctx/escopo', { escopo: 'Riscos de segurança da informação' });

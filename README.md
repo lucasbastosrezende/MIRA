@@ -26,10 +26,14 @@ npm run dev
 
 Abra http://localhost:3000. O servidor só escuta em 127.0.0.1.
 
-1. **Primeiro acesso:** a tela pede nome, usuário e senha para criar a conta da **CSGR**.
-2. Entre como CSGR e abra **Usuários** para cadastrar as pessoas:
-   até 2 *cadastradores* e 1 *gestor de riscos* (titular) por coordenadoria, além de CSGR e CGGE.
-3. Cada cadastrador entra, preenche o **Contexto** da coordenadoria e começa a registrar riscos.
+1. **Implantação:** no servidor, crie a conta do **administrador** com `npm run admin -- <usuario>`.
+   A senha é pedida no terminal. Não há criação de conta pelo navegador: a tela de entrada só tem usuário e senha,
+   e um usuário que não existe é recusado sem gravar nada no banco.
+2. O administrador abre **Coordenadorias** e cria as que vão usar o sistema. O MIRA começa sem nenhuma.
+3. Em **Usuários**, o administrador cadastra as pessoas: até 2 *cadastradores* e 1 *gestor de riscos* (titular)
+   por coordenadoria, além de CSGR e CGGE. Todo cadastro exige o PDF do documento SEI que autoriza o acesso,
+   com o nome e o número SEI.
+4. Cada cadastrador entra, preenche o **Contexto** da coordenadoria e começa a registrar riscos.
 
 Para uso em produção: `npm run build && npm start`.
 
@@ -37,9 +41,10 @@ Para uso em produção: `npm run build && npm start`.
 
 | Perfil | O que faz |
 |---|---|
+| Administrador | Implantação: cria as coordenadorias e é o único que cadastra pessoas, sempre com o PDF do SEI. Redefine senhas e desativa contas. Não vê riscos. |
 | Cadastrador | Registra e edita riscos da própria coordenadoria, elabora o PRR, registra medições e reavalia. |
 | Gestor de riscos | Titular da coordenadoria. Valida o PRR e o encaminha à CSGR (ou devolve). Encerra riscos. |
-| CSGR | Aprova ou devolve PRRs, gera o relatório anual e cadastra as pessoas. |
+| CSGR | Aprova ou devolve PRRs e gera o relatório anual. |
 | CGGE | Só consulta. |
 
 O acesso é conferido no servidor: quem é de uma coordenadoria não enxerga nem acessa riscos de outra.

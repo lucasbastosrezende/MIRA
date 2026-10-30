@@ -12,13 +12,14 @@
 
 ## Quem usa
 
-Cada coordenadoria (CAGD, Coge, Code, Cosegi, Caf, Coinfra) indica até 2 cadastradores e 1 gestor de riscos.
+As coordenadorias não vêm prontas: o administrador cria cada uma na hora, com sigla e nome. Cada coordenadoria indica até 2 cadastradores e 1 gestor de riscos.
 
 | Perfil | O que faz |
 |---|---|
+| Administrador · implantação | Conta criada na implantação, no servidor (`npm run admin -- <usuario>`). Cria as coordenadorias e é o único que cadastra pessoas, sempre com o PDF do documento SEI (nome e número). Redefine senhas e desativa contas. Não tem coordenadoria e não vê riscos; no histórico vê só o que ele fez. |
 | Cadastrador(a) | Registra e edita os riscos da própria coordenadoria, elabora o PRR, registra medições, reavalia o nível e informa quando o evento ocorreu. |
 | Gestor(a) de riscos | Titular da coordenadoria. Valida o PRR e o encaminha à CSGR, ou devolve com motivo. Encerra riscos. |
-| CSGR | Aprova ou devolve PRRs, cadastra as pessoas e gera o relatório anual. Vê todas as coordenadorias. |
+| CSGR | Aprova ou devolve PRRs e gera o relatório anual. Vê todas as coordenadorias. |
 | CGGE | Só consulta, em todas as coordenadorias. |
 
 Quem é de uma coordenadoria não enxerga nem acessa por endereço os riscos de outra. A regra é conferida no servidor, não só escondida na tela.
@@ -106,7 +107,8 @@ Todos os perfis alternam entre os dois painéis. CSGR e CGGE abrem na Alta Gest�
 | Histórico | Linha do tempo de todas as alterações, com valor anterior e novo | Todos, filtrado pela coordenadoria |
 | Alertas | Avisos do momento e avisos guardados | Todos |
 | Relatório | Indicadores, tabela de riscos por coordenadoria e faixa e o texto do relatório anual | Gestor, CSGR e CGGE |
-| Usuários | Cadastro de pessoas, redefinição de senha, desativação e cobertura de cada coordenadoria | CSGR |
+| Usuários | Cadastro de pessoas com o PDF do SEI, busca por nome ou número SEI, download do PDF, redefinição de senha, desativação e cobertura de cada coordenadoria | Administrador |
+| Coordenadorias | Criação das coordenadorias; remoção só enquanto não têm pessoas, riscos nem contexto | Administrador |
 
 ## Assistente de IA (opcional)
 
@@ -143,8 +145,9 @@ lib/logic.js: regras do MGR usadas tanto no servidor quanto no navegador
 
 - **Next.js 15 (App Router) e React 19**, com Node 22.13 ou mais novo. O banco é o `node:sqlite`, que já vem no Node, sem dependências extras.
 - **Interface:** `mira-ui.js` monta todas as telas como HTML e conversa só com a API. O mesmo arquivo de regras (`logic.js`) decide no navegador o que mostrar e no servidor o que permitir.
-- **Banco:** um arquivo `./data/mira.db` (a pasta muda com `MIRA_DATA_DIR`). As tabelas são `users`, `sessions`, `risks` (cada risco em JSON), `audit`, `alerts` e `ctx` (contexto por coordenadoria). O backup é a cópia desse arquivo.
-- **Começa vazio:** o primeiro acesso cria a conta da CSGR; sem dados de exemplo.
+- **Banco:** um arquivo `./data/mira.db` (a pasta muda com `MIRA_DATA_DIR`). As tabelas são `users`, `sessions`, `risks` (cada risco em JSON), `audit`, `alerts` , `ctx` (contexto por coordenadoria), `units` (coordenadorias criadas) e `user_docs` (PDF do SEI de cada cadastro, indexado pelo número SEI). O backup é a cópia desse arquivo.
+- **Começa vazio:** sem pessoas, sem coordenadorias e sem dados de exemplo. A conta do administrador é criada na implantação com `npm run admin -- <usuario>`; não existe rota da API que crie conta sem login. Num banco anterior a este perfil, as coordenadorias que já têm dados entram na lista e as pessoas continuam entrando; basta criar o administrador com o mesmo comando.
+- **Conta só pelo usuário:** não há campo de nome. O usuário de acesso é o que aparece nas telas e na trilha de auditoria.
 
 ## Como rodar e testar
 

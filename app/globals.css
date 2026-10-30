@@ -469,6 +469,13 @@ main>.card.decide{box-shadow:0 0 0 1px var(--accent),var(--shadow)}
 .cover{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:12px;border:1px solid var(--line);border-radius:8px}
 .cover b{font-size:14px}
 .usr{display:flex;align-items:center;gap:10px}
+
+/* ===== Cadastro com documento SEI (tela Usuários do administrador) ===== */
+.sei-box{border:1px solid var(--line);border-radius:8px;padding:8px 12px 2px;margin:0 0 14px}
+.sei-box legend{padding:0 4px;font-weight:600;font-size:13px}
+.sei-doc{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:150px}
+.sei-doc .btn{margin-top:4px;text-decoration:none}
+.ubusca{width:220px;max-width:100%}
 @media (max-width:640px){.qi-m{display:none}}
 
 /* Gravação em andamento: evita duplo envio e mostra que a tela está ocupada */
