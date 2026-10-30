@@ -225,6 +225,22 @@ const ok = (c, m) => {
     ok(r.s === 200, 'login ' + u);
   }
 
+  // Contexto antes do risco: sem escopo salvo, a coordenadoria não cadastra risco
+  const ident = {
+    titulo: 'Vazamento no Sistema X',
+    causa: 'exploração de vulnerabilidades no Sistema X',
+    evento: 'vazamento de dados pessoais',
+    impacto: 'sanções ao Estado',
+    objetivo: 'a segurança dos sistemas da Setic',
+  };
+  r = await call('cad', 'POST', 'risks', ident);
+  ok(
+    r.s === 422 && /contexto/.test(r.error) && count('risks') === 0,
+    'sem contexto salvo o risco é recusado',
+  );
+  r = await call('cad', 'POST', 'ctx/escopo', { escopo: 'Sistemas da coordenadoria' });
+  ok(r.s === 200, 'cadastrador salva o contexto antes do primeiro risco');
+
   // Identificação (fase 2) e isolamento entre coordenadorias
   r = await call('cad', 'POST', 'risks', {
     titulo: 'T',

@@ -34,7 +34,7 @@ Abra http://localhost:3000. O servidor só escuta em 127.0.0.1.
    por coordenadoria, além de Alta Gestão de Riscos e CGGE. Todo cadastro exige o **relatório de pedido** que autoriza o acesso:
    tipo (SEI ou pedido formal), nome do documento, número SEI e data; o PDF é obrigatório no tipo SEI.
    As contas de teste `teste1` a `teste20` podem ser criadas sem o pedido.
-4. Cada cadastrador entra, preenche o **Contexto** da coordenadoria e começa a registrar riscos.
+4. Cada cadastrador entra em **Riscos** e clica em **+ Novo risco**: o primeiro passo é salvar o **Contexto** da coordenadoria; depois vêm a identificação e as demais fases.
 5. No **Quadro**, o gestor da coordenadoria delega a quem vai resolver cada risco.
 
 Para uso em produção: `npm run build && npm start`.

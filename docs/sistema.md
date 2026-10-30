@@ -28,10 +28,10 @@ Quem é de uma coordenadoria não enxerga nem acessa por endereço os riscos de 
 
 | Fase | O que acontece no MIRA |
 |---|---|
-| 1 · Contexto | A coordenadoria registra o escopo da gestão de riscos, as pessoas designadas e um cronograma de marcos com data e situação (previsto, concluído, atrasado). |
+| 1 · Contexto | A coordenadoria registra o escopo da gestão de riscos, as pessoas designadas e um cronograma de marcos com data e situação (previsto, concluído, atrasado). É o primeiro passo do **Novo risco**: sem escopo salvo, o servidor não aceita o cadastro do risco. |
 | 2 · Identificação | Título, causa, evento, impacto e objetivo afetado. Enquanto se digita, uma pré-visualização mostra a frase completa do MGR, os campos recebem avisos de qualidade e o sistema aponta riscos parecidos já cadastrados. |
-| 3 · Avaliação | Probabilidade e impacto de 1 a 5, cada nota com descrição. O nível é probabilidade × impacto, na matriz 5 × 5. Informa-se também a exposição financeira estimada em reais. |
-| 4 · Tratamento (PRR) | Forma de tratamento (mitigar, evitar, transferir, aceitar), controles existentes, ação, responsável, prazo, custo, métrica com limites crítico, alerta e ideal, e o risco residual esperado. Um resumo ao lado recalcula enquanto se preenche. |
+| 3 · Avaliação | Probabilidade e impacto de 1 a 5, cada nota com descrição. O nível é probabilidade × impacto, na matriz 5 × 5. Informa-se também a exposição financeira estimada em reais, no formato brasileiro (4.000.000 ou 4.000.000,50); embaixo do campo aparece como o valor foi entendido e a conta da exposição esperada (valor cheio × percentual da probabilidade). |
+| 4 · Tratamento (PRR) | Forma de tratamento (mitigar, evitar, transferir, aceitar), controles existentes, ação, responsável, prazo, custo, métrica com limites crítico, alerta e ideal, e o risco residual esperado. O residual começa igual ao nível de hoje, com atalhos para reduzir 1 na probabilidade, no impacto ou nos dois, e mostra a conta da exposição residual. Um resumo ao lado recalcula enquanto se preenche. |
 | 5 · Monitoramento | Medições da métrica em gráfico, sobre as faixas dos limites; reavaliação do nível com motivo; registro de que o evento ocorreu; encerramento pelo gestor. |
 
 ## Situações de um risco
@@ -87,7 +87,7 @@ No protótipo os e-mails são simulados: o aviso aparece no sistema, mas nada sa
 - Lista de riscos com nível, fase, situação, métrica e prazo.
 
 **Alta Gestão:** custo do risco e retorno do tratamento.
-- Exposição esperada hoje, a comparação com a exposição depois dos PRRs e um resumo em texto para a decisão.
+- Exposição esperada hoje, o valor cheio (sem aplicar a probabilidade), a comparação com a exposição depois dos PRRs e um resumo em texto para a decisão.
 - Investimento aprovado e aguardando decisão, retorno por real investido, riscos altos ou extremos ainda sem tratamento aprovado.
 - Exposição por coordenadoria, hoje e depois dos PRRs.
 - Prioridade de investimento: PRRs aguardando decisão, ordenados pelo retorno.
@@ -104,7 +104,7 @@ Todos os perfis alternam entre os dois painéis. Alta Gestão de Riscos e CGGE a
 | Quadro | Colunas pelas etapas do processo (identificar e avaliar, elaborar o PRR, em validação, em tratamento, evento ocorreu, encerrado), com quem resolve cada risco e filtro por responsável. O gestor da coordenadoria delega a um cadastrador ou a si mesmo, com uma observação; a delegação vai para o histórico e gera um aviso | Todos menos o administrador; delega o gestor |
 | Matriz | Matriz 5 × 5 com a distribuição por nível e a lista da célula escolhida | Todos |
 | Pendências | O que depende do perfil: rascunhos e devoluções (cadastrador), validações (gestor), aprovações com custo e retorno (Alta Gestão de Riscos) | Todos, menos CGGE |
-| Contexto | Fase 1 da coordenadoria | Todos; edita o cadastrador |
+| Contexto | Fase 1 da coordenadoria; abre pelo botão Contexto na aba Riscos e é o primeiro passo do Novo risco | Todos; edita o cadastrador |
 | Histórico | Linha do tempo de todas as alterações, com valor anterior e novo | Todos, filtrado pela coordenadoria |
 | Alertas | Avisos do momento e avisos guardados | Todos |
 | Relatório | Indicadores, tabela de riscos por coordenadoria e faixa e o texto do relatório anual, lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, Alta Gestão de Riscos e CGGE |

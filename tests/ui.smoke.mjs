@@ -208,6 +208,9 @@ const F = (t, c) => ({
   impacto: 'indisponibilidade de serviços',
   objetivo: 'a continuidade dos serviços',
 });
+// O contexto vem antes do primeiro risco de cada coordenadoria.
+await call('cad', 'POST', 'ctx/escopo', { escopo: 'Sistemas da Cosegi' });
+await call('cad2', 'POST', 'ctx/escopo', { escopo: 'Sistemas da Coinfra' });
 await mkRisk('cad', F('Risco A', 'falha sem redundância no servidor principal'), 2, 5, 4000000, 'ativo');
 await mkRisk('cad', F('Risco B', 'ausência de rotina de backup testada'), 3, 5, 6000000, 'gestor');
 await mkRisk('cad', F('Risco C', 'dependência de fornecedor único de licenças'), 3, 3, 250000, 'altagestao');
@@ -229,6 +232,13 @@ async function browse(label, user, pw, nameChk) {
     if (bad()) {
       ok(false, label + ': tela ' + n + ' quebrou');
     }
+  }
+  // O contexto saiu do menu de cima e abre pela aba Riscos.
+  if (label !== 'Administrador') {
+    await click({ nav: 'riscos' });
+    ok(html().includes('data-nav="contexto"'), label + ': aba Riscos tem o botão Contexto');
+    await click({ nav: 'contexto' });
+    if (bad()) ok(false, label + ': tela contexto quebrou');
   }
   await click({ nav: 'paineis' });
   await click({ panel: 'alta' });
