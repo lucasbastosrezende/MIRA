@@ -107,7 +107,7 @@ Todos os perfis alternam entre os dois painéis. Alta Gestão de Riscos e CGGE a
 | Contexto | Fase 1 da coordenadoria; abre pelo botão Contexto na aba Riscos e é o primeiro passo do Novo risco | Todos; edita o cadastrador |
 | Histórico | Linha do tempo de todas as alterações, com valor anterior e novo | Todos, filtrado pela coordenadoria |
 | Alertas | Avisos do momento e avisos guardados | Todos |
-| Relatório | Indicadores, tabela de riscos por coordenadoria e faixa e o texto do relatório anual, lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, Alta Gestão de Riscos e CGGE |
+| Relatório | Relatório da Alta Gestão de Riscos por período: semanal, mensal (o padrão), semestral ou anual, com setas para os períodos anteriores. Mostra o que aconteceu no período (riscos cadastrados, PRRs aprovados e devolvidos, investimento aprovado, medições, eventos e encerramentos, pelas datas guardadas em cada risco) e a situação de hoje. Lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, Alta Gestão de Riscos e CGGE |
 | Usuários | Cadastro de pessoas com o relatório de pedido (SEI ou pedido formal, número SEI, data e PDF), registro de pedido de quem já tem conta, busca por nome ou número SEI, download do PDF e do relatório de pedido (.md ou .txt), redefinição de senha, desativação, exclusão e cobertura de cada coordenadoria | Administrador |
 | Coordenadorias | Criação das coordenadorias, edição do nome por extenso e remoção enquanto não têm pessoas, riscos nem contexto | Administrador |
 

@@ -2980,11 +2980,113 @@ export function mountMira(root) {
       '<p class="hint">No protótipo, os e-mails são simulados.</p>'
     );
   }
-  // Relatório anual da Alta Gestão de Riscos em Markdown. Na tela vira HTML (mdHtml); para baixar, sai em .md ou em texto puro.
-  function reportMd() {
+  // Tipos de período do relatório da Alta Gestão de Riscos.
+  const PERIODOS = { semana: 'Semanal', mes: 'Mensal', semestre: 'Semestral', ano: 'Anual' };
+  // Período do relatório: tipo e deslocamento (0 = o atual, -1 = o anterior...).
+  // Devolve o início (incluído), o fim (excluído), o nome e uma chave para o nome do arquivo.
+  // A semana começa na segunda-feira; o semestre vai de janeiro a junho ou de julho a dezembro.
+  function periodo(tipo, off) {
+    const h = new Date(),
+      d0 = new Date(h.getFullYear(), h.getMonth(), h.getDate());
+    let ini, fim, nome;
+    if (tipo === 'semana') {
+      ini = new Date(d0);
+      ini.setDate(d0.getDate() - ((d0.getDay() + 6) % 7) + 7 * off);
+      fim = new Date(ini);
+      fim.setDate(ini.getDate() + 7);
+      const ult = new Date(fim);
+      ult.setDate(fim.getDate() - 1);
+      nome = 'semana de ' + ini.toLocaleDateString('pt-BR') + ' a ' + ult.toLocaleDateString('pt-BR');
+    } else if (tipo === 'mes') {
+      ini = new Date(d0.getFullYear(), d0.getMonth() + off, 1);
+      fim = new Date(ini.getFullYear(), ini.getMonth() + 1, 1);
+      nome = ini.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    } else if (tipo === 'semestre') {
+      ini = new Date(d0.getFullYear(), (Math.floor(d0.getMonth() / 6) + off) * 6, 1);
+      fim = new Date(ini.getFullYear(), ini.getMonth() + 6, 1);
+      nome = (ini.getMonth() === 0 ? '1º' : '2º') + ' semestre de ' + ini.getFullYear();
+    } else {
+      tipo = 'ano';
+      ini = new Date(d0.getFullYear() + off, 0, 1);
+      fim = new Date(ini.getFullYear() + 1, 0, 1);
+      nome = String(ini.getFullYear());
+    }
+    const iso = d =>
+      d.getFullYear() +
+      '-' +
+      String(d.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(d.getDate()).padStart(2, '0');
+    const ult = new Date(fim);
+    ult.setDate(fim.getDate() - 1);
+    return { tipo, ini, fim, ult, nome, chave: tipo + '-' + iso(ini) };
+  }
+  // Período escolhido na tela Relatório (começa no mês atual).
+  const perAtual = () => periodo(UI.relPer || 'mes', UI.relOff || 0);
+  // Verdadeiro se a data (ISO ou "aaaa-mm-dd") cai dentro do período.
+  const noPer = (ts, P) => {
+    if (!ts) return false;
+    const t = pd(ts);
+    return t >= P.ini && t < P.fim;
+  };
+  // O que aconteceu no período, tirado das datas guardadas em cada risco: cadastro, decisões do PRR,
+  // medições, evento ocorrido e encerramento. Para riscos antigos sem a data do evento ou do
+  // encerramento, usa a trilha de auditoria.
+  function fatosPer(P) {
+    const R = S.risks;
+    const dec = R.flatMap(r =>
+      ((r.prr && r.prr.aprov) || []).filter(a => noPer(a.ts, P)).map(a => ({ r, a })),
+    );
+    const meds = R.flatMap(r =>
+      ((r.prr && r.prr.medicoes) || [])
+        .filter(m => noPer(m.ts, P))
+        .map(m => ({ r, m, st: metricSt({ prr: Object.assign({}, r.prr, { medicoes: [m] }) }) })),
+    );
+    const quando = (r, campo, acao) =>
+      r[campo] || (S.audit.find(a => a.riskId === r.id && a.action === acao) || {}).ts;
+    const aprov = dec.filter(x => x.a.decisao === 'aprovado');
+    return {
+      novos: R.filter(r => noPer(r.criadoEm, P)),
+      aprov,
+      devol: dec.filter(x => x.a.decisao === 'devolvido'),
+      meds,
+      ocorr: R.filter(r => noPer(quando(r, 'ocorridoEm', 'Registrou que o evento ocorreu'), P)),
+      encer: R.filter(r => noPer(quando(r, 'encerradoEm', 'Encerrou o risco'), P)),
+      inv: aprov.reduce((s, x) => s + (Number(x.r.prr.custo) || 0), 0),
+    };
+  }
+  // Seletor do período na tela Relatório: tipo (semanal a anual) e setas para os períodos anteriores.
+  function perControles(P) {
+    const off = UI.relOff || 0;
+    return (
+      '<div class="seg" role="group" aria-label="Período do relatório">' +
+      Object.keys(PERIODOS)
+        .map(
+          k =>
+            '<button data-act="per-tipo" data-v="' +
+            k +
+            '" aria-pressed="' +
+            (P.tipo === k) +
+            '">' +
+            PERIODOS[k] +
+            '</button>',
+        )
+        .join('') +
+      '</div><div class="per-nav"><button class="btn sm" data-act="per-off" data-v="-1" aria-label="Período anterior">‹</button><b>' +
+      esc(P.nome) +
+      '</b><button class="btn sm" data-act="per-off" data-v="1" aria-label="Próximo período"' +
+      (off >= 0 ? ' disabled' : '') +
+      '>›</button></div>'
+    );
+  }
+  // Relatório da Alta Gestão de Riscos em Markdown, para o período escolhido (semanal, mensal, semestral ou anual).
+  // O que aconteceu vem das datas do período; a situação dos riscos é a de hoje.
+  // Na tela vira HTML (mdHtml); para baixar, sai em .md ou em texto puro.
+  function reportMd(P) {
+    P = P || perAtual();
+    const F = fatosPer(P),
+      hoje = fd(new Date().toISOString());
     const L = S.risks.filter(r => r.status !== 'encerrado' && r.prob && r.imp);
-    const ap = S.audit.filter(a => a.action === 'Aprovou o PRR').length,
-      dv = S.audit.filter(a => a.action === 'Devolveu o PRR').length;
     const inv = L.filter(r => ['em_tratamento', 'ocorrido'].includes(r.status)).reduce(
       (a, r) => a + econ(r).cost,
       0,
@@ -2995,10 +3097,12 @@ export function mountMira(root) {
     );
     const gain = L.reduce((a, r) => a + econ(r).gain, 0);
     const faixa = LV.map((l, i) => l + ': ' + L.filter(r => band(nivel(r)) === i).length).join(' · ');
+    const nAl = F.meds.filter(x => x.st === 'alerta').length,
+      nCr = F.meds.filter(x => x.st === 'critico').length;
     const un = units().length
       ? [
-          '| Coordenadoria | Riscos | Alto ou extremo |',
-          '|---|---|---|',
+          '| Coordenadoria | Riscos ativos hoje | Alto ou extremo | Novos no período | PRRs aprovados no período |',
+          '|---|---|---|---|---|',
           ...units().map(
             x =>
               '| ' +
@@ -3007,6 +3111,10 @@ export function mountMira(root) {
               L.filter(r => r.unit === x).length +
               ' | ' +
               L.filter(r => r.unit === x && nivel(r) >= 12).length +
+              ' | ' +
+              F.novos.filter(r => r.unit === x).length +
+              ' | ' +
+              F.aprov.filter(q => q.r.unit === x).length +
               ' |',
           ),
         ].join('\n')
@@ -3029,69 +3137,67 @@ export function mountMira(root) {
         )
         .join('\n') || '- nenhum';
     const oc =
-      L.filter(r => r.status === 'ocorrido')
-        .map(r => '- **' + r.id + '** ' + mdc(r.titulo) + ' (' + mdc(r.unit) + ')')
-        .join('\n') || '- nenhum';
+      F.ocorr.map(r => '- **' + r.id + '** ' + mdc(r.titulo) + ' (' + mdc(r.unit) + ')').join('\n') ||
+      '- nenhum';
     const mt =
-      L.filter(r => ['alerta', 'critico'].includes(metricSt(r)))
+      F.meds
+        .filter(x => x.st === 'alerta' || x.st === 'critico')
         .map(
-          r =>
+          x =>
             '- **' +
-            r.id +
+            x.r.id +
             '** ' +
-            mdc(r.prr.metrica) +
+            mdc(x.r.prr.metrica) +
             ': ' +
-            lastMed(r).valor +
+            x.m.valor +
             ' ' +
-            mdc(r.prr.unidadeMetrica) +
+            mdc(x.r.prr.unidadeMetrica) +
             ' (' +
-            MST[metricSt(r)] +
-            ')',
+            MST[x.st] +
+            ') · ' +
+            fd(x.m.ts),
         )
         .join('\n') || '- nenhuma';
     return [
-      '# Relatório anual da Alta Gestão de Riscos · TIC · ' + new Date().getFullYear(),
-      'Gerado pelo MIRA em ' + fd(new Date().toISOString()) + '.',
+      '# Relatório ' + PERIODOS[P.tipo].toLowerCase() + ' da Alta Gestão de Riscos · TIC',
+      '**Período:** ' + P.nome + ' (' + fd(P.ini.toISOString()) + ' a ' + fd(P.ult.toISOString()) + ')',
+      'Gerado pelo MIRA em ' + hoje + '.',
       '',
-      '## 1. Panorama',
-      '**' + L.length + ' riscos ativos.** ' + faixa,
+      '## 1. No período',
+      '- Riscos cadastrados: ' + F.novos.length,
+      '- PRRs aprovados: ' + F.aprov.length + ' · devolvidos: ' + F.devol.length,
+      '- Investimento aprovado no período: ' + brl(F.inv),
+      '- Medições registradas: ' + F.meds.length + ' (' + nAl + ' em alerta, ' + nCr + ' críticas)',
+      '- Eventos que ocorreram: ' + F.ocorr.length + ' · riscos encerrados: ' + F.encer.length,
       '',
       '## 2. Por coordenadoria',
       un,
       '',
-      '## 3. Planos de resposta (PRR)',
-      '- Aprovados: ' +
-        ap +
-        ' · Devolvidos: ' +
-        dv +
-        ' · Em análise: ' +
-        L.filter(r => ['ag_gestor', 'ag_altagestao'].includes(r.status)).length,
-      '- Investimento aprovado: ' + brl(inv) + ' · aguardando decisão: ' + brl(pnd),
+      '## 3. Situação atual (em ' + hoje + ')',
+      '**' + L.length + ' riscos ativos.** ' + faixa,
+      '- PRRs em análise: ' + L.filter(r => ['ag_gestor', 'ag_altagestao'].includes(r.status)).length,
+      '- Investimento aprovado (PRRs em tratamento): ' + brl(inv) + ' · aguardando decisão: ' + brl(pnd),
       '- Reduções esperadas de exposição: ' + brl(gain),
       '',
-      '## 4. Riscos de nível alto e extremo',
+      '## 4. Riscos de nível alto e extremo (hoje)',
       altos,
       '',
-      '## 5. Eventos que ocorreram',
+      '## 5. Eventos que ocorreram no período',
       oc,
       '',
-      '## 6. Métricas em alerta ou críticas',
+      '## 6. Métricas em alerta ou críticas no período',
       mt,
       '',
-      'Todas as alterações estão no histórico do MIRA.',
+      'Os números do período vêm das datas registradas em cada risco (cadastro, decisões do PRR, medições, evento e encerramento). A situação atual é a de hoje, não a do fim do período. Todas as alterações estão no histórico do MIRA.',
     ].join('\n');
   }
   // Tela Relatório: indicadores, tabela por coordenadoria e faixa e o texto do relatório.
   function viewRel(u) {
     const L = S.risks.filter(r => r.status !== 'encerrado' && r.prob && r.imp),
       E = L.map(r => ({ r, e: econ(r) }));
-    const ap = S.audit.filter(a => a.action === 'Aprovou o PRR').length,
-      dv = S.audit.filter(a => a.action === 'Devolveu o PRR').length;
-    const inv = E.filter(x => ['em_tratamento', 'ocorrido'].includes(x.r.status)).reduce(
-        (a, x) => a + x.e.cost,
-        0,
-      ),
-      gain = E.reduce((a, x) => a + x.e.gain, 0),
+    const P = perAtual(),
+      Fp = fatosPer(P);
+    const gain = E.reduce((a, x) => a + x.e.gain, 0),
       alto = L.filter(r => nivel(r) >= 12).length;
     const cnt = (x, i) => L.filter(r => r.unit === x && band(nivel(r)) === i).length,
       mx = Math.max(1, ...units().flatMap(x => LV.map((l, i) => cnt(x, i))));
@@ -3104,9 +3210,14 @@ export function mountMira(root) {
         alto ? 'Entram no relatório com situação e responsável' : 'Nenhum risco com nível 12 ou mais',
         alto ? 'crit' : 'ok',
       ) +
-      tile('PRRs decididos', ap + dv, ap + ' aprovado(s) · ' + dv + ' devolvido(s)') +
-      tile('Investimento aprovado', brlc(inv), 'PRRs em tratamento') +
-      tile('Redução esperada', brlc(gain), 'Exposição que os PRRs removem') +
+      tile('Novos no período', Fp.novos.length, 'Riscos cadastrados em ' + esc(P.nome)) +
+      tile(
+        'PRRs decididos no período',
+        Fp.aprov.length + Fp.devol.length,
+        Fp.aprov.length + ' aprovado(s) · ' + Fp.devol.length + ' devolvido(s)',
+      ) +
+      tile('Investimento aprovado no período', brlc(Fp.inv), 'Custo dos PRRs aprovados') +
+      tile('Redução esperada', brlc(gain), 'Hoje, com os PRRs registrados') +
       '</div>';
     const grid =
       '<div class="scroll"><table class="tbl hm"><thead><tr><th>Coordenadoria</th>' +
@@ -3144,10 +3255,13 @@ export function mountMira(root) {
       '</tbody></table></div>';
     return (
       pageHead(
-        'Relatório anual da Alta Gestão de Riscos',
-        'Riscos, planos de resposta e métricas.',
+        'Relatório ' + PERIODOS[P.tipo].toLowerCase() + ' da Alta Gestão de Riscos',
+        'Período: ' + esc(P.nome) + '. O que aconteceu no período e a situação de hoje.',
         '<button class="btn" data-act="copyrep">Copiar Markdown</button>' + dlMenu(DL_REL),
       ) +
+      '<div class="card per-bar">' +
+      perControles(P) +
+      '</div>' +
       tiles +
       '<div class="card">' +
       cardH('Riscos por coordenadoria e faixa', 'Mais escuro, mais riscos.') +
@@ -4405,14 +4519,32 @@ export function mountMira(root) {
         UI.tce = null;
         render(true);
         break;
+      // Relatório: escolher o tipo de período (volta ao atual) ou andar para o anterior/próximo
+      case 'per-tipo':
+        UI.relPer = el.dataset.v;
+        UI.relOff = 0;
+        render(true);
+        break;
+      case 'per-off':
+        UI.relOff = Math.min(0, (UI.relOff || 0) + Number(el.dataset.v));
+        render(true);
+        break;
       case 'copyrep':
         copyText('reptext', reportMd());
         break;
       case 'dl-rep-md':
-        download('relatorio-alta-gestao-mira.md', reportMd(), 'text/markdown;charset=utf-8');
+        download(
+          'relatorio-alta-gestao-' + perAtual().chave + '.md',
+          reportMd(),
+          'text/markdown;charset=utf-8',
+        );
         break;
       case 'dl-rep-txt':
-        download('relatorio-alta-gestao-mira.txt', mdTxt(reportMd()), 'text/plain;charset=utf-8');
+        download(
+          'relatorio-alta-gestao-' + perAtual().chave + '.txt',
+          mdTxt(reportMd()),
+          'text/plain;charset=utf-8',
+        );
         break;
       case 'dl-csv':
         download('riscos-mira.csv', csvAll(), 'text/csv;charset=utf-8');

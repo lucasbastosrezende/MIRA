@@ -550,3 +550,8 @@ main>.card.decide{box-shadow:0 0 0 1px var(--accent),var(--shadow)}
 .exp-conta{display:grid;gap:3px;margin:4px 0 12px;padding:10px 12px;border-radius:8px;background:var(--surface2);font-size:13px}
 .exp-conta b{font-size:18px}
 .res-atalhos{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+
+/* ===== Período do relatório da Alta Gestão ===== */
+.per-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.per-nav{display:flex;align-items:center;gap:8px}
+.per-nav b{min-width:150px;text-align:center;font-size:14px}

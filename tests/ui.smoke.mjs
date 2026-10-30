@@ -316,9 +316,23 @@ ok(
 );
 await click({ nav: 'relatorio' });
 ok(
-  html().includes('<h4>1. Panorama</h4>') && html().includes('data-act="dl-rep-md"'),
-  'relatório em Markdown com opções para baixar',
+  html().includes('Relatório mensal da Alta Gestão de Riscos') &&
+    html().includes('<h4>1. No período</h4>') &&
+    html().includes('data-act="dl-rep-md"'),
+  'relatório mensal em Markdown com opções para baixar',
 );
+for (const [v, t] of [
+  ['semana', 'semanal'],
+  ['semestre', 'semestral'],
+  ['ano', 'anual'],
+  ['mes', 'mensal'],
+]) {
+  await click({ act: 'per-tipo', v });
+  ok(html().includes('Relatório ' + t + ' da Alta Gestão de Riscos') && !bad(), 'relatório ' + t);
+}
+await click({ act: 'per-tipo', v: 'ano' });
+await click({ act: 'per-off', v: '-1' });
+ok(html().includes(String(new Date().getFullYear() - 1)) && !bad(), 'relatório do ano anterior pela seta');
 await click({ act: 'logout' });
 setVals({ 'a-user': 'cad.cosegi', 'a-pw': 'errada' });
 await submit('auth-form');
