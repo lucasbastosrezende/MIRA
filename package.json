@@ -7,7 +7,9 @@
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
-    "test:api": "node --no-warnings tests/api.test.js"
+    "test": "npm run test:api && npm run test:ui",
+    "test:api": "node --no-warnings tests/api.test.js",
+    "test:ui": "node --no-warnings tests/ui.smoke.mjs"
   },
   "engines": { "node": ">=22.13" },
   "dependencies": {
