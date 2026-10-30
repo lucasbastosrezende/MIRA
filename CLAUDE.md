@@ -91,9 +91,15 @@ Antes de commitar: `npm run test:api` e `node --no-warnings tests/ui.smoke.mjs` 
 - Nunca use nomes de pessoas fictícias ou reais em dados de demonstração. Os únicos usuários de demonstração permitidos são `altagestao1` (perfil CSGR, nome exibido "altagestão1") e `testeusuario` (cadastrador da Cosegi). O campo de usuário só aceita letras minúsculas sem acento, por isso `altagestao1`.
 - Banco de demonstração e capturas de tela ficam fora do repositório (pasta temporária). Nunca commite `data/`, `.env.local`, chaves ou tokens.
 
+## Código
+
+- Todo JavaScript fica indentado para leitura humana, no padrão do Prettier 3.3.3: aspas simples, 110 colunas, ponto e vírgula, `arrowParens: avoid`. O Prettier é só ferramenta (rodado de fora do repositório); não entra no `package.json`.
+- O código tem que ser auditável: cabeçalho no topo de cada arquivo dizendo o papel dele, um comentário acima de cada função ou constante dizendo o que faz, e a regra do MGR ou de segurança escrita onde ela é aplicada.
+- Reorganização sem mudança de comportamento vai numa branch `refactor/`, e o PR diz como isso foi conferido (por exemplo, comparando a árvore sintática antes e depois).
+
 ## Interface
 
-- Estilo existente: HTML em strings, funções curtas, nomes em português, comentário só onde o motivo não é óbvio. Siga o que está ao redor.
+- Estilo existente: HTML em strings, funções curtas, nomes em português. Siga o que está ao redor.
 - Cores e tipografia só pelos tokens de `globals.css` (`--accent`, `--l0..l4`, `--s0..s4`...). Tema escuro sai dos mesmos tokens.
 - Estado nunca só por cor: use ícone e texto (`toneTag`).
 - Reaproveite as peças: `pageHead`, `cardH`, `tile`, `toneTag`, `heat`, `.card`, `.tiles`, `.dash`.
