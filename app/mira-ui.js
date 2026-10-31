@@ -13,6 +13,9 @@
 
 import MIRA from '../lib/logic.js';
 import { xlsx } from './planilha.js';
+// rx: cria um elemento React (createElement), usado com as peças de app/pecas.js.
+import { createElement as rx } from 'react';
+import { NivelTag, Etiqueta, html } from './pecas.js';
 
 export function mountMira(root) {
   /* ===== Núcleo: estado, utilidades e chamadas à API ===== */
@@ -119,9 +122,11 @@ export function mountMira(root) {
       .toUpperCase();
   // Etiqueta do nível (número e faixa) com a cor da faixa.
   const lvc = n =>
-    n
-      ? '<span class="lv lv' + band(n) + '">' + LV[band(n)] + ' · ' + n + '</span>'
-      : '<span class="st">Sem avaliação</span>';
+    html(
+      n
+        ? rx(NivelTag, { faixa: band(n), nome: LV[band(n)], nivel: n })
+        : rx(Etiqueta, { children: 'Sem avaliação' }),
+    );
   // Falso depois que a interface é desmontada; impede renderizar numa tela que já saiu.
   let alive = true;
   // Dados vindos do servidor (GET /api/state). O servidor já filtra pelo perfil: o navegador só recebe o que pode ver.
@@ -336,18 +341,13 @@ export function mountMira(root) {
   /* ===== Componentes de tela ===== */
   const stChip = r => {
     const s = STAT[r.status];
-    return '<span class="st ' + s[1] + '">' + s[0] + '</span>';
+    return html(rx(Etiqueta, { tom: s[1], children: s[0] }));
   };
   // Etiqueta do estado da última medição da métrica.
   const metChip = r => {
     const m = metricSt(r);
-    return m === 'ok'
-      ? '<span class="st ok">Ideal</span>'
-      : m === 'alerta'
-        ? '<span class="st warn">Alerta</span>'
-        : m === 'critico'
-          ? '<span class="st bad">Crítico</span>'
-          : '<span class="muted">—</span>';
+    const t = { ok: ['ok', 'Ideal'], alerta: ['warn', 'Alerta'], critico: ['bad', 'Crítico'] }[m];
+    return t ? html(rx(Etiqueta, { tom: t[0], children: t[1] })) : '<span class="muted">—</span>';
   };
   // Prazo da ação do PRR em texto útil: concluída em, vencida há N dias, vence hoje ou amanhã, ou quantos dias
   // faltam. Antes da aprovação, o prazo é só proposto.

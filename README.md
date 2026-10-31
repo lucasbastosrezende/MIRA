@@ -14,6 +14,7 @@ O sistema começa **vazio**: sem riscos, sem pessoas e sem dados de exemplo.
 | [docs/pitch.md](docs/pitch.md) | Roteiro para apresentar o projeto |
 | [docs/testes.md](docs/testes.md) | Tabela de testes e resultados |
 | [docs/plano.md](docs/plano.md) | Plano de ação para a conformidade com o MGR: estado atual, regras fixas e o que fazer em cada item |
+| [docs/log.md](docs/log.md) | Log dos testes da conformidade com o MGR: problemas encontrados e como foram resolvidos |
 | [CLAUDE.md](CLAUDE.md) | Regras de trabalho do repositório |
 
 ## Como rodar (localhost)
