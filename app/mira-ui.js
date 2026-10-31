@@ -2652,8 +2652,8 @@ export function mountMira(root) {
       'É quanto se espera perder, em média, se nada for feito: o valor cheio do impacto vezes o percentual da probabilidade. Ex.: R$ 200.000 com probabilidade 4 (75%) = R$ 150.000.',
     ],
     apetite: [
-      'O que é apetite a risco?',
-      'É o maior nível de risco que se aceita sem tratar. Acima dele, o PRR não pode usar "Aceitar": é preciso evitar, transferir ou mitigar (MGR p. 19–21). Pode ser geral ou próprio de cada coordenadoria; o da coordenadoria vale sobre o geral.',
+      'O que é o limite para aceitar o risco (apetite a risco)?',
+      'É o maior nível de risco que se aceita sem tratar; o MGR (p. 19) e a ISO 31000 chamam isso de "apetite a risco". Acima dele, o PRR não pode usar "Aceitar": é preciso evitar, transferir ou mitigar (MGR p. 19–21). Pode ser geral ou próprio de cada coordenadoria; o da coordenadoria vale sobre o geral.',
     ],
     alcada: [
       'O que é a alçada do gestor?',
@@ -4448,7 +4448,7 @@ export function mountMira(root) {
         : '') +
       '</div><div class="card">' +
       cardH(
-        'Apetite a risco' + ajuda('apetite'),
+        'Limite para aceitar o risco (apetite a risco)' + ajuda('apetite'),
         'Maior nível que pode ser aceito sem tratamento (MGR p. 19–21). ' + quemDecidiu(ap),
       ) +
       ajudaTxt('apetite') +
@@ -4469,10 +4469,10 @@ export function mountMira(root) {
             '</option>',
         )
         .join('') +
-      '</select><div class="hint">Com o apetite definido, um PRR com "Aceitar" acima desse nível não é enviado.</div></div>' +
+      '</select><div class="hint">Com o limite definido, um PRR com "Aceitar" acima desse nível não é enviado.</div></div>' +
       // Apetite de cada coordenadoria: vale sobre o geral; vazio usa o geral.
       (units().length
-        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Coordenadoria</th><th>Apetite próprio</th></tr></thead><tbody>' +
+        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Coordenadoria</th><th>Limite próprio</th></tr></thead><tbody>' +
           units()
             .map(
               un =>
@@ -4480,7 +4480,7 @@ export function mountMira(root) {
                 esc(siglaUp(un)) +
                 '</td><td><select data-apetite-un="' +
                 esc(un) +
-                '" aria-label="Apetite de ' +
+                '" aria-label="Limite para aceitar o risco de ' +
                 esc(siglaUp(un)) +
                 '"' +
                 dis +
@@ -4492,7 +4492,7 @@ export function mountMira(root) {
           '</tbody></table></div>'
         : '') +
       (ed
-        ? '<div class="actions"><button class="btn primary" data-act="cfg-apetite">Registrar apetite</button></div>'
+        ? '<div class="actions"><button class="btn primary" data-act="cfg-apetite">Registrar limite</button></div>'
         : '') +
       '</div><div class="card">' +
       cardH(
@@ -5502,7 +5502,7 @@ export function mountMira(root) {
           .forEach(e => (porUnidade[e.dataset.apetiteUn] = e.value));
         await api('POST', 'config/apetite', { nivelMax: val('cfg-apetite'), porUnidade });
         await refresh(true);
-        toast('Apetite a risco registrado.');
+        toast('Limite para aceitar o risco registrado.');
         break;
       }
       case 'cfg-alcada': {

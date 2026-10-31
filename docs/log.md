@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 152 verificações, todas passando |
+| API | 153 verificações, todas passando |
 | Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
@@ -215,6 +215,12 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Pedido:** FAQ no monitoramento da métrica.
 - **Feito:** botão "?" ao lado de cada termo da aba de monitoramento (métrica, "quanto menor/maior, melhor", como ler o gráfico, registrar medição, medição em alerta ou crítico, reavaliação e "O evento ocorreu"), com a explicação logo abaixo; o bloco de dúvidas do fim da aba passou de 5 para 9 perguntas. A resposta sobre medição dizia que só o gestor recebe aviso; foi corrigida (cadastrador, gestor e Alta Gestão recebem, como faz o servidor).
 - **Conferido:** no navegador, no computador (claro) e a 390 px (escuro): os 6 botões abrem a explicação, 9 perguntas no bloco, sem rolagem lateral e sem erro.
+
+### 28. "Apetite a risco" com nome simples
+- **Pedido:** outro nome para "apetite a risco".
+- **Decisão do usuário:** nome simples com o termo oficial entre parênteses, "Limite para aceitar o risco (apetite a risco)", porque é o termo do MGR (p. 19) e da ISO 31000 que a CSGR e o TCE leem.
+- **Feito:** título, coluna, botão, aviso, explicação do "?" e a mensagem do servidor quando um PRR com "Aceitar" passa do limite. No histórico, as decisões da CSGR saíam com a chave interna ("…: apetite") e valores em JSON; agora saem com o nome e os valores por extenso. Registros antigos do histórico não são reescritos.
+- **Conferido:** teste de API ajustado ao nome novo e um teste novo de valores sem JSON (153 verificações). No navegador: título, botão "Registrar limite", aviso e as três decisões legíveis no histórico.
 
 ## Visual
 

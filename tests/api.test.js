@@ -734,8 +734,14 @@ const ok = (c, m) => {
   st = await call('altagestao', 'GET', 'state');
   ok(
     st.config.apetite.nivelMax === 4 &&
-      st.audit.some(x => /Registrou decisão da CSGR: apetite/.test(x.action)),
-    'decisão vai para o estado e para a auditoria',
+      st.audit.some(x => /Registrou decisão da CSGR: limite para aceitar o risco/.test(x.action)),
+    'decisão vai para o estado e para a auditoria, com o nome legível',
+  );
+  ok(
+    st.audit
+      .filter(x => /Registrou decisão da CSGR/.test(x.action))
+      .every(x => (x.changes || x.mudancas || []).every(c => !/[{}]/.test(String(c.para)))),
+    'valores das decisões no histórico sem JSON',
   );
   // Com o apetite em 4, um risco de nível 10 não pode ser só aceito
   r = await call('cad', 'POST', 'risks', {

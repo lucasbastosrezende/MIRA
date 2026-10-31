@@ -130,9 +130,11 @@ Quem é de uma coordenadoria vê no cabeçalho a sigla em maiúsculas e o nome p
 Tela **Decisões** (a Alta Gestão registra; o CGGE consulta). Cada termo tem um botão **?** que abre a explicação ali mesmo, e ao lado fica o bloco de dúvidas frequentes com os mesmos termos. Cada decisão guarda quem decidiu e quando e vai para o histórico. Sem decisão, vale o comportamento padrão.
 
 - **Premissas financeiras:** percentual de cada nota de probabilidade na exposição esperada (padrão: 5%, 20%, 45%, 75% e 95%). Sem aprovação da CSGR, a justificativa ao TCE sai como minuta. A nota 5 nunca fica abaixo de 90%.
-- **Apetite a risco:** maior nível que pode ser aceito sem tratamento. Com ele definido, um PRR com "Aceitar" acima desse nível não é enviado.
+- **Limite para aceitar o risco (apetite a risco):** maior nível que pode ser aceito sem tratamento. Na tela aparece com o nome simples e, entre parênteses, o termo do MGR (p. 19) e da ISO 31000. Com ele definido, um PRR com "Aceitar" acima desse nível não é enviado.
 - **Priorização:** ordem das filas e listas: pelo nível; nível e prazo; ou nível, prazo e situação.
-- **Apetite por coordenadoria:** pode ser definido para cada coordenadoria e vale sobre o geral.
+- **Limite por coordenadoria:** pode ser definido para cada coordenadoria e vale sobre o geral.
+
+No histórico, cada decisão aparece com o nome legível e os valores por extenso (por exemplo, "Cosegi: até nível 5, até R$ 500.000,00").
 - **Alçada do gestor:** nível e exposição máximos por coordenadoria; o PRR acima deles chega à CSGR marcado como fora da alçada do gestor e no topo da fila (MGR p. 8). Todo PRR continua passando pela CSGR.
 
 ## Configurações, temas e mascote
