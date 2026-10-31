@@ -2631,7 +2631,55 @@ export function mountMira(root) {
       'O que fazer quando o evento ocorre?',
       'Marque "O evento ocorreu". O aviso mostra o plano do PRR para esse caso. Depois, retome o tratamento ou reabra o PRR para revisão.',
     ],
+    premissas: [
+      'O que são as premissas financeiras?',
+      'São os percentuais que transformam a nota de probabilidade em parte do valor em risco. Ex.: com a nota 3 valendo 45%, um impacto de R$ 100.000 dá exposição esperada de R$ 45.000. A CSGR aprova os percentuais; sem aprovação, a justificativa ao TCE sai como minuta.',
+    ],
+    exposicao: [
+      'O que é exposição esperada?',
+      'É quanto se espera perder, em média, se nada for feito: o valor cheio do impacto vezes o percentual da probabilidade. Ex.: R$ 200.000 com probabilidade 4 (75%) = R$ 150.000.',
+    ],
+    apetite: [
+      'O que é apetite a risco?',
+      'É o maior nível de risco que se aceita sem tratar. Acima dele, o PRR não pode usar "Aceitar": é preciso evitar, transferir ou mitigar (MGR p. 19–21). Pode ser geral ou próprio de cada coordenadoria; o da coordenadoria vale sobre o geral.',
+    ],
+    alcada: [
+      'O que é a alçada do gestor?',
+      'É o limite até onde o supervisor (gestor) da coordenadoria pode decidir sozinho. O que passa desse limite é submetido à instância superior, a Alta Gestão / CSGR (MGR p. 8). No MIRA, todo PRR continua passando pela Alta Gestão (MGR p. 21); o que passa do limite chega marcado como "acima da alçada do gestor" e vai para o topo da fila.',
+    ],
+    nivelMax: [
+      'O que é o nível máximo da alçada?',
+      'O maior nível de risco (probabilidade × impacto, de 1 a 25) que o gestor valida sem marca. Ex.: com "até 9 · Médio", um PRR de risco nível 12 chega à Alta Gestão marcado. "Sem limite" = nenhum PRR é marcado pelo nível.',
+    ],
+    exposicaoMax: [
+      'O que é a exposição máxima da alçada?',
+      'O maior valor em reais em risco (exposição esperada) que o gestor valida sem marca. Ex.: com "até R$ 500.000", um risco com exposição de R$ 800.000 chega à Alta Gestão marcado. Vazio = sem limite.',
+    ],
+    priorizacao: [
+      'O que é a priorização?',
+      'É a ordem em que os riscos aparecem nas filas, nas listas e no quadro: pelo nível; pelo nível e depois pelo prazo; ou pelo nível, prazo e situação (Portaria 41, art. 9º, item 6).',
+    ],
   };
+  // Botão "?" ao lado de um termo: abre e fecha a explicação (o texto do FAQ) logo abaixo, sem sair da tela.
+  const ajuda = k =>
+    ' <button type="button" class="ajuda-b" data-ajuda="' +
+    k +
+    '" aria-expanded="false" aria-controls="ajuda-' +
+    k +
+    '" title="' +
+    esc(FAQ[k][0]) +
+    '" aria-label="' +
+    esc(FAQ[k][0]) +
+    '">?</button>';
+  // Caixa da explicação de um termo, fechada até a pessoa clicar no "?".
+  const ajudaTxt = k =>
+    '<div class="info-box ajuda-t" id="ajuda-' +
+    k +
+    '" hidden><b>' +
+    FAQ[k][0] +
+    '</b> ' +
+    FAQ[k][1] +
+    '</div>';
   // Bloco de perguntas frequentes com as chaves pedidas, cada uma abre e fecha sozinha.
   const faq = ks =>
     '<div class="side-card faq"><h4>Dúvidas frequentes</h4>' +
@@ -4281,14 +4329,15 @@ export function mountMira(root) {
         'Decisões da CSGR',
         'O que a CSGR decide e o sistema aplica. Cada alteração fica no histórico.',
       ) +
-      '<div class="card">' +
+      '<div class="prr-grid"><div class="decisoes-col"><div class="card">' +
       cardH(
-        'Premissas financeiras',
+        'Premissas financeiras' + ajuda('premissas'),
         'Percentual de cada nota de probabilidade na exposição esperada. ' + quemDecidiu(pr),
         premissaOk()
           ? html(rx(Etiqueta, { tom: 'ok', children: 'Aprovadas' }))
           : html(rx(Etiqueta, { tom: 'warn', children: 'Minuta' })),
       ) +
+      ajudaTxt('premissas') +
       '<div class="g3">' +
       pct +
       '</div><p class="hint">Sugestão do sistema: meio de cada faixa da escala baseada na ISO 31000. A nota 5 não pode ficar abaixo de 90%. Sem aprovação, a justificativa ao TCE sai como minuta.</p>' +
@@ -4299,9 +4348,10 @@ export function mountMira(root) {
         : '') +
       '</div><div class="card">' +
       cardH(
-        'Apetite a risco',
+        'Apetite a risco' + ajuda('apetite'),
         'Maior nível que pode ser aceito sem tratamento (MGR p. 19–21). ' + quemDecidiu(ap),
       ) +
+      ajudaTxt('apetite') +
       '<div class="field"><label for="cfg-apetite">Nível máximo para "Aceitar"</label><select id="cfg-apetite"' +
       dis +
       '><option value="">Não definido (Aceitar vale para qualquer nível)</option>' +
@@ -4346,12 +4396,19 @@ export function mountMira(root) {
         : '') +
       '</div><div class="card">' +
       cardH(
-        'Alçada do gestor',
+        'Alçada do gestor' + ajuda('alcada'),
         'Acima destes limites, o PRR chega à CSGR marcado como fora da alçada do gestor (MGR p. 8). ' +
           quemDecidiu(c.alcada),
       ) +
+      ajudaTxt('alcada') +
+      ajudaTxt('nivelMax') +
+      ajudaTxt('exposicaoMax') +
       (units().length
-        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Coordenadoria</th><th>Nível máximo</th><th>Exposição máxima (R$)</th></tr></thead><tbody>' +
+        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Coordenadoria</th><th>Nível máximo' +
+          ajuda('nivelMax') +
+          '</th><th>Exposição máxima (R$)' +
+          ajuda('exposicaoMax') +
+          '</th></tr></thead><tbody>' +
           units()
             .map(un => {
               const a = ((c.alcada || {}).porUnidade || {})[un] || {};
@@ -4384,7 +4441,11 @@ export function mountMira(root) {
         ? '<div class="actions"><button class="btn primary" data-act="cfg-alcada">Registrar alçada</button></div>'
         : '') +
       '</div><div class="card">' +
-      cardH('Priorização', 'Ordem das filas e listas (Portaria 41, art. 9º, item 6). ' + quemDecidiu(po)) +
+      cardH(
+        'Priorização' + ajuda('priorizacao'),
+        'Ordem das filas e listas (Portaria 41, art. 9º, item 6). ' + quemDecidiu(po),
+      ) +
+      ajudaTxt('priorizacao') +
       '<div class="temas" role="radiogroup" aria-label="Método de priorização">' +
       MIRA.PRIORIZACAO.map(
         x =>
@@ -4403,7 +4464,9 @@ export function mountMira(root) {
       (ed
         ? '<div class="actions"><button class="btn primary" data-act="cfg-prioriza">Registrar priorização</button></div>'
         : '') +
-      '</div>'
+      '</div></div><aside class="prr-side">' +
+      faq(['premissas', 'exposicao', 'apetite', 'alcada', 'nivelMax', 'exposicaoMax', 'priorizacao']) +
+      '</aside></div>'
     );
   }
   /* ===== Temas e mascote ===== */
@@ -5951,6 +6014,16 @@ export function mountMira(root) {
         si.value = String(lim(r.imp + di));
         UI.sujo = true;
         prrLive();
+      }
+      return;
+    }
+    // Botão "?" de um termo: abre ou fecha a explicação (não remonta a tela).
+    const aj = e.target.closest('[data-ajuda]');
+    if (aj && aj.dataset.ajuda) {
+      const box = document.getElementById('ajuda-' + aj.dataset.ajuda);
+      if (box) {
+        box.hidden = !box.hidden;
+        aj.setAttribute('aria-expanded', String(!box.hidden));
       }
       return;
     }

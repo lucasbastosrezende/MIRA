@@ -201,6 +201,11 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Feito:** clique simples não muda nada; segurar e soltar depois de 0,6 s troca o tema; segurar até 2 s troca só a cor da mira. No celular, segurar não abre o menu de toque.
 - **Conferido:** no navegador, os quatro casos (clique, 0,9 s, 2,3 s, toque curto).
 
+### 25. Explicação dos termos da tela Decisões
+- **Pedido:** um FAQ ao lado, com um botão "?" que abre e fecha, para explicar termos como "alçada do gestor".
+- **Feito:** botão "?" ao lado de premissas financeiras, apetite a risco, alçada do gestor, nível máximo, exposição máxima e priorização; o texto abre logo abaixo e fecha no mesmo botão. Ao lado (abaixo, no celular), o bloco "Dúvidas frequentes" com esses termos e a exposição esperada.
+- **Conferido:** no navegador, no computador (claro) e a 390 px (escuro): 6 botões, abrir e fechar, `aria-expanded`, 7 perguntas no bloco ao lado. A primeira captura a 390 px mostrou rolagem lateral de 155 px: o bloco das premissas não encolhia dentro da coluna nova. A coluna passou a encolher e a rolagem sumiu. Roteiro extra: 13 de 13.
+
 ## Visual
 
 - Cores, fontes (Sora nos títulos, IBM Plex Sans no texto), cantos e pesos seguem o canvas aprovado pelo usuário ("MIRA · cores e tipografia").
