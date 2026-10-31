@@ -686,6 +686,29 @@ const ok = (c, m) => {
   await call('altagestao', 'POST', 'config/apetite', { nivelMax: '' });
   r = await call('cad', 'POST', 'risks/' + rap + '/action', { action: 'send-prr' });
   ok(r.s === 200, 'sem apetite definido, Aceitar volta a valer');
+  // Apetite por coordenadoria vale sobre o geral; coordenadoria inexistente é recusada
+  r = await call('altagestao', 'POST', 'config/apetite', { nivelMax: '', porUnidade: { Inexistente: 4 } });
+  ok(r.s === 422, 'apetite de coordenadoria inexistente é recusado');
+  r = await call('altagestao', 'POST', 'config/apetite', { nivelMax: 9, porUnidade: { Cosegi: 4 } });
+  ok(
+    r.s === 200 && Lg.apetiteDe(r.config, 'Cosegi') === 4 && Lg.apetiteDe(r.config, 'Coinfra') === 9,
+    'apetite da coordenadoria vale sobre o geral',
+  );
+  await call('altagestao', 'POST', 'config/apetite', { nivelMax: '', porUnidade: {} });
+  // Alçada do gestor (MGR p. 8): PRR acima do limite chega à CSGR marcado
+  r = await call('altagestao', 'POST', 'config/alcada', {
+    porUnidade: { Cosegi: { nivelMax: 5, exposicaoMax: '' } },
+  });
+  ok(r.s === 200 && r.config.alcada.porUnidade.Cosegi.nivelMax === 5, 'CSGR registra a alçada do gestor');
+  r = await call('ges', 'POST', 'risks/' + rap + '/action', {
+    action: 'gestor-ok',
+    responsavelId: cadCosegi.id,
+    prazo: '2026-12-30',
+  });
+  ok(
+    r.s === 200 && r.risk.status === 'ag_altagestao' && /nível 10 acima de 5/.test(r.risk.acimaAlcada || ''),
+    'PRR acima da alçada chega marcado à CSGR',
+  );
   r = await call('cad', 'POST', 'alerts/read', {});
   ok(r.s === 200, 'marca avisos como lidos');
   r = await call('x', 'GET', 'state');

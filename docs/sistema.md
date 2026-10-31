@@ -123,6 +123,8 @@ Tela **Decisões** (a Alta Gestão registra; o CGGE consulta). Cada decisão gua
 - **Premissas financeiras:** percentual de cada nota de probabilidade na exposição esperada (padrão: 5%, 20%, 45%, 75% e 95%). Sem aprovação da CSGR, a justificativa ao TCE sai como minuta. A nota 5 nunca fica abaixo de 90%.
 - **Apetite a risco:** maior nível que pode ser aceito sem tratamento. Com ele definido, um PRR com "Aceitar" acima desse nível não é enviado.
 - **Priorização:** ordem das filas e listas: pelo nível; nível e prazo; ou nível, prazo e situação.
+- **Apetite por coordenadoria:** pode ser definido para cada coordenadoria e vale sobre o geral.
+- **Alçada do gestor:** nível e exposição máximos por coordenadoria; o PRR acima deles chega à CSGR marcado como fora da alçada do gestor e no topo da fila (MGR p. 8). Todo PRR continua passando pela CSGR.
 
 ## Configurações, temas e mascote
 

@@ -584,7 +584,15 @@ export function mountMira(root) {
     if (u.papel === 'altagestao')
       return l
         .filter(r => r.status === 'ag_altagestao')
-        .map(r => ({ r, txt: 'PRR aguardando aprovação da Alta Gestão de Riscos', crit: false }));
+        .map(r =>
+          r.acimaAlcada
+            ? {
+                r,
+                txt: 'PRR acima da alçada do gestor (' + r.acimaAlcada + '): aguardando aprovação',
+                crit: true,
+              }
+            : { r, txt: 'PRR aguardando aprovação da Alta Gestão de Riscos', crit: false },
+        );
     return [];
   }
   /* ===== Painéis: peças comuns ===== */
@@ -2205,6 +2213,11 @@ export function mountMira(root) {
     // Regra do MGR (p. 21): a CSGR emite parecer favorável ou não, por isso o campo é obrigatório para ela.
     if (canAlta(u, r))
       return (
+        (r.acimaAlcada
+          ? '<div class="warn-box" style="margin-bottom:10px"><b>Acima da alçada do gestor:</b> ' +
+            esc(r.acimaAlcada) +
+            '.</div>'
+          : '') +
         '<div class="field"><label for="ap-motivo">Parecer (obrigatório)</label><textarea id="ap-motivo" rows="3"></textarea></div>' +
         // Na devolução, a Alta Gestão pode indicar uma empresa terceirizada como responsável pela ação.
         '<div class="field"><label for="ap-emp">Empresa terceirizada responsável (opcional, só na devolução)</label>' +
@@ -4111,6 +4124,26 @@ export function mountMira(root) {
   const LOGO =
     '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="16" cy="16" r="10"/><circle class="mira-ponto" cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/><path d="M16 2v7M16 23v7M2 16h7M23 16h7"/></svg>';
   /* ===== Decisões da CSGR (Etapa 2) ===== */
+  // Opções de nível de 1 a 25 (só os produtos possíveis da matriz 5 × 5), com a faixa; a primeira é "vazio".
+  const opcoesNivel = (v, vazio) =>
+    '<option value="">' +
+    vazio +
+    '</option>' +
+    [...new Set([1, 2, 3, 4, 5].flatMap(a => [1, 2, 3, 4, 5].map(b => a * b)))]
+      .sort((a, b) => a - b)
+      .map(
+        n =>
+          '<option value="' +
+          n +
+          '"' +
+          (v === n ? ' selected' : '') +
+          '>Até ' +
+          n +
+          ' · ' +
+          LV[band(n)] +
+          '</option>',
+      )
+      .join('');
   // Quem registrou a decisão e quando, ou "ainda não decidida".
   const quemDecidiu = d =>
     d && d.por ? 'Registrada por ' + esc(d.por) + ' em ' + fdt(d.em) + '.' : 'Ainda não decidida pela CSGR.';
@@ -4188,8 +4221,68 @@ export function mountMira(root) {
         )
         .join('') +
       '</select><div class="hint">Com o apetite definido, um PRR com "Aceitar" acima desse nível não é enviado.</div></div>' +
+      // Apetite de cada coordenadoria: vale sobre o geral; vazio usa o geral.
+      (units().length
+        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Coordenadoria</th><th>Apetite próprio</th></tr></thead><tbody>' +
+          units()
+            .map(
+              un =>
+                '<tr><td>' +
+                esc(siglaUp(un)) +
+                '</td><td><select data-apetite-un="' +
+                esc(un) +
+                '" aria-label="Apetite de ' +
+                esc(siglaUp(un)) +
+                '"' +
+                dis +
+                '>' +
+                opcoesNivel((ap.porUnidade || {})[un], 'Usa o geral') +
+                '</select></td></tr>',
+            )
+            .join('') +
+          '</tbody></table></div>'
+        : '') +
       (ed
         ? '<div class="actions"><button class="btn primary" data-act="cfg-apetite">Registrar apetite</button></div>'
+        : '') +
+      '</div><div class="card">' +
+      cardH(
+        'Alçada do gestor',
+        'Acima destes limites, o PRR chega à CSGR marcado como fora da alçada do gestor (MGR p. 8). ' +
+          quemDecidiu(c.alcada),
+      ) +
+      (units().length
+        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Coordenadoria</th><th>Nível máximo</th><th>Exposição máxima (R$)</th></tr></thead><tbody>' +
+          units()
+            .map(un => {
+              const a = ((c.alcada || {}).porUnidade || {})[un] || {};
+              return (
+                '<tr><td>' +
+                esc(siglaUp(un)) +
+                '</td><td><select data-alcada-nivel="' +
+                esc(un) +
+                '" aria-label="Nível máximo da alçada de ' +
+                esc(siglaUp(un)) +
+                '"' +
+                dis +
+                '>' +
+                opcoesNivel(a.nivelMax, 'Sem limite') +
+                '</select></td><td><input data-alcada-exp="' +
+                esc(un) +
+                '" inputmode="decimal" data-brl placeholder="Sem limite" value="' +
+                esc(a.exposicaoMax != null ? brlIn(a.exposicaoMax) : '') +
+                '" aria-label="Exposição máxima da alçada de ' +
+                esc(siglaUp(un)) +
+                '"' +
+                dis +
+                '></td></tr>'
+              );
+            })
+            .join('') +
+          '</tbody></table></div>'
+        : '<p class="muted">Nenhuma coordenadoria criada.</p>') +
+      (ed
+        ? '<div class="actions"><button class="btn primary" data-act="cfg-alcada">Registrar alçada</button></div>'
         : '') +
       '</div><div class="card">' +
       cardH('Priorização', 'Ordem das filas e listas (Portaria 41, art. 9º, item 6). ' + quemDecidiu(po)) +
@@ -5072,11 +5165,29 @@ export function mountMira(root) {
         toast('Premissas financeiras registradas.');
         break;
       }
-      case 'cfg-apetite':
-        await api('POST', 'config/apetite', { nivelMax: val('cfg-apetite') });
+      case 'cfg-apetite': {
+        const porUnidade = {};
+        document
+          .querySelectorAll('[data-apetite-un]')
+          .forEach(e => (porUnidade[e.dataset.apetiteUn] = e.value));
+        await api('POST', 'config/apetite', { nivelMax: val('cfg-apetite'), porUnidade });
         await refresh(true);
         toast('Apetite a risco registrado.');
         break;
+      }
+      case 'cfg-alcada': {
+        const porUnidade = {};
+        document.querySelectorAll('[data-alcada-nivel]').forEach(e => {
+          const un = e.dataset.alcadaNivel,
+            ex = document.querySelector('[data-alcada-exp="' + un + '"]'),
+            t = ex ? ex.value.trim() : '';
+          porUnidade[un] = { nivelMax: e.value, exposicaoMax: t ? parseBRL(t) : '' };
+        });
+        await api('POST', 'config/alcada', { porUnidade });
+        await refresh(true);
+        toast('Alçada registrada.');
+        break;
+      }
       case 'cfg-prioriza':
         await api('POST', 'config/priorizacao', {
           metodo: (document.querySelector('input[name="cfg-prioriza"]:checked') || {}).value,

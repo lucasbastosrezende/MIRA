@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 135 verificações, todas passando |
+| API | 139 verificações, todas passando |
 | Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Visual | capturas no computador e a 390 px, temas claro e escuro, sem rolagem lateral e sem erro na página |
@@ -112,6 +112,20 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
   - o smoke abre a tela como Alta Gestão e CGGE;
   - o roteiro de navegador passou (49 de 49);
   - registrar as três decisões pela tela funcionou, sem rolagem lateral a 390 px.
+
+### 17. Apetite por coordenadoria e alçada do gestor
+- **Feito:** o apetite da coordenadoria vale sobre o geral; a alçada (nível e exposição) marca o PRR que o gestor encaminha acima dela, e a CSGR o vê marcado e no topo da fila.
+- **Conferido:**
+  - testes da API: coordenadoria inexistente recusada, apetite da coordenadoria sobre o geral, PRR acima da alçada marcado;
+  - no navegador, registrar apetite e alçada pela tela e ver na fila da CSGR "PRR acima da alçada do gestor (nível 12 acima de 5)".
+
+### 18. Banco da 3100 sem a coluna e a tabela novas
+- **Achado:** parar o servidor da 3100 para rodar a migração foi bloqueado pela permissão automática.
+- **Resolvido:** a mesma alteração da migração (`ALTER TABLE users ADD COLUMN pode_definir` e a tabela `config`) foi aplicada direto no banco de demonstração, sem parar o servidor e sem tocar nos dados (4 pessoas e 1 risco continuaram iguais).
+
+### 19. Script de conferência do fluxo desatualizado
+- **Achado:** o fluxo cadastrador → gestor parou em "avaliado". O cadastrador de teste tem a permissão de definir responsável e prazo, e o script não preenchia esses campos; o sistema estava certo.
+- **Resolvido:** o script cobre os dois casos (com e sem permissão) e preenche controles, linha do tempo e residual, que passaram a ser obrigatórios.
 
 ## Visual
 

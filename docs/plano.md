@@ -381,7 +381,10 @@ A tela **Decisões** (menu da Alta Gestão; o CGGE consulta) registra as três d
 - **Apetite a risco (item 7):** nível máximo para "Aceitar"; acima dele, o PRR com "Aceitar" não é enviado.
 - **Priorização (item 18):** pelo nível; nível e prazo; ou nível, prazo e situação. Vale para filas, listas e quadro.
 
-Falta decidir com a CSGR os valores; a alçada por coordenadoria e o apetite por unidade ficam para depois.
+- **Apetite por coordenadoria:** vale sobre o geral; vazio usa o geral.
+- **Alçada do gestor (item 7, MGR p. 8):** nível e exposição máximos por coordenadoria; o PRR acima deles chega à CSGR marcado e no topo da fila. Todo PRR continua passando pela CSGR (MGR p. 21).
+
+Estrutura da Etapa 2 pronta. Falta só a CSGR registrar os valores reais na tela Decisões.
 
 ### Para a CSGR (melhorias; o sistema não inventa regra)
 
