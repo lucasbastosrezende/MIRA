@@ -2621,7 +2621,7 @@ export function mountMira(root) {
     ],
     medicao: [
       'O que é registrar uma medição?',
-      'É anotar o valor atual da métrica. O sistema compara com os limites e muda a cor: ideal, alerta ou crítico. Em alerta ou crítico, o gestor recebe aviso.',
+      'É anotar o valor atual da métrica. O sistema compara com os limites e mostra a situação: ideal, alerta ou crítico. Em alerta ou crítico, o cadastrador, o gestor e a Alta Gestão de Riscos recebem aviso.',
     ],
     reavaliar: [
       'Quando reavaliar o nível?',
@@ -2630,6 +2630,18 @@ export function mountMira(root) {
     evento: [
       'O que fazer quando o evento ocorre?',
       'Marque "O evento ocorreu". O aviso mostra o plano do PRR para esse caso. Depois, retome o tratamento ou reabra o PRR para revisão.',
+    ],
+    grafico: [
+      'Como ler o gráfico da métrica?',
+      'Cada ponto é uma medição registrada. As faixas de fundo mostram os limites do PRR: ideal, alerta e crítico. No topo aparece a última medição, com a situação escrita. "Ver como tabela" mostra todas as medições, com a data e quem registrou.',
+    ],
+    sentido: [
+      'O que quer dizer "quanto menor, melhor" ou "quanto maior, melhor"?',
+      'Diz para que lado a métrica melhora. Em horas fora do ar, quanto menor, melhor; em percentual de disponibilidade, quanto maior, melhor. Isso define a ordem dos limites e a situação de cada medição.',
+    ],
+    medicaoRuim: [
+      'O que acontece quando a medição fica em alerta ou crítico?',
+      'O cadastrador, o gestor e a Alta Gestão de Riscos recebem um aviso, e o risco entra em "Exigem ação agora". Confira se a ação do PRR está funcionando e, se a probabilidade ou o impacto mudaram, reavalie o nível.',
     ],
     premissas: [
       'O que são as premissas financeiras?',
@@ -2995,24 +3007,41 @@ export function mountMira(root) {
         esc(p.unidadeMetrica) +
         '</small></b>' +
         (ms === 'sem' ? '' : stTone(ms)) +
+        (ms === 'alerta' || ms === 'critico' ? ajuda('medicaoRuim') : '') +
         '</div>'
       : '';
     return (
-      '<div class="card"><div class="card-h"><div><h3>Fase 5 · Monitoramento da métrica</h3><p>' +
+      '<div class="card"><div class="card-h"><div><h3>Fase 5 · Monitoramento da métrica' +
+      ajuda('metrica') +
+      '</h3><p>' +
       esc(metricaTxt(p.metrica)) +
       ' · ' +
       (p.sentido === 'menor' ? 'quanto menor, melhor' : 'quanto maior, melhor') +
+      ajuda('sentido') +
+      ' · como ler o gráfico' +
+      ajuda('grafico') +
       '</p></div>' +
       now +
       '</div>' +
+      ajudaTxt('metrica') +
+      ajudaTxt('sentido') +
+      ajudaTxt('grafico') +
+      (ms === 'alerta' || ms === 'critico' ? ajudaTxt('medicaoRuim') : '') +
       chartHTML(r) +
       (mon
         ? '<div class="row" style="align-items:flex-end;margin-top:12px"><div><label for="m-valor">Nova medição (' +
           esc(p.unidadeMetrica) +
-          ')</label><input id="m-valor" type="number" step="any" style="width:140px"></div><button class="btn primary" data-act="add-med">Registrar medição</button></div>'
+          ')</label><input id="m-valor" type="number" step="any" style="width:140px"></div><button class="btn primary" data-act="add-med">Registrar medição</button>' +
+          ajuda('medicao') +
+          '</div>' +
+          ajudaTxt('medicao')
         : '') +
       '</div>' +
-      '<div class="card"><h3>Reavaliação do nível</h3><div class="scroll"><table class="tbl"><thead><tr><th>Data</th><th>P × I</th><th>Nível</th><th>Motivo</th></tr></thead><tbody>' +
+      '<div class="card"><h3>Reavaliação do nível' +
+      ajuda('reavaliar') +
+      '</h3>' +
+      ajudaTxt('reavaliar') +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Data</th><th>P × I</th><th>Nível</th><th>Motivo</th></tr></thead><tbody>' +
       lh +
       '</tbody></table></div>' +
       (mon
@@ -3022,16 +3051,27 @@ export function mountMira(root) {
           sel('r-imp', r.imp, IMPS) +
           '</div></div><div class="field" style="margin-top:8px"><label for="r-motivo">Motivo da reavaliação</label><input id="r-motivo" style="width:100%"></div><div class="actions"><button class="btn primary" data-act="reaval">Reavaliar nível</button>' +
           (r.status === 'em_tratamento'
-            ? '<button class="btn danger" data-act="evento">O evento ocorreu</button>'
+            ? '<button class="btn danger" data-act="evento">O evento ocorreu</button>' + ajuda('evento')
             : '') +
-          '</div>'
+          '</div>' +
+          (r.status === 'em_tratamento' ? ajudaTxt('evento') : '')
         : '') +
       (u.papel === 'gestor' && u.unit === r.unit && r.status !== 'encerrado'
         ? '<div class="actions"><button class="btn" data-act="encerrar">Encerrar risco</button></div>'
         : '') +
       '</div>' +
       (mon ? acoesTratamento(r) : '') +
-      faq(['medicao', 'parametros', 'reavaliar', 'evento', 'residual'])
+      faq([
+        'metrica',
+        'medicao',
+        'grafico',
+        'medicaoRuim',
+        'sentido',
+        'parametros',
+        'reavaliar',
+        'evento',
+        'residual',
+      ])
     );
   }
   // Andamento do tratamento, para quem monitora (cadastrador ou gestor da coordenadoria): depois de um evento,

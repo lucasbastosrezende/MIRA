@@ -211,6 +211,11 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Feito:** botão "Marcar como lido" em cada aviso não lido (o servidor passou a mandar o identificador do aviso, e `alerts/read` aceita um `id`). Nos itens de "Exigem ação agora", "Estou ciente" grava a ciência no risco (quem, perfil, quando e o texto do alerta), registra "Registrou ciência do alerta" no histórico e entra no relatório por período (linha na seção 1 e seção 7). O item continua na lista e mostra "Ciente: …".
 - **Conferido:** 7 testes de API (ciência registrada sem mudar a situação do risco, repetida não duplica, alerta de outro risco recusado, outra coordenadoria barrada, histórico, avisos com identificador, só um aviso lido) e no navegador: o item continua depois do clique, a marca "Você está ciente", 5 → 4 avisos não lidos, histórico e relatório com a ciência. Na primeira captura a 390 px, o texto do aviso ficou espremido ao lado do botão; o botão passou para a linha de baixo.
 
+### 27. Dúvidas no monitoramento da métrica
+- **Pedido:** FAQ no monitoramento da métrica.
+- **Feito:** botão "?" ao lado de cada termo da aba de monitoramento (métrica, "quanto menor/maior, melhor", como ler o gráfico, registrar medição, medição em alerta ou crítico, reavaliação e "O evento ocorreu"), com a explicação logo abaixo; o bloco de dúvidas do fim da aba passou de 5 para 9 perguntas. A resposta sobre medição dizia que só o gestor recebe aviso; foi corrigida (cadastrador, gestor e Alta Gestão recebem, como faz o servidor).
+- **Conferido:** no navegador, no computador (claro) e a 390 px (escuro): os 6 botões abrem a explicação, 9 perguntas no bloco, sem rolagem lateral e sem erro.
+
 ## Visual
 
 - Cores, fontes (Sora nos títulos, IBM Plex Sans no texto), cantos e pesos seguem o canvas aprovado pelo usuário ("MIRA · cores e tipografia").
