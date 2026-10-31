@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 145 verificações, todas passando |
+| API | 152 verificações, todas passando |
 | Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
@@ -205,6 +205,11 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Pedido:** um FAQ ao lado, com um botão "?" que abre e fecha, para explicar termos como "alçada do gestor".
 - **Feito:** botão "?" ao lado de premissas financeiras, apetite a risco, alçada do gestor, nível máximo, exposição máxima e priorização; o texto abre logo abaixo e fecha no mesmo botão. Ao lado (abaixo, no celular), o bloco "Dúvidas frequentes" com esses termos e a exposição esperada.
 - **Conferido:** no navegador, no computador (claro) e a 390 px (escuro): 6 botões, abrir e fechar, `aria-expanded`, 7 perguntas no bloco ao lado. A primeira captura a 390 px mostrou rolagem lateral de 155 px: o bloco das premissas não encolhia dentro da coluna nova. A coluna passou a encolher e a rolagem sumiu. Roteiro extra: 13 de 13.
+
+### 26. "Estou ciente" e leitura de um aviso por vez
+- **Pedido:** poder marcar avisos como lidos um por um, e nos que exigem ação imediata um "estou ciente" que vá para o relatório sem tirar a ação da lista.
+- **Feito:** botão "Marcar como lido" em cada aviso não lido (o servidor passou a mandar o identificador do aviso, e `alerts/read` aceita um `id`). Nos itens de "Exigem ação agora", "Estou ciente" grava a ciência no risco (quem, perfil, quando e o texto do alerta), registra "Registrou ciência do alerta" no histórico e entra no relatório por período (linha na seção 1 e seção 7). O item continua na lista e mostra "Ciente: …".
+- **Conferido:** 7 testes de API (ciência registrada sem mudar a situação do risco, repetida não duplica, alerta de outro risco recusado, outra coordenadoria barrada, histórico, avisos com identificador, só um aviso lido) e no navegador: o item continua depois do clique, a marca "Você está ciente", 5 → 4 avisos não lidos, histórico e relatório com a ciência. Na primeira captura a 390 px, o texto do aviso ficou espremido ao lado do botão; o botão passou para a linha de baixo.
 
 ## Visual
 

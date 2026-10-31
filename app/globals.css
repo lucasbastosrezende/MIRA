@@ -482,6 +482,11 @@ main>.card{box-shadow:var(--shadow)}
 .ajuda-t{margin:0 0 12px}
 .decisoes-col{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;min-width:0}
 .decisoes-col>.card{box-shadow:var(--shadow)}
+/* Aviso com ação ao lado ("Marcar como lido", "Estou ciente") */
+.queue li.com-acao{display:flex;align-items:center;gap:8px}
+.queue li.com-acao>.qi{flex:1;min-width:0}
+.queue li.com-acao>.acao-al{flex:none;padding-right:4px}
+@media (max-width:640px){.queue li.com-acao{flex-wrap:wrap}.queue li.com-acao>.qi{flex-basis:100%}.queue li.com-acao>.acao-al{padding:0 0 10px 44px}}
 /* Encolher blocos: só o cabeçalho fica à vista */
 .card-h .encolhe{flex:none;margin-left:auto}
 .card.encolhido>:not(.card-h){display:none!important}

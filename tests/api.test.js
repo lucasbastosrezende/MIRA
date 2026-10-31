@@ -501,6 +501,54 @@ const ok = (c, m) => {
   r = await call('altagestao', 'GET', 'audit?ini=' + hoje1 + '&fim=' + hoje0);
   ok(r.s === 422, 'data inicial depois da final é recusada');
 
+  // "Estou ciente" num alerta que exige ação: registra quem e quando, sem mudar a situação do risco
+  const msgPrazo = 'Prazo da ação em 5 dia(s): risco de teste';
+  r = await call('ges', 'POST', 'risks/R-001/action', {
+    action: 'ciente',
+    chave: 'prazo-R-001',
+    msg: msgPrazo,
+  });
+  ok(
+    r.s === 200 &&
+      r.risk.ciencias.length === 1 &&
+      r.risk.ciencias[0].por &&
+      r.risk.status === 'em_tratamento',
+    'ciência registrada e o risco continua como estava',
+  );
+  r = await call('ges', 'POST', 'risks/R-001/action', {
+    action: 'ciente',
+    chave: 'prazo-R-001',
+    msg: msgPrazo,
+  });
+  ok(r.s === 200 && r.risk.ciencias.length === 1, 'ciência repetida não duplica');
+  r = await call('ges', 'POST', 'risks/R-001/action', {
+    action: 'ciente',
+    chave: 'prazo-R-999',
+    msg: msgPrazo,
+  });
+  ok(r.s === 422, 'ciência de alerta de outro risco é recusada');
+  r = await call('cad2', 'POST', 'risks/R-001/action', {
+    action: 'ciente',
+    chave: 'prazo-R-001',
+    msg: msgPrazo,
+  });
+  ok(r.s === 404, 'outra coordenadoria não registra ciência');
+  st = await call('ges', 'GET', 'state');
+  ok(
+    st.audit.some(a => a.riskId === 'R-001' && a.action === 'Registrou ciência do alerta'),
+    'ciência vai para o histórico',
+  );
+  // Marcar um aviso só como lido
+  const naoLidos = st.alerts.filter(a => !Object.values(a.lido)[0]);
+  ok(naoLidos.length >= 2 && naoLidos.every(a => a.id), 'avisos chegam com o identificador');
+  await call('ges', 'POST', 'alerts/read', { id: naoLidos[0].id });
+  st = await call('ges', 'GET', 'state');
+  ok(
+    st.alerts.find(a => a.id === naoLidos[0].id).lido[Object.keys(st.alerts[0].lido)[0]] === true &&
+      st.alerts.find(a => a.id === naoLidos[1].id).lido[Object.keys(st.alerts[0].lido)[0]] === false,
+    'marca só aquele aviso como lido',
+  );
+
   // Monitoramento (fase 5) e trilha de auditoria
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'add-med', valor: 12 });
   ok(r.s === 200, 'medição 12 (crítico)');

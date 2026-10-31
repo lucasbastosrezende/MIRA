@@ -3506,8 +3506,10 @@ export function mountMira(root) {
         n = x ? nivel(x) : 0;
       return n ? band(n) : -1;
     };
-    const row = (tn, kind, msg, meta, id, isNew) =>
+    // extra: ação ao lado do aviso ("Marcar como lido", "Estou ciente"), fora do botão que abre o risco.
+    const row = (tn, kind, msg, meta, id, isNew, extra) =>
       '<li' +
+      (extra ? ' class="com-acao"' : '') +
       (bandOf(id) >= 0 ? ' style="border-left:4px solid var(--m' + bandOf(id) + ');padding-left:4px"' : '') +
       '><button class="qi" data-open="' +
       id +
@@ -3525,11 +3527,35 @@ export function mountMira(root) {
       esc(msg) +
       '</span>' +
       (meta ? '<span class="qi-t">' + meta + '</span>' : '') +
-      '</span><span class="qi-go" aria-hidden="true">›</span></button></li>';
+      '</span><span class="qi-go" aria-hidden="true">›</span></button>' +
+      (extra ? '<span class="acao-al">' + extra + '</span>' : '') +
+      '</li>';
+    // Quem já está ciente de um alerta de ação (o alerta não some: fica até a situação ser resolvida).
+    const cientes = d => ((rk(d.riskId) || {}).ciencias || []).filter(c => c.chave === d.k);
     const act = dv
       .slice()
       .sort((a, b) => (b.crit ? 1 : 0) - (a.crit ? 1 : 0) || bandOf(b.riskId) - bandOf(a.riskId))
-      .map(d => row(d.crit ? 'crit' : 'warn', KIND[d.tipo] || d.tipo, d.msg, '', d.riskId, false))
+      .map(d => {
+        const cs = cientes(d),
+          eu = cs.some(c => c.uid === u.id);
+        return row(
+          d.crit ? 'crit' : 'warn',
+          KIND[d.tipo] || d.tipo,
+          d.msg,
+          cs.length ? 'Ciente: ' + cs.map(c => esc(c.por) + ' (' + fdt(c.ts) + ')').join(', ') : '',
+          d.riskId,
+          false,
+          eu
+            ? toneTag('ok', 'Você está ciente')
+            : u.papel === 'admin'
+              ? ''
+              : '<button class="btn sm" data-act="ciente" data-chave="' +
+                esc(d.k) +
+                '" data-rid="' +
+                esc(d.riskId) +
+                '">Estou ciente</button>',
+        );
+      })
       .join('');
     // O tom segue a gravidade do aviso: métrica crítica e evento ocorrido são críticos; devolução, alerta e nível que subiu pedem atenção.
     const toneOf = a =>
@@ -3553,7 +3579,21 @@ export function mountMira(root) {
           bandOf(b.riskId) - bandOf(a.riskId) ||
           String(b.ts).localeCompare(a.ts),
       )
-      .map(a => row(toneOf(a), KIND[a.tipo] || a.tipo, a.msg, fdt(a.ts), a.riskId, !a.lido[u.id]))
+      .map(a =>
+        row(
+          toneOf(a),
+          KIND[a.tipo] || a.tipo,
+          a.msg,
+          fdt(a.ts),
+          a.riskId,
+          !a.lido[u.id],
+          !a.lido[u.id] && a.id
+            ? '<button class="btn sm" data-act="lido-um" data-id="' +
+                esc(a.id) +
+                '">Marcar como lido</button>'
+            : '',
+        ),
+      )
       .join('');
     const sec = (t, sub, n, body, empty) =>
       '<div class="card">' +
@@ -3572,7 +3612,7 @@ export function mountMira(root) {
       ) +
       sec(
         'Exigem ação agora',
-        'Riscos extremos sem tratamento aprovado, prazos próximos ou vencidos e métricas em alerta ou críticas.',
+        'Riscos extremos sem tratamento aprovado, prazos próximos ou vencidos e métricas em alerta ou críticas. "Estou ciente" registra a ciência no histórico e no relatório; o alerta continua aqui até a situação ser resolvida.',
         dv.length,
         act,
         'Nenhum prazo ou métrica exige ação agora.',
@@ -3661,6 +3701,8 @@ export function mountMira(root) {
       ocorr: R.filter(r => noPer(quando(r, 'ocorridoEm', 'Registrou que o evento ocorreu'), P)),
       encer: R.filter(r => noPer(quando(r, 'encerradoEm', 'Encerrou o risco'), P)),
       inv: aprov.reduce((s, x) => s + (Number(x.r.prr.custo) || 0), 0),
+      // "Estou ciente" registrado nos alertas que exigem ação.
+      ciencias: R.flatMap(r => (r.ciencias || []).filter(c => noPer(c.ts, P)).map(c => ({ r, c }))),
     };
   }
   // Seletor do período na tela Relatório: tipo (semanal a anual) e setas para os períodos anteriores.
@@ -3777,6 +3819,7 @@ export function mountMira(root) {
       '- Investimento aprovado no período: ' + brl(F.inv),
       '- Medições registradas: ' + F.meds.length + ' (' + nAl + ' em alerta, ' + nCr + ' críticas)',
       '- Eventos que ocorreram: ' + F.ocorr.length + ' · riscos encerrados: ' + F.encer.length,
+      '- Ciência registrada em alertas que exigem ação: ' + F.ciencias.length,
       '',
       '## 2. Por coordenadoria',
       un,
@@ -3795,6 +3838,23 @@ export function mountMira(root) {
       '',
       '## 6. Métricas em alerta ou críticas no período',
       mt,
+      '',
+      '## 7. Ciência dos alertas que exigem ação, no período',
+      F.ciencias
+        .map(
+          x =>
+            '- **' +
+            x.r.id +
+            '** ' +
+            mdc(x.c.msg) +
+            ' · ciente: ' +
+            mdc(x.c.por) +
+            ' (' +
+            (PAPEL[x.c.papel] || x.c.papel) +
+            ') em ' +
+            fdt(x.c.ts),
+        )
+        .join('\n') || '- nenhuma',
       '',
       'Os números do período vêm das datas registradas em cada risco (cadastro, decisões do PRR, medições, evento e encerramento). A situação atual é a de hoje, não a do fim do período. Todas as alterações estão no histórico do MIRA.',
     ].join('\n');
@@ -5670,6 +5730,20 @@ export function mountMira(root) {
         await api('POST', 'alerts/read', {});
         await refresh(true);
         break;
+      // Um aviso só.
+      case 'lido-um':
+        await api('POST', 'alerts/read', { id: el.dataset.id });
+        await refresh(true);
+        break;
+      // Ciência de um alerta que exige ação: fica registrada, e o alerta continua na lista.
+      case 'ciente': {
+        const d = derived(u).find(x => x.k === el.dataset.chave);
+        if (!d) break;
+        await api('POST', 'risks/' + d.riskId + '/action', { action: 'ciente', chave: d.k, msg: d.msg });
+        await refresh(true);
+        toast('Ciência registrada. O alerta continua aqui até a situação ser resolvida.');
+        break;
+      }
       // Textos para copiar e arquivos para baixar
       case 'copytce':
         copyText('tcetext', tceMd(rk(UI.tce)));
