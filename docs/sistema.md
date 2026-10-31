@@ -116,6 +116,14 @@ Quem é de uma coordenadoria vê no cabeçalho a sigla em maiúsculas e o nome p
 
 **Downloads.** Na tela, os textos longos (relatório anual e justificativa para o TCE) aparecem em Markdown formatado. O botão **Baixar** abre as opções de formato: Excel; CSV de riscos, por coordenadoria, por coordenadoria e faixa, de medições, do quadro e do histórico; e Markdown ou texto puro para o relatório e a justificativa. Os CSVs usam ";", vírgula decimal e acentos preservados, para abrir direto no Excel.
 
+## Decisões da CSGR
+
+Tela **Decisões** (a Alta Gestão registra; o CGGE consulta). Cada decisão guarda quem decidiu e quando e vai para o histórico. Sem decisão, vale o comportamento padrão.
+
+- **Premissas financeiras:** percentual de cada nota de probabilidade na exposição esperada (padrão: 5%, 20%, 45%, 75% e 95%). Sem aprovação da CSGR, a justificativa ao TCE sai como minuta. A nota 5 nunca fica abaixo de 90%.
+- **Apetite a risco:** maior nível que pode ser aceito sem tratamento. Com ele definido, um PRR com "Aceitar" acima desse nível não é enviado.
+- **Priorização:** ordem das filas e listas: pelo nível; nível e prazo; ou nível, prazo e situação.
+
 ## Configurações, temas e mascote
 
 - **Configurações:** clicar no próprio nome, no topo, abre a tela de Configurações. A escolha vale só para o navegador de quem usa.

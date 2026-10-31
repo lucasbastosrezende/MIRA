@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 127 verificações, todas passando |
+| API | 135 verificações, todas passando |
 | Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Visual | capturas no computador e a 390 px, temas claro e escuro, sem rolagem lateral e sem erro na página |
@@ -104,6 +104,14 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
   - as listas ganharam "Escolha…";
   - a tela e a justificativa ao TCE mostram "residual pendente".
 - **Conferido:** testes da API (PRR sem residual não gera redução e não é enviado) e o roteiro de navegador (49 de 49).
+
+### 16. Etapa 2: decisões da CSGR (branch `feature/etapa-2-decisoes-csgr`)
+- **Feito:** tela Decisões e tabela `config` para premissas financeiras, apetite a risco e priorização, com auditoria; a justificativa ao TCE sai como minuta sem premissas aprovadas; "Aceitar" acima do apetite não é enviado; as listas seguem a priorização escolhida.
+- **Conferido:**
+  - testes da API: só a CSGR registra, a nota 5 abaixo de 90% é recusada, a decisão vai para a auditoria, "Aceitar" acima do apetite é barrado e volta a valer sem apetite;
+  - o smoke abre a tela como Alta Gestão e CGGE;
+  - o roteiro de navegador passou (49 de 49);
+  - registrar as três decisões pela tela funcionou, sem rolagem lateral a 390 px.
 
 ## Visual
 

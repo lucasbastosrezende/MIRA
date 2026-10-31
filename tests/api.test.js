@@ -637,6 +637,55 @@ const ok = (c, m) => {
   ok(r.s === 403, 'CGGE não edita contexto');
   r = await call('cad', 'POST', 'ai', { text: 'algo' });
   ok(r.s === 503, 'IA sem chave retorna 503 claro');
+  // Etapa 2: decisões da CSGR (premissas financeiras, apetite a risco e priorização)
+  r = await call('cad', 'POST', 'config/apetite', { nivelMax: 4 });
+  ok(r.s === 403, 'só a CSGR registra decisões');
+  r = await call('altagestao', 'POST', 'config/premissas', { pct: { 1: 5, 2: 20, 3: 45, 4: 75, 5: 80 } });
+  ok(r.s === 422, 'premissa com a nota 5 abaixo de 90% é recusada');
+  r = await call('altagestao', 'POST', 'config/premissas', {
+    pct: { 1: 5, 2: 20, 3: 45, 4: 75, 5: 95 },
+    aprovada: true,
+  });
+  ok(
+    r.s === 200 && r.config.premissas.aprovada && r.config.premissas.pct[3] === 0.45,
+    'CSGR aprova as premissas',
+  );
+  r = await call('altagestao', 'POST', 'config/apetite', { nivelMax: 4 });
+  ok(
+    r.s === 200 && r.config.apetite.nivelMax === 4 && r.config.apetite.por,
+    'CSGR registra o apetite a risco',
+  );
+  r = await call('altagestao', 'POST', 'config/priorizacao', { metodo: 'nivel-prazo-situacao' });
+  ok(r.s === 200 && r.config.priorizacao.metodo === 'nivel-prazo-situacao', 'CSGR escolhe a priorização');
+  st = await call('altagestao', 'GET', 'state');
+  ok(
+    st.config.apetite.nivelMax === 4 &&
+      st.audit.some(x => /Registrou decisão da CSGR: apetite/.test(x.action)),
+    'decisão vai para o estado e para a auditoria',
+  );
+  // Com o apetite em 4, um risco de nível 10 não pode ser só aceito
+  r = await call('cad', 'POST', 'risks', {
+    titulo: 'Risco para o apetite',
+    causa: 'falta de energia no prédio',
+    evento: 'parada do serviço de protocolo',
+    impacto: 'atraso no atendimento',
+    objetivo: 'manter o atendimento ao cidadão',
+  });
+  const rap = r.risk.id;
+  await call('cad', 'POST', 'risks/' + rap + '/aval', {
+    prob: 2,
+    imp: 5,
+    controles: 'Nenhum',
+    linhaTempo: 'últimos 12 meses',
+  });
+  await call('cad', 'POST', 'risks/' + rap + '/prr', {
+    prr: { ...prr, tratamento: 'aceitar', probRes: 2, impRes: 5 },
+  });
+  r = await call('cad', 'POST', 'risks/' + rap + '/action', { action: 'send-prr' });
+  ok(r.s === 422 && /apetite/.test(r.error || ''), 'Aceitar acima do apetite não é enviado');
+  await call('altagestao', 'POST', 'config/apetite', { nivelMax: '' });
+  r = await call('cad', 'POST', 'risks/' + rap + '/action', { action: 'send-prr' });
+  ok(r.s === 200, 'sem apetite definido, Aceitar volta a valer');
   r = await call('cad', 'POST', 'alerts/read', {});
   ok(r.s === 200, 'marca avisos como lidos');
   r = await call('x', 'GET', 'state');

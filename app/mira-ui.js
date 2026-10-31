@@ -26,7 +26,6 @@ export function mountMira(root) {
     BANDS,
     PROB,
     IMPS,
-    PPCT,
     TRAT,
     METRICAS,
     UNIDADES,
@@ -39,7 +38,6 @@ export function mountMira(root) {
     curPhase,
     lastMed,
     metricSt,
-    econ,
     emptyPrr,
     canEdit,
     canMon,
@@ -152,8 +150,41 @@ export function mountMira(root) {
   const me = () => S.me;
   // Busca um risco pelo ID nos dados carregados.
   const rk = id => S.risks.find(r => r.id === id);
+  // Decisões da CSGR em vigor (premissas, apetite, priorização), vindas do servidor.
+  const cfg = () => S.config || {};
+  // Percentuais da probabilidade em vigor: os registrados pela CSGR; sem eles, a premissa do sistema.
+  const pctV = () => (cfg().premissas && cfg().premissas.pct) || MIRA.PPCT;
+  // Premissas financeiras aprovadas pela CSGR? Sem aprovação, os valores em reais são minuta.
+  const premissaOk = () => !!(cfg().premissas && cfg().premissas.aprovada);
+  // Números financeiros do risco com os percentuais em vigor.
+  const econ = r => MIRA.econ(r, pctV());
   // Percentual da nota de probabilidade (1 a 5) na premissa da exposição esperada, em texto (ex.: "45%").
-  const pctTxt = n => Math.round(PPCT[n] * 100) + '%';
+  const pctTxt = n => Math.round(pctV()[n] * 100) + '%';
+  // Ordem das situações no fluxo, da mais atrasada para a mais adiantada (usada na priorização).
+  const ORD_STAT = [
+    'rascunho',
+    'avaliado',
+    'devolvido',
+    'ag_gestor',
+    'ag_altagestao',
+    'ocorrido',
+    'em_tratamento',
+    'encerrado',
+  ];
+  // Comparação de dois riscos pelo método de priorização da CSGR (Portaria 41, art. 9º, item 6):
+  // sempre o nível primeiro; depois, se o método pedir, o prazo e a situação no fluxo.
+  function porPrioridade(a, b) {
+    const m = (cfg().priorizacao && cfg().priorizacao.metodo) || 'nivel';
+    let d = nivel(b) - nivel(a);
+    if (d || m === 'nivel') return d;
+    const pz = x => {
+      const t = x.prr && x.prr.prazo && !x.prr.concluidaEm ? daysTo(x.prr.prazo) : null;
+      return t == null ? 1e9 : t;
+    };
+    d = pz(a) - pz(b);
+    if (d || m === 'nivel-prazo') return d;
+    return ORD_STAT.indexOf(a.status) - ORD_STAT.indexOf(b.status);
+  }
   // Riscos que o perfil pode ver.
   const scope = () => S.risks; // o servidor já entrega só o que o perfil pode ver
   // Siglas das coordenadorias que o perfil pode ver. Não há lista fixa: o administrador cria cada uma.
@@ -493,7 +524,7 @@ export function mountMira(root) {
     if (!list.length) return '<div class="empty">Nenhum risco com esses filtros.</div>';
     const rows = list
       .slice()
-      .sort((a, b) => nivel(b) - nivel(a))
+      .sort(porPrioridade)
       .map(
         r =>
           '<tr class="click" data-open="' +
@@ -1434,7 +1465,7 @@ export function mountMira(root) {
           ' · ' +
           x[0] +
           '</td><td class="num">' +
-          Math.round(PPCT[i + 1] * 100) +
+          Math.round(pctV()[i + 1] * 100) +
           '%</td></tr>',
       ).join('') +
       '</tbody></table></section></div>'
@@ -1463,6 +1494,13 @@ export function mountMira(root) {
       .join('\n');
     return [
       '# Justificativa de despesa · gestão de riscos de TIC',
+      // Sem as premissas financeiras aprovadas pela CSGR, o documento é minuta.
+      ...(premissaOk()
+        ? []
+        : [
+            '',
+            '> **MINUTA · premissas financeiras não aprovadas pela CSGR.** Os valores em reais usam percentuais ainda não aprovados.',
+          ]),
       '**Risco ' + r.id + ' · ' + mdc(r.unit) + ' · ' + mdc(r.titulo) + '**',
       '',
       '## Descrição',
@@ -2019,7 +2057,7 @@ export function mountMira(root) {
   // Mostra por que o valor diminui (o evento pode não acontecer) sem esconder o valor cheio.
   function expConta(p, e) {
     if (!p || !(e > 0)) return '';
-    const pc = PPCT[p] || 0;
+    const pc = pctV()[p] || 0;
     return (
       '<div class="exp-conta"><span class="eyebrow">Exposição esperada</span><b>' +
       brl(pc * e) +
@@ -2365,7 +2403,7 @@ export function mountMira(root) {
         linhaNivel +
         '<span class="hint">Com "aceitar", não há redução: a exposição continua a de hoje.</span></div>'
       );
-    const res = (PPCT[pr] || 0) * e * (ir / (r.imp || 1));
+    const res = (pctV()[pr] || 0) * e * (ir / (r.imp || 1));
     return (
       '<div class="exp-conta">' +
       linhaNivel +
@@ -2375,7 +2413,7 @@ export function mountMira(root) {
           '</b><span>' +
           brl(e) +
           ' (valor cheio) × ' +
-          Math.round((PPCT[pr] || 0) * 100) +
+          Math.round((pctV()[pr] || 0) * 100) +
           '% (probabilidade ' +
           pr +
           ')' +
@@ -2716,7 +2754,7 @@ export function mountMira(root) {
               ['', 'Escolha…'],
               ...PROB.map((x, i) => [
                 i + 1,
-                i + 1 + ' · ' + x[0] + ' (' + Math.round(PPCT[i + 1] * 100) + '%)',
+                i + 1 + ' · ' + x[0] + ' (' + Math.round(pctV()[i + 1] * 100) + '%)',
               ]),
             ],
             p.probRes,
@@ -3258,7 +3296,7 @@ export function mountMira(root) {
         .join('') +
       '</select>';
     const cols = ETAPAS.map(e => {
-      const xs = L.filter(r => e[2].includes(r.status)).sort((a, b) => nivel(b) - nivel(a));
+      const xs = L.filter(r => e[2].includes(r.status)).sort(porPrioridade);
       return (
         '<section class="q-col" aria-label="' +
         e[1] +
@@ -3531,7 +3569,7 @@ export function mountMira(root) {
       : '- nenhuma coordenadoria criada';
     const altos =
       L.filter(r => altoOuExtremo(r))
-        .sort((a, b) => nivel(b) - nivel(a))
+        .sort(porPrioridade)
         .map(
           r =>
             '- **' +
@@ -4072,6 +4110,110 @@ export function mountMira(root) {
   // Marca do MIRA.
   const LOGO =
     '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="16" cy="16" r="10"/><circle class="mira-ponto" cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/><path d="M16 2v7M16 23v7M2 16h7M23 16h7"/></svg>';
+  /* ===== Decisões da CSGR (Etapa 2) ===== */
+  // Quem registrou a decisão e quando, ou "ainda não decidida".
+  const quemDecidiu = d =>
+    d && d.por ? 'Registrada por ' + esc(d.por) + ' em ' + fdt(d.em) + '.' : 'Ainda não decidida pela CSGR.';
+  // Tela Decisões: premissas financeiras, apetite a risco e priorização. A Alta Gestão registra; os demais consultam.
+  // Nada aqui é inventado pelo sistema: sem decisão, vale o comportamento de antes e a tela diz isso.
+  function viewDecisoes(u) {
+    const c = cfg(),
+      ed = u.papel === 'altagestao',
+      dis = ed ? '' : ' disabled',
+      pr = c.premissas || {},
+      ap = c.apetite || {},
+      po = c.priorizacao || {};
+    const pct = [1, 2, 3, 4, 5]
+      .map(
+        n =>
+          '<div class="field"><label for="cfg-pct-' +
+          n +
+          '">' +
+          n +
+          ' · ' +
+          PROB[n - 1][0] +
+          ' (%)</label><input id="cfg-pct-' +
+          n +
+          '" type="number" min="0" max="100" step="0.1" value="' +
+          Math.round(pctV()[n] * 1000) / 10 +
+          '" style="width:100%"' +
+          dis +
+          '></div>',
+      )
+      .join('');
+    const niveis = [...new Set([1, 2, 3, 4, 5].flatMap(a => [1, 2, 3, 4, 5].map(b => a * b)))].sort(
+      (a, b) => a - b,
+    );
+    return (
+      pageHead(
+        'Decisões da CSGR',
+        'O que a CSGR decide e o sistema aplica. Cada alteração fica no histórico.',
+      ) +
+      '<div class="card">' +
+      cardH(
+        'Premissas financeiras',
+        'Percentual de cada nota de probabilidade na exposição esperada. ' + quemDecidiu(pr),
+        premissaOk()
+          ? html(rx(Etiqueta, { tom: 'ok', children: 'Aprovadas' }))
+          : html(rx(Etiqueta, { tom: 'warn', children: 'Minuta' })),
+      ) +
+      '<div class="g3">' +
+      pct +
+      '</div><p class="hint">Sugestão do sistema: meio de cada faixa da escala baseada na ISO 31000. A nota 5 não pode ficar abaixo de 90%. Sem aprovação, a justificativa ao TCE sai como minuta.</p>' +
+      (ed
+        ? '<label class="check"><input type="checkbox" id="cfg-aprovada"' +
+          (pr.aprovada ? ' checked' : '') +
+          '> A CSGR aprova estas premissas</label><div class="actions"><button class="btn primary" data-act="cfg-premissas">Registrar premissas</button></div>'
+        : '') +
+      '</div><div class="card">' +
+      cardH(
+        'Apetite a risco',
+        'Maior nível que pode ser aceito sem tratamento (MGR p. 19–21). ' + quemDecidiu(ap),
+      ) +
+      '<div class="field"><label for="cfg-apetite">Nível máximo para "Aceitar"</label><select id="cfg-apetite"' +
+      dis +
+      '><option value="">Não definido (Aceitar vale para qualquer nível)</option>' +
+      niveis
+        .map(
+          n =>
+            '<option value="' +
+            n +
+            '"' +
+            (ap.nivelMax === n ? ' selected' : '') +
+            '>Até ' +
+            n +
+            ' · ' +
+            LV[band(n)] +
+            '</option>',
+        )
+        .join('') +
+      '</select><div class="hint">Com o apetite definido, um PRR com "Aceitar" acima desse nível não é enviado.</div></div>' +
+      (ed
+        ? '<div class="actions"><button class="btn primary" data-act="cfg-apetite">Registrar apetite</button></div>'
+        : '') +
+      '</div><div class="card">' +
+      cardH('Priorização', 'Ordem das filas e listas (Portaria 41, art. 9º, item 6). ' + quemDecidiu(po)) +
+      '<div class="temas" role="radiogroup" aria-label="Método de priorização">' +
+      MIRA.PRIORIZACAO.map(
+        x =>
+          '<label class="tema"><span><input type="radio" name="cfg-prioriza" value="' +
+          x[0] +
+          '"' +
+          ((po.metodo || 'nivel') === x[0] ? ' checked' : '') +
+          dis +
+          '> <b>' +
+          x[1] +
+          '</b></span><span class="small muted">' +
+          x[2] +
+          '</span></label>',
+      ).join('') +
+      '</div>' +
+      (ed
+        ? '<div class="actions"><button class="btn primary" data-act="cfg-prioriza">Registrar priorização</button></div>'
+        : '') +
+      '</div>'
+    );
+  }
   /* ===== Temas e mascote ===== */
   // Temas da tela. O padrão é o da SETIC (azul, amarelo e verde), que segue o claro ou escuro do computador.
   // [chave, nome, descrição, amostra de cores]. A escolha fica só neste navegador (preferência de quem usa).
@@ -4308,6 +4450,8 @@ export function mountMira(root) {
         nav.push(['aprov', 'Pendências', pendingFor(u).length]);
       nav.push(['historico', 'Histórico'], ['alertas', 'Alertas', unreadCount(u)]);
       if (u.papel !== 'cadastrador' && u.papel !== 'terceirizado') nav.push(['relatorio', 'Relatório']);
+      // Decisões da CSGR: a Alta Gestão registra; o CGGE consulta.
+      if (u.papel === 'altagestao' || u.papel === 'cgge') nav.push(['decisoes', 'Decisões']);
     }
     // O risco aberto e o contexto da coordenadoria fazem parte de Riscos no menu.
     const cur = UI.view === 'risco' || UI.view === 'contexto' ? 'riscos' : UI.view;
@@ -4325,6 +4469,7 @@ export function mountMira(root) {
       else if (UI.view === 'usuarios') v = viewUsers(u);
       else if (UI.view === 'unidades') v = viewUnits(u);
       else if (UI.view === 'config') v = viewConfig(u);
+      else if (UI.view === 'decisoes') v = viewDecisoes(u);
       else v = viewRel(u);
     } catch (e) {
       v =
@@ -4574,7 +4719,7 @@ export function mountMira(root) {
   const expRows = () =>
     scope()
       .slice()
-      .sort((a, b) => nivel(b) - nivel(a))
+      .sort(porPrioridade)
       .map(r => EXPORT.map(c => c[3](r)));
   // Botão "Baixar" que abre as opções de formato. Cada opção é uma ação (data-act) tratada em doAct.
   // extra: atributos acrescentados a cada opção (por exemplo, data-id da pessoa); label: texto do botão.
@@ -4915,6 +5060,30 @@ export function mountMira(root) {
       api('POST', 'risks/' + r.id + '/action', Object.assign({ action }, extra || {}));
     switch (a) {
       // Navegação, filtros e sessão
+      // Decisões da CSGR: premissas, apetite e priorização.
+      case 'cfg-premissas': {
+        const pct = {};
+        for (const n of [1, 2, 3, 4, 5]) pct[n] = Number(val('cfg-pct-' + n));
+        await api('POST', 'config/premissas', {
+          pct,
+          aprovada: !!(document.getElementById('cfg-aprovada') || {}).checked,
+        });
+        await refresh(true);
+        toast('Premissas financeiras registradas.');
+        break;
+      }
+      case 'cfg-apetite':
+        await api('POST', 'config/apetite', { nivelMax: val('cfg-apetite') });
+        await refresh(true);
+        toast('Apetite a risco registrado.');
+        break;
+      case 'cfg-prioriza':
+        await api('POST', 'config/priorizacao', {
+          metodo: (document.querySelector('input[name="cfg-prioriza"]:checked') || {}).value,
+        });
+        await refresh(true);
+        toast('Método de priorização registrado.');
+        break;
       case 'config':
         UI.view = 'config';
         UI.rid = null;

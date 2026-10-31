@@ -374,6 +374,15 @@ Ordem sugerida dentro da etapa: 28 (nome CSGR) → 1 e 27 (faixas) → 2, 29 e 2
 | Categorização × coordenadorias criáveis | O9 | **As 6 setoriais do MGR viram modelos prontos**, mas o administrador continua podendo criar outras. Na tela de criar coordenadoria, oferecer CAGD, Coge, Code, Cosegi, Caf e Coinfra (sigla e nome por extenso) para preencher com um clique; o campo continua livre. A categorização do risco é a coordenadoria dele. Os modelos são opções do formulário, não registros gravados: o sistema continua começando vazio. |
 | Produção | Passo 0 | A `main` recebe a `homologacao` por PR, **só quando o usuário pedir**. |
 
+### Etapa 2 em andamento (branch `feature/etapa-2-decisoes-csgr`)
+
+A tela **Decisões** (menu da Alta Gestão; o CGGE consulta) registra as três decisões da CSGR, com quem decidiu, quando e auditoria (tabela `config`). Sem decisão, vale o comportamento de antes:
+- **Premissas financeiras (item 13):** percentuais editáveis e "aprovadas"; sem aprovação, a justificativa ao TCE sai como MINUTA. A nota 5 nunca abaixo de 90%.
+- **Apetite a risco (item 7):** nível máximo para "Aceitar"; acima dele, o PRR com "Aceitar" não é enviado.
+- **Priorização (item 18):** pelo nível; nível e prazo; ou nível, prazo e situação. Vale para filas, listas e quadro.
+
+Falta decidir com a CSGR os valores; a alçada por coordenadoria e o apetite por unidade ficam para depois.
+
 ### Para a CSGR (melhorias; o sistema não inventa regra)
 
 | Decisão | Item | Recomendação |
