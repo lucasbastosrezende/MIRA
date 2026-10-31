@@ -17,6 +17,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 | API | 139 verificações, todas passando |
 | Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
+| Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
 | Visual | capturas no computador e a 390 px, temas claro e escuro, sem rolagem lateral e sem erro na página |
 
 ## Problemas encontrados e como foram resolvidos
@@ -126,6 +127,32 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 ### 19. Script de conferência do fluxo desatualizado
 - **Achado:** o fluxo cadastrador → gestor parou em "avaliado". O cadastrador de teste tem a permissão de definir responsável e prazo, e o script não preenchia esses campos; o sistema estava certo.
 - **Resolvido:** o script cobre os dois casos (com e sem permissão) e preenche controles, linha do tempo e residual, que passaram a ser obrigatórios.
+
+### 20. Roteiro extra das partes novas (31/10/2026)
+O roteiro principal não cobria as partes novas. Um roteiro extra, também fora do repositório, conferiu no navegador:
+
+| # | Cenário | Resultado |
+|---|---|---|
+| X01 | CGGE abre Decisões só para leitura | ok |
+| X02 | Justificativa ao TCE sai como MINUTA sem premissas aprovadas e perde a marca depois de aprovar | ok |
+| X03 | Pergunta do MGR com a linha do tempo, atualizada enquanto se digita | ok |
+| X04 | Segundo clique com o mesmo erro leva ao campo que falta (foco e destaque) | ok |
+| X05 | Pesquisa de responsável filtra a lista; métrica "Outra" abre campo e grava o texto | ok |
+| X06 | Residual vazio aparece como pendente e o envio é barrado | ok |
+| X07 | Reavaliação com o nome da escala junto do número | ok |
+| X08 | FAQ abre e explica o risco residual | ok |
+| X09 | Empresa terceirizada: cadastro sem pedido, entra, vê só a Cosegi, sem editar nem Pendências | ok |
+| X10 | Gestor escolhe a empresa terceirizada como responsável | ok |
+| X11 | Tema Editável aplica a cor principal escolhida | ok |
+| X12 | Decisões, Configurações, Pendências e Alertas a 390 px no tema escuro, sem rolagem lateral | ok |
+| X13 | Nenhum erro de JavaScript no roteiro | ok |
+
+Na primeira rodada, 9 falharam por problemas do próprio roteiro, não do sistema:
+- o login não saía da sessão anterior;
+- o login esperava os painéis, que o administrador não tem;
+- não havia risco em tratamento no banco de teste.
+
+Corrigido o roteiro, os 13 passaram.
 
 ## Visual
 
