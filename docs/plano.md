@@ -161,6 +161,14 @@ Usar estes textos sem mudar palavras. No MGR, o cabeçalho dos Quadros 2 e 3 est
 - **Plano para o caso de o evento ocorrer** (`prr.contingencia`, obrigatório no envio do PRR): o aviso de evento e o cartão do quadro mostram "Faça agora: …".
 - **Cores pela gravidade:** cartão do quadro e avisos com faixa lateral na cor do nível do risco e o nome da faixa escrito; avisos ordenados do mais grave para o mais leve.
 - **Fase do risco:** o risco em rascunho já passou pela identificação e aparece na fase 3 (avaliação).
+- **Responsável pela ação:** escolhido numa lista com pesquisa, só entre pessoas do sistema na coordenadoria do risco (cadastradores, gestor e empresas terceirizadas). O servidor recusa quem é de fora do time.
+- **Empresa terceirizada:** perfil novo (`terceirizado`), cadastrado pelo administrador numa coordenadoria; vê os riscos dela sem editar. Conta de demonstração permitida: `empresateste`, sem relatório de pedido.
+- **Permissão do cadastrador:** responsável, prazo e custo são do gestor; o administrador pode liberar para um cadastrador no cadastro ("Pode definir responsável, prazo e custo do PRR"). Sem permissão, o cadastrador envia e o gestor completa na própria decisão.
+- **Devolução pela Alta Gestão:** pode indicar uma empresa terceirizada como responsável.
+- **Métrica e unidade:** seleção fixa (`METRICAS`, `UNIDADES` em `lib/logic.js`) com a opção "Outra", que abre um campo de texto; na leitura e no relatório aparece "Outra (…)".
+- **Dúvidas frequentes:** blocos de perguntas no PRR e no monitoramento (métrica, limites, risco residual, contingência, critérios, responsável, medição, reavaliação, evento).
+- **Erro na segunda tentativa:** se a mesma ação dá o mesmo erro duas vezes, a tela vai até o campo que falta e o destaca.
+- **Risco Extremo sem tratamento aprovado:** fica sempre em "Exigem ação agora", com o próximo passo, até o PRR ser aprovado. O PRR devolvido entra nas pendências do gestor. Avisos repetidos do mesmo tipo e risco aparecem uma vez só.
 
 ### O que os documentos **não** obrigam (melhoria, não conformidade)
 

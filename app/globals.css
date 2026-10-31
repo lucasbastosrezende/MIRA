@@ -566,3 +566,11 @@ main>.card.decide{box-shadow:0 0 0 1px var(--accent),var(--shadow)}
 /* ===== Avisos já resolvidos ===== */
 .resolvidos>summary{cursor:pointer;font-weight:600}
 .resolvidos .queue{opacity:.75}
+/* Campo que falta, destacado quando a mesma tentativa dá erro de novo. */
+.campo-falta{outline:3px solid var(--s4);outline-offset:3px;border-radius:6px;transition:outline-color .3s}
+/* Dúvidas frequentes do PRR e do monitoramento: cada pergunta abre e fecha. */
+.faq{margin-top:12px}
+.faq h4{margin:0 0 6px;font-size:14px}
+.faq details{border-top:1px solid var(--line);padding:6px 0}
+.faq summary{cursor:pointer;font-weight:600;font-size:13px}
+.faq p{margin:6px 0 0;font-size:13px;color:var(--muted)}

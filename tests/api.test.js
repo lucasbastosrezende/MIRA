@@ -247,6 +247,21 @@ const ok = (c, m) => {
     r = await call(k, 'POST', 'login', { username: u, password: 'senha-forte-2' });
     ok(r.s === 200, 'login ' + u);
   }
+  // Empresa terceirizada: pessoa do sistema que pode ser responsável por ação do PRR da coordenadoria que a contratou
+  r = await call('adm', 'POST', 'users', {
+    username: 'empresateste',
+    papel: 'terceirizado',
+    unit: 'Cosegi',
+    password: 'senha-forte-2',
+  });
+  ok(r.s === 200 && r.user && r.user.papel === 'terceirizado', 'administrador cadastra empresa terceirizada');
+  const emp = r.user;
+  r = await call('ges', 'GET', 'state');
+  const r2 = await call('cad2', 'GET', 'state');
+  ok(
+    r.team.some(t => t.id === emp.id) && !r2.team.some(t => t.id === emp.id),
+    'empresa aparece só no time da coordenadoria que a contratou',
+  );
 
   // Contexto antes do risco: sem escopo salvo, a coordenadoria não cadastra risco
   const ident = {
@@ -319,8 +334,12 @@ const ok = (c, m) => {
     probRes: 1,
     impRes: 5,
   };
-  r = await call('cad', 'POST', 'risks/R-001/prr', { prr });
-  ok(r.s === 200 && r.risk.prr.custo === 85000, 'salva PRR');
+  r = await call('cad', 'POST', 'risks/R-001/prr', { prr: { ...prr, responsavelId: cadCosegi.id } });
+  // Cadastrador sem a permissão do cadastro não define responsável, prazo e custo: quem define é o gestor
+  ok(
+    r.s === 200 && r.risk.prr.custo === 0 && !r.risk.prr.prazo && !r.risk.prr.responsavelId,
+    'salva PRR; sem permissão, responsável, prazo e custo ficam para o gestor',
+  );
   r = await call('cad', 'POST', 'risks/R-001/prr', { prr: { ...prr, ideal: 7 } });
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
   ok(r.s === 422 && r.errors && r.errors.length, 'parâmetros incoerentes barrados');
@@ -354,8 +373,42 @@ const ok = (c, m) => {
   });
   ok(r.s === 200, 'cadastrador ajusta após devolução');
   await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  // Gestor não valida sem responsável e prazo; o responsável tem de ser do time da coordenadoria
   r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-ok' });
+  ok(r.s === 422 && /responsável/.test(r.error || ''), 'gestor não encaminha sem responsável');
+  const fora = st.users.find(x => x.username === 'cad.coinfra');
+  r = await call('ges', 'POST', 'risks/R-001/action', {
+    action: 'gestor-ok',
+    responsavelId: fora.id,
+    prazo: '2026-12-30',
+  });
+  ok(r.s === 422, 'gestor não delega a alguém fora do time');
+  r = await call('ges', 'POST', 'risks/R-001/action', {
+    action: 'gestor-ok',
+    responsavelId: cadCosegi.id,
+    prazo: '2026-12-30',
+    custo: 85000,
+  });
   ok(r.s === 200 && r.risk.status === 'ag_altagestao', 'gestor encaminha');
+  // Na devolução, a Alta Gestão pode indicar uma empresa terceirizada como responsável (e só empresa)
+  r = await call('altagestao', 'POST', 'risks/R-001/action', {
+    action: 'altagestao-dev',
+    motivo: 'Ação exige empresa especializada',
+    responsavelId: cadCosegi.id,
+  });
+  ok(r.s === 422, 'Alta Gestão só indica empresa terceirizada');
+  r = await call('altagestao', 'POST', 'risks/R-001/action', {
+    action: 'altagestao-dev',
+    motivo: 'Ação exige empresa especializada',
+    responsavelId: emp.id,
+  });
+  ok(
+    r.s === 200 && r.risk.status === 'devolvido' && r.risk.prr.responsavel === 'empresateste',
+    'Alta Gestão devolve indicando a empresa terceirizada',
+  );
+  await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-ok' });
+  ok(r.s === 200 && r.risk.prr.responsavelId === emp.id, 'empresa indicada segue como responsável');
   // Regra do MGR (p. 21): a CSGR emite parecer; aprovar sem parecer é recusado
   r = await call('altagestao', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
   ok(r.s === 422, 'aprovar sem parecer é recusado');

@@ -198,7 +198,14 @@ async function mkRisk(who, f, prob, imp, exp, upTo) {
   await call(who, 'POST', `risks/${r.id}/prr`, { prr });
   await call(who, 'POST', `risks/${r.id}/action`, { action: 'send-prr' });
   if (upTo === 'gestor') return r;
-  await call('ges', 'POST', `risks/${r.id}/action`, { action: 'gestor-ok' });
+  // O gestor completa responsável e prazo ao validar (o cadastrador de teste não tem essa permissão).
+  const gesId = (await call('ges', 'GET', 'state')).team.find(t => t.papel === 'gestor').id;
+  await call('ges', 'POST', `risks/${r.id}/action`, {
+    action: 'gestor-ok',
+    responsavelId: gesId,
+    prazo: prr.prazo,
+    custo: prr.custo,
+  });
   if (upTo === 'altagestao') return r;
   await call('altagestao', 'POST', `risks/${r.id}/action`, {
     action: 'altagestao-ok',
@@ -222,6 +229,8 @@ await mkRisk('cad', F('Risco A', 'falha sem redundância no servidor principal')
 await mkRisk('cad', F('Risco B', 'ausência de rotina de backup testada'), 3, 5, 6000000, 'gestor');
 await mkRisk('cad', F('Risco C', 'dependência de fornecedor único de licenças'), 3, 3, 250000, 'altagestao');
 await mkRisk('cad', F('Risco D', 'equipe pequena para a demanda de suporte'), 0);
+// Risco Extremo ainda sem tratamento aprovado: precisa aparecer na fila de ação sem quebrar os painéis.
+await mkRisk('cad', F('Risco F', 'servidor de banco de dados sem suporte do fabricante'), 5, 5, 1000000, 'gestor');
 await mkRisk('cad2', F('Risco E', 'link de internet sem contingência definida'), 4, 4, 900000, 'ativo');
 // navegação por perfil
 // Entra com um perfil e abre todas as telas do menu, os dois painéis e as 5 fases de cada risco.

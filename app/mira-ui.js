@@ -25,6 +25,10 @@ export function mountMira(root) {
     IMPS,
     PPCT,
     TRAT,
+    METRICAS,
+    UNIDADES,
+    metricaTxt,
+    unidadeTxt,
     STAT,
     PHASES,
     nivel,
@@ -37,6 +41,7 @@ export function mountMira(root) {
     canEdit,
     canMon,
     canGes,
+    canDefinir,
     canAlta,
     canDel,
     visible,
@@ -167,7 +172,32 @@ export function mountMira(root) {
   // Valem só para riscos em tratamento; a CGGE não recebe aviso de prazo.
   function derived(u) {
     const out = [];
+    // Próximo passo de um risco que ainda não tem tratamento aprovado, pela situação.
+    const PASSO = {
+      rascunho: 'concluir a avaliação (fase 3)',
+      avaliado: 'elaborar o PRR e enviar ao gestor',
+      devolvido: 'ajustar o PRR devolvido e reenviar',
+      ag_gestor: 'o gestor validar o PRR',
+      ag_altagestao: 'a Alta Gestão de Riscos aprovar ou devolver o PRR',
+    };
     scope(u).forEach(r => {
+      // Risco Extremo sem tratamento aprovado nunca sai da lista de ação, qualquer que seja a etapa:
+      // os avisos guardados mudam com a situação, este fica até o PRR ser aprovado.
+      if (nivel(r) && band(nivel(r)) === 4 && PASSO[r.status])
+        out.push({
+          k: 'ext-' + r.id,
+          tipo: 'extremo',
+          riskId: r.id,
+          crit: true,
+          msg:
+            'Risco Extremo (nível ' +
+            nivel(r) +
+            ') ainda sem tratamento aprovado: ' +
+            r.titulo +
+            '. Próximo passo: ' +
+            PASSO[r.status] +
+            '.',
+        });
       if (!['em_tratamento', 'ocorrido'].includes(r.status) || !r.prr) return;
       const d = daysTo(r.prr.prazo);
       if (d != null && r.prr.prazo && !r.prr.concluidaEm && d <= 15 && u.papel !== 'cgge')
@@ -192,7 +222,7 @@ export function mountMira(root) {
           crit: ms === 'critico',
           msg:
             'Métrica "' +
-            r.prr.metrica +
+            metricaTxt(r.prr.metrica) +
             '" em ' +
             (ms === 'critico' ? 'nível crítico' : 'alerta') +
             ' (' +
@@ -229,7 +259,19 @@ export function mountMira(root) {
     }
   }
   // Avisos não lidos e ainda pendentes, mais os alertas do momento.
-  const unreadCount = u => S.alerts.filter(a => !a.lido[u.id] && !resolvido(a)).length + derived(u).length;
+  // Avisos em aberto, sem repetição: do mesmo tipo e do mesmo risco fica só o mais recente (o servidor manda
+  // do mais novo para o mais antigo). Ex.: o PRR que volta ao gestor não mostra o pedido antigo e o novo juntos.
+  const abertos = () => {
+    const visto = new Set();
+    return S.alerts.filter(a => {
+      if (resolvido(a)) return false;
+      const k = a.riskId + '|' + a.tipo;
+      if (visto.has(k)) return false;
+      visto.add(k);
+      return true;
+    });
+  };
+  const unreadCount = u => abertos().filter(a => !a.lido[u.id]).length + derived(u).length;
   // Palavras de um texto, sem acento e sem palavras curtas, para comparar riscos.
   const tok = s =>
     new Set(
@@ -499,10 +541,15 @@ export function mountMira(root) {
                 : 'Avaliado: falta elaborar o PRR',
           crit: r.status === 'devolvido',
         }));
+    // O gestor valida o que chega e também recebe o PRR devolvido, que pode ajustar e reenviar.
     if (u.papel === 'gestor')
       return l
-        .filter(r => r.status === 'ag_gestor')
-        .map(r => ({ r, txt: 'PRR aguardando sua validação', crit: false }));
+        .filter(r => r.status === 'ag_gestor' || r.status === 'devolvido')
+        .map(r =>
+          r.status === 'devolvido'
+            ? { r, txt: 'PRR devolvido: ajustar com o cadastrador e reenviar', crit: true }
+            : { r, txt: 'PRR aguardando sua validação', crit: false },
+        );
     if (u.papel === 'altagestao')
       return l
         .filter(r => r.status === 'ag_altagestao')
@@ -752,6 +799,8 @@ export function mountMira(root) {
       tone: p.crit ? 'crit' : 'info',
       txt: p.txt,
     }));
+    // Risco que já está na fila como pendência não entra de novo como "risco extremo".
+    const naFila = new Set(items.map(i => i.r.id));
     derived(u).forEach(d => {
       const r = rk(d.riskId);
       if (!r) return;
@@ -768,6 +817,9 @@ export function mountMira(root) {
                 ? 'Prazo da ação vence hoje'
                 : 'Prazo da ação vence em ' + dd + ' dia(s)',
         });
+      } else if (d.tipo === 'extremo') {
+        // Risco Extremo sem tratamento aprovado: aparece na fila com o próximo passo.
+        if (!naFila.has(r.id)) items.push({ r, kind: 'Risco extremo', tone: 'crit', txt: d.msg });
       } else
         items.push({
           r,
@@ -775,7 +827,7 @@ export function mountMira(root) {
           tone: d.crit ? 'crit' : 'warn',
           txt:
             '"' +
-            r.prr.metrica +
+            metricaTxt(r.prr.metrica) +
             '" em ' +
             (d.crit ? 'nível crítico' : 'alerta') +
             ': ' +
@@ -874,7 +926,7 @@ export function mountMira(root) {
     const sig = menor ? ['≥', '≥', '≤'] : ['≤', '≤', '≥'];
     return (
       '<div class="mrow"><div class="mrow-h"><div class="mrow-t"><b>' +
-      esc(p.metrica) +
+      esc(metricaTxt(p.metrica)) +
       '</b><span class="small muted">' +
       r.id +
       ' · ' +
@@ -1448,7 +1500,7 @@ export function mountMira(root) {
         '.',
       '- Acompanhamento: ' +
         (p.metrica
-          ? mdc(p.metrica) +
+          ? mdc(metricaTxt(p.metrica)) +
             ' (' +
             mdc(p.unidadeMetrica) +
             '), crítico ' +
@@ -1747,7 +1799,7 @@ export function mountMira(root) {
       .join('');
     return (
       '<div class="mchart" role="group" aria-label="Série de medições da métrica ' +
-      esc(p.metrica) +
+      esc(metricaTxt(p.metrica)) +
       '. Última: ' +
       fnum(lm.valor) +
       ' ' +
@@ -2080,6 +2132,9 @@ export function mountMira(root) {
       '<div class="field"><label for="ap-motivo">Observação (obrigatória para devolver)</label><textarea id="ap-motivo" rows="3"></textarea></div>';
     if (canGes(u, r))
       return (
+        '<div class="fs"><h4>Responsável, prazo e custo</h4>' +
+        respCampos('g', r, r.prr || {}) +
+        '</div>' +
         mot +
         '<div class="actions"><button class="btn primary" data-act="gestor-ok">Validar e encaminhar à Alta Gestão</button><button class="btn danger" data-act="gestor-dev">Devolver ao cadastrador</button></div>'
       );
@@ -2087,6 +2142,18 @@ export function mountMira(root) {
     if (canAlta(u, r))
       return (
         '<div class="field"><label for="ap-motivo">Parecer (obrigatório)</label><textarea id="ap-motivo" rows="3"></textarea></div>' +
+        // Na devolução, a Alta Gestão pode indicar uma empresa terceirizada como responsável pela ação.
+        '<div class="field"><label for="ap-emp">Empresa terceirizada responsável (opcional, só na devolução)</label>' +
+        '<input type="search" id="ap-emp-busca" data-filtra="ap-emp" placeholder="Pesquisar empresa" style="width:100%;margin-bottom:6px" aria-label="Pesquisar empresa terceirizada">' +
+        '<select id="ap-emp" size="4" style="width:100%"><option value="" selected>Manter o responsável atual</option>' +
+        S.team
+          .filter(t => t.papel === 'terceirizado')
+          .map(
+            t =>
+              '<option value="' + esc(t.id) + '">' + esc(t.nome) + ' · ' + esc(siglaUp(t.unit)) + '</option>',
+          )
+          .join('') +
+        '</select></div>' +
         '<div class="actions"><button class="btn primary" data-act="altagestao-ok">Aprovar PRR</button><button class="btn danger" data-act="altagestao-dev">Devolver</button></div>'
       );
     return '';
@@ -2310,6 +2377,141 @@ export function mountMira(root) {
     ' da matriz 5 × 5)</div><div style="margin-top:4px"><b>Causa que dá origem ao risco:</b> ' +
     esc(r.causa) +
     '</div></div>';
+  // Pessoas que podem ser responsáveis pela ação do PRR: cadastradores, gestor e empresas terceirizadas
+  // ativos da coordenadoria do risco. O servidor confere a mesma regra.
+  const responsaveis = unit =>
+    S.team.filter(t => t.unit === unit && ['cadastrador', 'gestor', 'terceirizado'].includes(t.papel));
+  // Responsável (com pesquisa), prazo e custo. px é o prefixo dos ids ("p" no formulário, "g" na decisão do gestor).
+  const respCampos = (px, r, p) =>
+    '<div class="field"><label for="' +
+    px +
+    '-resp">Responsável pela ação</label><input type="search" id="' +
+    px +
+    '-resp-busca" data-filtra="' +
+    px +
+    '-resp" placeholder="Pesquisar pelo nome ou perfil" style="width:100%;margin-bottom:6px" aria-label="Pesquisar responsável"><select id="' +
+    px +
+    '-resp" size="5" style="width:100%"><option value="">Escolha uma pessoa do sistema</option>' +
+    responsaveis(r.unit)
+      .map(
+        t =>
+          '<option value="' +
+          esc(t.id) +
+          '"' +
+          (p.responsavelId === t.id ? ' selected' : '') +
+          '>' +
+          esc(t.nome) +
+          ' · ' +
+          PAPEL[t.papel] +
+          '</option>',
+      )
+      .join('') +
+    // Empresa indicada pela Alta Gestão na devolução, que não é do time da coordenadoria: continua escolhida.
+    (p.responsavelId && !responsaveis(r.unit).some(t => t.id === p.responsavelId)
+      ? '<option value="' +
+        esc(p.responsavelId) +
+        '" selected>' +
+        esc(p.responsavel || 'Responsável indicado') +
+        ' · indicada pela Alta Gestão</option>'
+      : '') +
+    '</select><div class="hint">Só aparecem pessoas cadastradas na coordenadoria, inclusive empresas terceirizadas. Se a pessoa não está na lista, peça o cadastro ao administrador.</div></div>' +
+    '<div class="g2"><div class="field"><label for="' +
+    px +
+    '-prazo">Prazo</label><input id="' +
+    px +
+    '-prazo" type="date" value="' +
+    esc(p.prazo ? String(p.prazo).slice(0, 10) : '') +
+    '" style="width:100%"></div>' +
+    // Campo em reais com a leitura do valor embaixo, dentro da mesma coluna.
+    '<div class="field"><label for="' +
+    px +
+    '-custo">Custo estimado (R$)</label><input id="' +
+    px +
+    '-custo" type="text" inputmode="decimal" data-brl placeholder="Ex.: 85.000" value="' +
+    esc(brlIn(p.custo)) +
+    '" style="width:100%"><div class="hint" id="' +
+    px +
+    '-custo-v">' +
+    brlLido(brlIn(p.custo)) +
+    '</div></div></div>';
+  // Seleção fixa (lista do sistema) com a opção "Outra", que mostra um campo de texto. id é o campo final:
+  // a lista fica em id-sel e o texto em id-outra; readPrr junta os dois (valorOutra).
+  const selOutra = (id, lab, lista, v, ph) => {
+    const outra = !!v && !lista.includes(v);
+    return (
+      '<div class="field"><label for="' +
+      id +
+      '-sel">' +
+      lab +
+      '</label><select id="' +
+      id +
+      '-sel" data-outra="' +
+      id +
+      '-outra" style="width:100%"><option value="">Escolha…</option>' +
+      lista
+        .map(
+          x => '<option value="' + esc(x) + '"' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>',
+        )
+        .join('') +
+      '<option value="__outra"' +
+      (outra ? ' selected' : '') +
+      '>Outra (escrever)</option></select><input id="' +
+      id +
+      '-outra" placeholder="' +
+      ph +
+      '" value="' +
+      esc(outra ? v : '') +
+      '" style="width:100%;margin-top:6px"' +
+      (outra ? '' : ' hidden') +
+      '></div>'
+    );
+  };
+  // Valor de uma seleção fixa com "Outra": o item da lista ou o texto escrito.
+  const valorOutra = id => (val(id + '-sel') === '__outra' ? val(id + '-outra').trim() : val(id + '-sel'));
+  // Perguntas frequentes sobre cada parte do PRR e do monitoramento, em linguagem simples.
+  const FAQ = {
+    metrica: [
+      'O que é a métrica de acompanhamento?',
+      'É o número que mostra se a ação está funcionando. Ex.: "horas de indisponibilidade no mês". Ela é medida no monitoramento (fase 5); cada medição mostra se o risco está no ideal, em alerta ou crítico.',
+    ],
+    parametros: [
+      'Para que servem crítico, alerta e ideal?',
+      'São os três limites da métrica. Ideal é a meta. Alerta é o valor em que é preciso atenção. Crítico é o valor em que a ação não está dando certo e o gestor é avisado. Em "menor é melhor": ideal < alerta < crítico. Em "maior é melhor": crítico < alerta < ideal.',
+    ],
+    residual: [
+      'O que é o risco residual?',
+      'É como o risco deve ficar depois que a ação do PRR for feita: a probabilidade e o impacto que sobram. Ele não muda o nível do risco hoje; serve para mostrar quanto a ação reduz e comparar o custo com o benefício.',
+    ],
+    contingencia: [
+      'O que escrever em "Se o evento ocorrer, faça isto"?',
+      'A primeira resposta quando o risco acontecer: quem age e o que faz. Ex.: "Ativar o servidor reserva e avisar os usuários". Quando alguém marca que o evento ocorreu, o aviso e o quadro mostram esse texto.',
+    ],
+    criterios: [
+      'Por que preencher os critérios do tratamento?',
+      'O MGR (p. 21) manda considerar a viabilidade e o custo, as restrições legais, os recursos disponíveis, o nível de criticidade e as causas. O nível e a causa vêm do risco; os outros três você descreve.',
+    ],
+    responsavel: [
+      'Quem pode ser responsável pela ação?',
+      'Só pessoas cadastradas no sistema na coordenadoria do risco, inclusive empresa terceirizada contratada para a demanda. Quem define responsável, prazo e custo é o gestor, ou o cadastrador com essa permissão liberada no cadastro.',
+    ],
+    medicao: [
+      'O que é registrar uma medição?',
+      'É anotar o valor atual da métrica. O sistema compara com os limites e muda a cor: ideal, alerta ou crítico. Em alerta ou crítico, o gestor recebe aviso.',
+    ],
+    reavaliar: [
+      'Quando reavaliar o nível?',
+      'Quando a probabilidade ou o impacto mudarem: depois de uma medição ruim, de uma mudança no processo ou de o evento ocorrer (MGR p. 22). O sistema avisa quando o nível sobe ou baixa.',
+    ],
+    evento: [
+      'O que fazer quando o evento ocorre?',
+      'Marque "O evento ocorreu". O aviso mostra o plano do PRR para esse caso. Depois, retome o tratamento ou reabra o PRR para revisão.',
+    ],
+  };
+  // Bloco de perguntas frequentes com as chaves pedidas, cada uma abre e fecha sozinha.
+  const faq = ks =>
+    '<div class="side-card faq"><h4>Dúvidas frequentes</h4>' +
+    ks.map(k => '<details><summary>' + FAQ[k][0] + '</summary><p>' + FAQ[k][1] + '</p></details>').join('') +
+    '</div>';
   function tabPrr(u, r) {
     if (!r.prob || !r.imp)
       return '<div class="card"><h3>Fase 4 · Tratamento</h3><div class="empty">Avalie probabilidade e impacto antes de elaborar o PRR.</div></div>';
@@ -2411,13 +2613,7 @@ export function mountMira(root) {
         criterios(r) +
           '<div class="field"><label for="p-viab">Viabilidade e custo da solução</label><textarea id="p-viab" rows="2">' +
           esc(p.viabilidade) +
-          '</textarea></div>' +
-          // Campo em reais com a leitura do valor embaixo, dentro da mesma coluna.
-          '<div class="field"><label for="p-custo">Custo estimado (R$)</label><input id="p-custo" type="text" inputmode="decimal" data-brl placeholder="Ex.: 85.000" value="' +
-          esc(brlIn(p.custo)) +
-          '" style="width:100%"><div class="hint" id="p-custo-v">' +
-          brlLido(brlIn(p.custo)) +
-          '</div></div>' +
+          '</textarea><div class="hint">O custo em reais fica em "Responsável, prazo e custo".</div></div>' +
           '<div class="field"><label for="p-restr">Restrições ou imposições legais</label><textarea id="p-restr" rows="2">' +
           esc(p.restricoes) +
           '</textarea><div class="hint">Se não houver, escreva "Nenhuma".</div></div>' +
@@ -2427,18 +2623,29 @@ export function mountMira(root) {
       ) +
       sec(
         3,
-        'Responsável e prazo',
-        '<div class="g2">' +
-          inp('p-resp', 'Responsável pela ação', p.responsavel) +
-          inp('p-prazo', 'Prazo', p.prazo ? String(p.prazo).slice(0, 10) : '', 'date') +
-          '</div>',
+        'Responsável, prazo e custo',
+        canDefinir(u, r)
+          ? respCampos('p', r, p)
+          : // Sem permissão, os valores seguem em campos ocultos para o resumo ao lado continuar calculando.
+            '<p class="hint" style="margin-top:0">Quem define o responsável, o prazo e o custo é o gestor da coordenadoria.</p>' +
+              '<div class="kvgrid">' +
+              roField('Responsável pela ação', p.responsavel) +
+              roField('Prazo', p.prazo ? fd(p.prazo) : '') +
+              roField('Custo estimado', brl(p.custo)) +
+              '</div><input type="hidden" id="p-resp" value="' +
+              esc(p.responsavelId || '') +
+              '"><input type="hidden" id="p-prazo" value="' +
+              esc(p.prazo || '') +
+              '"><input type="hidden" id="p-custo" value="' +
+              esc(brlIn(p.custo)) +
+              '">',
       ) +
       sec(
         4,
         'Acompanhamento da métrica',
-        inp('p-metrica', 'Métrica de acompanhamento', p.metrica) +
+        selOutra('p-metrica', 'Métrica de acompanhamento', METRICAS, p.metrica, 'Escreva a métrica') +
           '<div class="g2">' +
-          inp('p-unid', 'Unidade', p.unidadeMetrica) +
+          selOutra('p-unid', 'Unidade', UNIDADES, p.unidadeMetrica, 'Escreva a unidade') +
           sel(
             'p-sent',
             'Melhor quando…',
@@ -2488,7 +2695,10 @@ export function mountMira(root) {
       ) +
       '</div><aside class="prr-side"><div class="side-card" id="prr-live">' +
       prrLiveHTML(r, p) +
-      '</div></aside></div><div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">Enviar para validação do gestor</button></div>';
+      '</div>' +
+      faq(['metrica', 'parametros', 'residual', 'contingencia', 'criterios', 'responsavel']) +
+      '</aside></div>' +
+      '<div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">Enviar para validação do gestor</button></div>';
     const ro =
       '<div class="kvgrid">' +
       roField('Forma de tratamento', cap(p.tratamento) + ' — ' + TRAT[p.tratamento], true) +
@@ -2504,8 +2714,8 @@ export function mountMira(root) {
       roField('Responsável pela ação', p.responsavel) +
       roField('Prazo', p.prazo ? fd(p.prazo) : '') +
       roField('Custo estimado', brl(p.custo)) +
-      roField('Métrica de acompanhamento', p.metrica, true) +
-      roField('Unidade', p.unidadeMetrica) +
+      roField('Métrica de acompanhamento', metricaTxt(p.metrica), true) +
+      roField('Unidade', unidadeTxt(p.unidadeMetrica)) +
       roField('Melhor quando…', p.sentido === 'menor' ? 'o valor é menor' : 'o valor é maior') +
       roField('Crítico', p.critico) +
       roField('Alerta', p.alerta) +
@@ -2590,7 +2800,7 @@ export function mountMira(root) {
       : '';
     return (
       '<div class="card"><div class="card-h"><div><h3>Fase 5 · Monitoramento da métrica</h3><p>' +
-      esc(p.metrica) +
+      esc(metricaTxt(p.metrica)) +
       ' · ' +
       (p.sentido === 'menor' ? 'quanto menor, melhor' : 'quanto maior, melhor') +
       '</p></div>' +
@@ -2621,7 +2831,8 @@ export function mountMira(root) {
         ? '<div class="actions"><button class="btn" data-act="encerrar">Encerrar risco</button></div>'
         : '') +
       '</div>' +
-      (mon ? acoesTratamento(r) : '')
+      (mon ? acoesTratamento(r) : '') +
+      faq(['medicao', 'parametros', 'reavaliar', 'evento', 'residual'])
     );
   }
   // Andamento do tratamento, para quem monitora (cadastrador ou gestor da coordenadoria): depois de um evento,
@@ -2808,7 +3019,7 @@ export function mountMira(root) {
     const pend = pendingFor(u).sort((a, b) => (b.crit ? 1 : 0) - (a.crit ? 1 : 0) || nivel(b.r) - nivel(a.r));
     const t = {
       cadastrador: 'Suas pendências',
-      gestor: 'PRRs para você validar',
+      gestor: 'PRRs para você validar ou ajustar',
       altagestao: 'PRRs para a Alta Gestão de Riscos decidir',
       cgge: 'Consulta',
     }[u.papel];
@@ -3025,7 +3236,7 @@ export function mountMira(root) {
   }
   // Tela Alertas: avisos do momento e avisos guardados.
   function viewAlertas(u) {
-    const st = S.alerts.filter(a => !resolvido(a)),
+    const st = abertos(),
       feitos = S.alerts.filter(a => resolvido(a)),
       dv = derived(u),
       unread = st.filter(a => !a.lido[u.id]).length;
@@ -3039,6 +3250,7 @@ export function mountMira(root) {
       evento: 'Evento',
       delegado: 'Delegação',
       revisao: 'Revisão do PRR',
+      extremo: 'Sem tratamento aprovado',
     };
     // Faixa do nível do risco do aviso (-1 sem avaliação): pinta a lateral do aviso e entra escrita no tipo.
     const bandOf = id => {
@@ -3112,7 +3324,7 @@ export function mountMira(root) {
       ) +
       sec(
         'Exigem ação agora',
-        'Prazos próximos ou vencidos e métricas em alerta ou críticas.',
+        'Riscos extremos sem tratamento aprovado, prazos próximos ou vencidos e métricas em alerta ou críticas.',
         dv.length,
         act,
         'Nenhum prazo ou métrica exige ação agora.',
@@ -3295,7 +3507,7 @@ export function mountMira(root) {
             '- **' +
             x.r.id +
             '** ' +
-            mdc(x.r.prr.metrica) +
+            mdc(metricaTxt(x.r.prr.metrica)) +
             ': ' +
             x.m.valor +
             ' ' +
@@ -3726,12 +3938,17 @@ export function mountMira(root) {
       pedidoCard() +
       '<div class="row"><div class="card grow" style="max-width:440px"><h3>Cadastrar pessoa</h3><form id="user-form" autocomplete="off">' +
       '<div class="field"><label for="n-user">Usuário de acesso</label><input id="n-user" style="width:100%" required><div class="hint">Minúsculas, números, ponto, hífen ou sublinhado.</div></div>' +
-      '<div class="field"><label for="n-papel">Perfil</label><select id="n-papel" style="width:100%"><option value="cadastrador">Cadastrador(a) · registra riscos da coordenadoria</option><option value="gestor">Gestor(a) de riscos · titular da coordenadoria</option><option value="altagestao">Alta Gestão de Riscos · aprova PRRs e gera o relatório</option><option value="cgge">CGGE · só consulta</option></select></div>' +
+      '<div class="field"><label for="n-papel">Perfil</label><select id="n-papel" style="width:100%"><option value="cadastrador">Cadastrador(a) · registra riscos da coordenadoria</option><option value="gestor">Gestor(a) de riscos · titular da coordenadoria</option><option value="terceirizado">Empresa terceirizada · contratada para uma demanda da coordenadoria</option><option value="altagestao">Alta Gestão de Riscos · aprova PRRs e gera o relatório</option><option value="cgge">CGGE · só consulta</option></select></div>' +
       '<div class="field" id="n-unit-wrap"><label for="n-unit">Coordenadoria</label>' +
       unitSel +
       '</div>' +
+      // Só para cadastrador: libera definir responsável, prazo e custo do PRR (o gestor já pode).
+      '<div class="field" id="n-pode-wrap"><label class="check"><input type="checkbox" id="n-pode"> Pode definir responsável, prazo e custo do PRR</label><div class="hint">Sem isso, quem define é o gestor da coordenadoria.</div></div>' +
       '<div class="field"><label for="n-pw">Senha inicial</label><input id="n-pw" type="password" style="width:100%" required minlength="8"><div class="hint">Mínimo de 8 caracteres.</div></div>' +
-      pedidoFields('n', 'Contas de teste (teste1 a teste20) podem ser criadas sem o relatório de pedido.') +
+      pedidoFields(
+        'n',
+        'Contas de teste (teste1 a teste20) e a empresa de demonstração empresateste podem ser criadas sem o relatório de pedido.',
+      ) +
       '<button class="btn primary" type="submit">Cadastrar</button></form></div>' +
       '<div class="card grow">' +
       cardH('Pessoas por coordenadoria', 'Cada uma indica até 2 cadastradores e 1 gestor.') +
@@ -3879,9 +4096,11 @@ export function mountMira(root) {
           ];
     if (u.papel !== 'admin') {
       nav.push(['quadro', 'Quadro'], ['matriz', 'Matriz']);
-      if (u.papel !== 'cgge') nav.push(['aprov', 'Pendências', pendingFor(u).length]);
+      // CGGE e empresa terceirizada só acompanham: sem fila de pendências.
+      if (u.papel !== 'cgge' && u.papel !== 'terceirizado')
+        nav.push(['aprov', 'Pendências', pendingFor(u).length]);
       nav.push(['historico', 'Histórico'], ['alertas', 'Alertas', unreadCount(u)]);
-      if (u.papel !== 'cadastrador') nav.push(['relatorio', 'Relatório']);
+      if (u.papel !== 'cadastrador' && u.papel !== 'terceirizado') nav.push(['relatorio', 'Relatório']);
     }
     // O risco aberto e o contexto da coordenadoria fazem parte de Riscos no menu.
     const cur = UI.view === 'risco' || UI.view === 'contexto' ? 'riscos' : UI.view;
@@ -4038,11 +4257,11 @@ export function mountMira(root) {
       viabilidade: val('p-viab').trim(),
       restricoes: val('p-restr').trim(),
       recursos: val('p-recur').trim(),
-      responsavel: val('p-resp').trim(),
+      responsavelId: val('p-resp'),
       prazo: val('p-prazo'),
       custo: parseBRL(val('p-custo')) || 0,
-      metrica: val('p-metrica').trim(),
-      unidadeMetrica: val('p-unid').trim(),
+      metrica: valorOutra('p-metrica'),
+      unidadeMetrica: valorOutra('p-unid'),
       sentido: val('p-sent'),
       critico: n('p-crit'),
       alerta: n('p-alerta'),
@@ -4122,8 +4341,8 @@ export function mountMira(root) {
     ['Viabilidade e custo da solução', 'txt', 40, r => r.prr && r.prr.viabilidade],
     ['Restrições ou imposições legais', 'txt', 40, r => r.prr && r.prr.restricoes],
     ['Recursos financeiros, humanos e tecnológicos', 'txt', 40, r => r.prr && r.prr.recursos],
-    ['Métrica', 'txt', 40, r => r.prr && r.prr.metrica],
-    ['Unidade da métrica', 'txt', 14, r => r.prr && r.prr.unidadeMetrica],
+    ['Métrica', 'txt', 40, r => r.prr && metricaTxt(r.prr.metrica)],
+    ['Unidade da métrica', 'txt', 14, r => r.prr && unidadeTxt(r.prr.unidadeMetrica)],
     ['Responsável', 'txt', 30, r => r.prr && r.prr.responsavel],
     ['Parâmetro crítico', 'txt', 14, r => r.prr && r.prr.critico],
     ['Parâmetro alerta', 'txt', 14, r => r.prr && r.prr.alerta],
@@ -4262,7 +4481,7 @@ export function mountMira(root) {
           r.id,
           r.unit,
           r.titulo,
-          p.metrica,
+          metricaTxt(p.metrica),
           p.unidadeMetrica,
           m.ts,
           m.valor,
@@ -4589,7 +4808,8 @@ export function mountMira(root) {
           toast('Rascunho do PRR salvo.');
           break;
         }
-        const errs = MIRA.prrErrors(prr);
+        // A mesma regra do servidor: sem permissão, responsável e prazo ficam para o gestor.
+        const errs = MIRA.prrErrors(prr, { semDefinir: !canDefinir(u, r) });
         if (errs.length) {
           await load();
           showPrrErrors(errs);
@@ -4607,7 +4827,12 @@ export function mountMira(root) {
       }
       // Decisões sobre o PRR: gestor valida, Alta Gestão aprova, ambos podem devolver com motivo
       case 'gestor-ok':
-        await act2('gestor-ok', { motivo: val('ap-motivo') });
+        await act2('gestor-ok', {
+          motivo: val('ap-motivo'),
+          responsavelId: val('g-resp'),
+          prazo: val('g-prazo'),
+          custo: parseBRL(val('g-custo')) || 0,
+        });
         await refresh(true);
         toast('PRR encaminhado à Alta Gestão de Riscos.');
         break;
@@ -4620,7 +4845,10 @@ export function mountMira(root) {
         break;
       case 'gestor-dev':
       case 'altagestao-dev':
-        await act2(a, { motivo: val('ap-motivo') });
+        await act2(a, {
+          motivo: val('ap-motivo'),
+          responsavelId: a === 'altagestao-dev' ? val('ap-emp') : '',
+        });
         await refresh(true);
         toast('PRR devolvido ao cadastrador.');
         break;
@@ -4874,6 +5102,53 @@ export function mountMira(root) {
         '<div class="warn-box"><b>Corrija antes de enviar:</b><ul style="margin:4px 0 0 18px;padding:0">' +
         errs.map(x => '<li>' + esc(x) + '</li>').join('') +
         '</ul></div>';
+    tentativa('send-prr', errs);
+  }
+  // Campo de cada mensagem de erro: [texto da mensagem, campos possíveis na tela]. A primeira regra que casa
+  // com a mensagem e tem o campo na tela é a usada. As regras do PRR vêm antes das da identificação.
+  const ERR_CAMPO = [
+    [/evento ocorrer/i, '#p-conting'],
+    [/ação proposta|risco é aceito/i, '#p-acao'],
+    [/viabilidade/i, '#p-viab'],
+    [/restrições/i, '#p-restr'],
+    [/recursos/i, '#p-recur'],
+    [/responsável/i, '#p-resp-busca,#p-resp'],
+    [/prazo/i, '#p-prazo'],
+    [/métrica/i, '#p-metrica-sel'],
+    [/unidade/i, '#p-unid-sel'],
+    [/parâmetros|ideal|crítico/i, '#p-crit'],
+    [/residua/i, '#p-probres'],
+    [/parecer|motivo|observação/i, '#ap-motivo,textarea[id$="motivo"]'],
+    [/probabilidade e impacto|probabilidade/i, 'input[name="prob"]'],
+    [/causa/i, '#f-causa'],
+    [/evento/i, '#f-evento'],
+    [/impacto/i, '#f-impacto'],
+    [/objetivo/i, '#f-objetivo'],
+    [/título/i, '#f-titulo'],
+    [/escopo|contexto/i, '#c-escopo'],
+  ];
+  // Leva a tela até o campo da primeira mensagem que tem campo conhecido: rola, foca e destaca por 3 segundos.
+  function irAoErro(msgs) {
+    for (const m of msgs)
+      for (const [re, sel] of ERR_CAMPO) {
+        if (!re.test(m)) continue;
+        const el = document.querySelector(sel);
+        if (!el) continue;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (el.focus) el.focus({ preventScroll: true });
+        const alvo = el.closest('.field') || el;
+        alvo.classList.add('campo-falta');
+        setTimeout(() => alvo.classList.remove('campo-falta'), 3000);
+        return true;
+      }
+    return false;
+  }
+  // No primeiro erro de uma ação só se mostra a mensagem; se o mesmo erro volta na tentativa seguinte,
+  // a tela vai até o campo que falta.
+  function tentativa(acao, msgs) {
+    const chave = acao + '|' + msgs.join('|');
+    if (UI.ultErro === chave) irAoErro(msgs);
+    else UI.ultErro = chave;
   }
   // Durante uma gravação a tela fica marcada como ocupada; um novo envio avisa em vez de ser ignorado em silêncio.
   function setBusy(on) {
@@ -4898,6 +5173,7 @@ export function mountMira(root) {
       if (dm) dm.open = false;
     } catch (e) {
       toast(e.message || 'Não foi possível concluir a ação.');
+      tentativa(a, (e.data && e.data.errors) || [e.message || '']);
     } finally {
       setBusy(false);
     }
@@ -5062,6 +5338,13 @@ export function mountMira(root) {
       updAv();
       return;
     }
+    if (t.dataset.outra) {
+      const o = document.getElementById(t.dataset.outra);
+      if (o) {
+        o.hidden = t.value !== '__outra';
+        if (!o.hidden) o.focus();
+      }
+    }
     if (isPrrField(t)) {
       prrLive();
       return;
@@ -5069,6 +5352,8 @@ export function mountMira(root) {
     if (t.id === 'n-papel') {
       const w = document.getElementById('n-unit-wrap');
       if (w) w.hidden = t.value === 'altagestao' || t.value === 'cgge';
+      const pw = document.getElementById('n-pode-wrap');
+      if (pw) pw.hidden = t.value !== 'cadastrador';
       return;
     }
     if (t.dataset.marco !== undefined) {
@@ -5103,6 +5388,14 @@ export function mountMira(root) {
   }
   // Digitação: atualiza a identificação ou o resumo do PRR ao vivo e filtra a lista de pessoas.
   const onInput = e => {
+    // Pesquisa nas listas de pessoas: esconde, a cada letra, as opções que não têm o texto digitado.
+    if (e.target.dataset.filtra) {
+      const q = e.target.value.trim().toLowerCase(),
+        alvo = document.getElementById(e.target.dataset.filtra);
+      if (alvo)
+        for (const o of alvo.options) o.hidden = !!o.value && !!q && !o.textContent.toLowerCase().includes(q);
+      return;
+    }
     if (e.target.dataset.brl !== undefined) {
       const h = document.getElementById(e.target.id + '-v');
       if (h) h.textContent = brlLido(e.target.value);
@@ -5133,6 +5426,7 @@ export function mountMira(root) {
         username: val('n-user'),
         papel,
         unit: papel === 'altagestao' || papel === 'cgge' ? null : val('n-unit'),
+        podeDefinir: papel === 'cadastrador' && !!(document.getElementById('n-pode') || {}).checked,
         password: val('n-pw'),
       });
       return;
