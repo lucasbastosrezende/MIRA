@@ -145,6 +145,8 @@ export function mountMira(root) {
     authErr: '',
     busy: false,
     ctxPeek: false,
+    // Verdadeiro quando há algo digitado num formulário que ainda não foi salvo (some a cada nova montagem da tela).
+    sujo: false,
   };
   // Pessoa com sessão aberta.
   const me = () => S.me;
@@ -445,11 +447,22 @@ export function mountMira(root) {
       '</div><p class="hint" style="text-align:center">Impacto (vertical) × probabilidade (horizontal)</p>'
     );
   }
-  // Aplica os filtros da lista de riscos (coordenadoria, faixa, situação e célula do mapa).
+  // Texto sem acento e em minúsculas, para a pesquisa achar "acao" em "ação".
+  const semAcento = t =>
+    String(t == null ? '' : t)
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase();
+  // Texto pesquisável de um risco: código, título, causa, evento, impacto, coordenadoria e quem abriu.
+  const buscaRisco = r =>
+    semAcento([r.id, r.titulo, r.causa, r.evento, r.impacto, r.unit, r.criadoPor].join(' '));
+  // Aplica os filtros da lista de riscos (pesquisa, coordenadoria, faixa, situação e célula do mapa).
   function filtered(list) {
-    const f = UI.filt;
+    const f = UI.filt,
+      q = semAcento((f.q || '').trim());
     return list.filter(
       r =>
+        (!q || buscaRisco(r).includes(q)) &&
         (!f.unit || r.unit === f.unit) &&
         (f.nv === '' || (nivel(r) && band(nivel(r)) === Number(f.nv))) &&
         (!f.st || r.status === f.st) &&
@@ -468,6 +481,9 @@ export function mountMira(root) {
         : '';
     return (
       '<div class="row" style="align-items:center">' +
+      '<input type="search" data-rbusca placeholder="Pesquisar por código, título ou causa" aria-label="Pesquisar riscos" value="' +
+      esc(UI.filt.q || '') +
+      '" style="flex:1 1 220px">' +
       uopt +
       '<select data-filter="nv" aria-label="Nível"><option value="">Todos os níveis</option>' +
       LV.map(
@@ -497,7 +513,7 @@ export function mountMira(root) {
       (UI.filt.cell
         ? '<span class="st info">Célula ' + UI.filt.cell.p + '×' + UI.filt.cell.i + '</span>'
         : '') +
-      (UI.filt.unit || UI.filt.nv !== '' || UI.filt.st || UI.filt.cell
+      (UI.filt.q || UI.filt.unit || UI.filt.nv !== '' || UI.filt.st || UI.filt.cell
         ? '<button class="btn sm" data-act="clearfilt">Limpar filtros</button>'
         : '') +
       '</div>'
@@ -529,6 +545,8 @@ export function mountMira(root) {
         r =>
           '<tr class="click" data-open="' +
           r.id +
+          '" data-rb="' +
+          esc(buscaRisco(r)) +
           '"><td class="mono">' +
           r.id +
           '</td><td><b>' +
@@ -553,7 +571,7 @@ export function mountMira(root) {
     return (
       '<div class="scroll"><table class="tbl"><thead><tr><th>ID</th><th>Risco</th><th>Nível</th><th>Fase</th><th>Situação</th><th>Métrica</th><th>Prazo da ação</th></tr></thead><tbody>' +
       rows +
-      '</tbody></table></div>'
+      '</tbody></table></div><div class="empty" data-rvazio hidden>Nenhum risco com essa pesquisa.</div>'
     );
   }
   // O que depende da pessoa agora: rascunhos e devoluções (cadastrador), validações (gestor), aprovações (Alta Gestão).
@@ -2365,8 +2383,28 @@ export function mountMira(root) {
         ? toneTag('ok', 'Limites coerentes')
         : toneTag('warn', 'Ordem dos limites incorreta');
     const row = (l, v) => '<div class="kvl"><span>' + l + '</span><b>' + v + '</b></div>';
+    // O que ainda impede o envio, pela mesma regra do servidor; cada item leva ao campo.
+    const falta = MIRA.prrErrors(p, { semDefinir: !canDefinir(me(), r) });
+    const pronto = falta.length
+      ? '<div class="falta"><span class="eyebrow">Falta para enviar (' +
+        falta.length +
+        ')</span><ul>' +
+        falta
+          .map(
+            m =>
+              '<li><button type="button" class="falta-i" data-ir="' +
+              esc(m) +
+              '" title="Ir para o campo">' +
+              esc(m) +
+              '</button></li>',
+          )
+          .join('') +
+        '</ul></div>'
+      : '<div class="falta">' + toneTag('ok', 'Pronto para enviar ao gestor') + '</div>';
     return (
       '<span class="eyebrow">Resumo do PRR</span><p class="hint" style="margin:2px 0 10px">Atualiza enquanto você preenche.</p>' +
+      pronto +
+      '<div class="sep-line"></div>' +
       '<div class="kvl"><span>Risco atual → residual</span><div class="chips2">' +
       lvc(n) +
       '<span class="arr" aria-hidden="true">→</span>' +
@@ -3048,7 +3086,11 @@ export function mountMira(root) {
     const head = isNew
       ? '<div class="card rhead"><div class="rhead-top"><button class="btn sm" data-nav="riscos">← Riscos</button><span class="unit">' +
         u.unit +
-        '</span></div><h2>Novo risco</h2><p class="muted">Primeiro salve o contexto da coordenadoria; depois descreva o risco no formato do MGR.</p></div>'
+        '</span></div><h2>Novo risco</h2><p class="muted">' +
+        (ctxOk
+          ? 'Descreva o risco no formato do MGR. O contexto da coordenadoria já está salvo; para revê-lo, abra a fase 1.'
+          : 'Primeiro salve o contexto da coordenadoria; depois descreva o risco no formato do MGR.') +
+        '</p></div>'
       : riskHead(u, r);
     const hist = isNew
       ? ''
@@ -4570,6 +4612,8 @@ export function mountMira(root) {
         esc(e.message) +
         '</p></div>';
     }
+    // A tela nova vem do que está salvo: nada digitado fica pendente.
+    UI.sujo = false;
     root.innerHTML =
       '<header class="top"><div class="bar"><div class="logo"><button type="button" class="mira-btn" data-mira aria-label="Mira, o mascote do MIRA">' +
       LOGO +
@@ -5203,8 +5247,9 @@ export function mountMira(root) {
       case 'novo':
         UI.view = 'risco';
         UI.rid = 'new';
-        // O novo risco começa pelo contexto da coordenadoria (fase 1).
-        UI.tab = 1;
+        // O novo risco começa pelo contexto da coordenadoria (fase 1); com o contexto já salvo, abre direto
+        // na identificação (fase atual), e o contexto continua à vista no resumo e na aba 1.
+        UI.tab = (S.ctx[me().unit] || {}).escopo ? 2 : 1;
         UI.draft = null;
         UI.warnAck = false;
         render();
@@ -5618,8 +5663,8 @@ export function mountMira(root) {
     [/recursos/i, '#p-recur'],
     [/responsável/i, '#p-resp-busca,#p-resp'],
     [/prazo/i, '#p-prazo'],
-    [/métrica/i, '#p-metrica-sel'],
     [/unidade/i, '#p-unid-sel'],
+    [/métrica/i, '#p-metrica-sel'],
     [/parâmetros|ideal|crítico/i, '#p-crit'],
     [/residua/i, '#p-probres'],
     [/parecer|motivo|observação/i, '#ap-motivo,textarea[id$="motivo"]'],
@@ -5717,6 +5762,38 @@ export function mountMira(root) {
       render();
     }
   }
+  // Campos que não são conteúdo a salvar: filtros, pesquisas, escolha de coordenadoria e preferências de tema.
+  const naoSuja = t =>
+    !t.closest ||
+    !t.closest('main') ||
+    t.dataset.filter !== undefined ||
+    t.dataset.qfilt !== undefined ||
+    t.dataset.ctxunit !== undefined ||
+    t.dataset.filtra !== undefined ||
+    t.dataset.ubusca !== undefined ||
+    t.dataset.rbusca !== undefined ||
+    t.dataset.marco !== undefined ||
+    t.name === 'tema' ||
+    (!!t.id && t.id.indexOf('cfg-') === 0);
+  // Marca a tela como tendo algo digitado e não salvo.
+  const marcaSujo = e => {
+    if (!naoSuja(e.target)) UI.sujo = true;
+  };
+  // Pergunta antes de sair de uma tela com algo digitado e não salvo. Verdadeiro = pode sair.
+  function podeSair() {
+    if (!UI.sujo || typeof window.confirm !== 'function') return true;
+    const ok = window.confirm(
+      'Você digitou algo que ainda não foi salvo. Se sair agora, isso se perde.\n\nSair mesmo assim?',
+    );
+    if (ok) UI.sujo = false;
+    return ok;
+  }
+  // Fechar ou recarregar a página com algo não salvo: o navegador pergunta antes.
+  const onSaida = e => {
+    if (!UI.sujo) return;
+    e.preventDefault();
+    e.returnValue = '';
+  };
   // Cliques da tela inteira, por delegação no elemento raiz (data-act, data-open, data-nav...).
   const onClick = e => {
     // Clique na mira do topo (o elemento precisa ter o atributo data-mira de fato).
@@ -5740,14 +5817,29 @@ export function mountMira(root) {
       if (r && sp && si) {
         sp.value = String(lim(r.prob + dp));
         si.value = String(lim(r.imp + di));
+        UI.sujo = true;
         prrLive();
       }
+      return;
+    }
+    // Item de "O que falta para enviar" no resumo do PRR: leva ao campo.
+    const ir = e.target.closest('[data-ir]');
+    if (ir && ir.dataset.ir) {
+      irAoErro([ir.dataset.ir]);
       return;
     }
     const t = e.target.closest(
       '[data-act],[data-open],[data-nav],[data-tab],[data-panel],[data-cell],[data-tce],[data-stfilt]',
     );
     if (!t) return;
+    // Sair da tela (outro risco, outra aba, outro menu, sair do sistema) com algo digitado e não salvo pede confirmação.
+    const sai =
+      t.dataset.open ||
+      t.dataset.nav ||
+      t.dataset.tab ||
+      t.dataset.panel ||
+      ['novo', 'config', 'logout'].includes(t.dataset.act);
+    if (sai && !podeSair()) return;
     if (t.dataset.open) {
       e.preventDefault();
       openRisk(t.dataset.open);
@@ -5927,6 +6019,18 @@ export function mountMira(root) {
       if (h) h.textContent = brlLido(e.target.value);
       if (e.target.id === 'f-exp') updAv();
     }
+    // Pesquisa na lista de riscos: esconde as linhas sem o texto, sem remontar a tela (o cursor fica no campo).
+    if (e.target.dataset.rbusca !== undefined) {
+      UI.filt.q = e.target.value;
+      const q = semAcento(e.target.value.trim());
+      let n = 0;
+      root.querySelectorAll('tr[data-rb]').forEach(tr => {
+        tr.hidden = !!q && !tr.dataset.rb.includes(q);
+        if (!tr.hidden) n++;
+      });
+      root.querySelectorAll('[data-rvazio]').forEach(d => (d.hidden = n > 0));
+      return;
+    }
     if (e.target.dataset.ubusca !== undefined) {
       const q = e.target.value.trim().toLowerCase();
       root
@@ -6023,6 +6127,9 @@ export function mountMira(root) {
   root.addEventListener('click', onClick);
   root.addEventListener('change', onChange);
   root.addEventListener('input', onInput);
+  root.addEventListener('input', marcaSujo);
+  root.addEventListener('change', marcaSujo);
+  if (window.addEventListener) window.addEventListener('beforeunload', onSaida);
   root.addEventListener('submit', onSubmit);
   root.addEventListener('pointerover', onTip);
   root.addEventListener('pointerleave', hideTip);
@@ -6055,6 +6162,9 @@ export function mountMira(root) {
     root.removeEventListener('click', onClick);
     root.removeEventListener('change', onChange);
     root.removeEventListener('input', onInput);
+    root.removeEventListener('input', marcaSujo);
+    root.removeEventListener('change', marcaSujo);
+    if (window.removeEventListener) window.removeEventListener('beforeunload', onSaida);
     root.removeEventListener('submit', onSubmit);
     root.removeEventListener('pointerover', onTip);
     root.removeEventListener('pointerleave', hideTip);

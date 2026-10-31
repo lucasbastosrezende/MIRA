@@ -18,6 +18,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 | Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
+| Navegador (roteiro de UX) | 9 de 9 cenários das melhorias de uso, fora do repositório (ver item 21) |
 | Visual | capturas no computador e a 390 px, temas claro e escuro, sem rolagem lateral e sem erro na página |
 
 ## Problemas encontrados e como foram resolvidos
@@ -153,6 +154,37 @@ Na primeira rodada, 9 falharam por problemas do próprio roteiro, não do sistem
 - não havia risco em tratamento no banco de teste.
 
 Corrigido o roteiro, os 13 passaram.
+
+### 21. Experiência de uso (branch `feature/ux-fluxos`, 31/10/2026)
+O visual ficou congelado a pedido do usuário; só mudou o que facilita o uso. Um passeio por todas as telas de cada perfil (computador e 390 px) achou:
+
+| Achado | Resolvido |
+|---|---|
+| O PRR é longo e era perdido sem aviso ao trocar de aba, de menu ou de risco antes de salvar | A tela marca quando há algo digitado e pergunta antes de sair; fechar ou recarregar também pergunta |
+| O "o que falta" só aparecia depois de clicar em Enviar | O resumo do PRR lista o que falta enquanto se preenche, cada item leva ao campo |
+| O erro "Informe a unidade da métrica" levava ao campo da métrica, não ao da unidade | A regra da unidade passou a vir antes da regra da métrica |
+| Todo risco novo voltava à fase 1, mesmo com o contexto já salvo | Com contexto salvo, abre direto na identificação; sem contexto, continua começando por ele |
+| A lista de riscos não tinha pesquisa | Pesquisa por código, título, causa, evento, impacto ou quem abriu, sem acento e sem tirar o cursor do campo |
+| No celular, Pendências e Alertas ficavam fora da tela, no fim do menu | O menu quebra em linhas |
+| No celular, "2 nível 12" não cabia na célula da matriz | A célula mostra só a contagem; o nível fica na dica |
+
+Roteiro de UX (fora do repositório), 9 cenários:
+
+| # | Cenário | Resultado |
+|---|---|---|
+| U01 | Novo risco abre na identificação quando o contexto já está salvo | ok |
+| U02 | Sair com algo digitado pergunta; "Cancelar" mantém o texto | ok |
+| U03 | Sem nada digitado, a navegação não pergunta | ok |
+| U04 | Trocar de aba no PRR com texto pergunta; depois de salvar, não pergunta | ok |
+| U05 | Recarregar a página com algo não salvo: o navegador pergunta | ok |
+| U06 | Resumo do PRR lista o que falta, leva ao campo e diminui ao preencher | ok |
+| U07 | Tudo preenchido: "Pronto para enviar ao gestor" | ok |
+| U08 | Pesquisa sem acento, aviso de nada encontrado, mantida ao mudar outro filtro | ok |
+| U09 | Celular: menu inteiro à vista, matriz só com a contagem, sem rolagem lateral | ok |
+
+No roteiro principal, o cenário T08 esperava que todo risco novo começasse pelo contexto. Ele foi ajustado à regra nova; como o risco desse cenário é a base dos seguintes, a primeira rodada caiu em cascata (24 de 49) antes do ajuste. Depois do ajuste, 49 de 49.
+
+No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de justificativa ao TCE só aparece para riscos avaliados, e o cenário dependia de riscos deixados por rodadas anteriores. O cenário passou a criar o seu risco; na rodada seguinte, 13 de 13.
 
 ## Visual
 

@@ -101,11 +101,11 @@ Todos os perfis alternam entre os dois painéis. Alta Gestão de Riscos e CGGE a
 
 | Tela | Para quê | Quem vê |
 |---|---|---|
-| Riscos | Lista com filtros por coordenadoria, nível e situação; menu Baixar com Excel e os CSVs | Todos |
+| Riscos | Lista com pesquisa (código, título, causa, evento, impacto ou quem abriu; acentos não importam) e filtros por coordenadoria, nível e situação; menu Baixar com Excel e os CSVs | Todos |
 | Quadro | Colunas pelas etapas do processo (identificar e avaliar, elaborar o PRR, em validação, em tratamento, evento ocorreu, encerrado), com quem resolve cada risco e filtro por responsável. O gestor da coordenadoria delega a um cadastrador ou a si mesmo, com uma observação; a delegação vai para o histórico e gera um aviso | Todos menos o administrador; delega o gestor |
 | Matriz | Matriz 5 × 5 com a distribuição por nível e a lista da célula escolhida | Todos |
 | Pendências | O que depende do perfil: rascunhos e devoluções (cadastrador), validações (gestor), aprovações com custo e retorno (Alta Gestão de Riscos) | Todos, menos CGGE |
-| Contexto | Fase 1 da coordenadoria; abre pelo botão Contexto na aba Riscos e é o primeiro passo do Novo risco | Todos; edita o cadastrador |
+| Contexto | Fase 1 da coordenadoria; abre pelo botão Contexto na aba Riscos. É o primeiro passo do Novo risco enquanto a coordenadoria não tem contexto salvo; depois disso, o Novo risco abre direto na identificação e o contexto continua na fase 1 | Todos; edita o cadastrador |
 | Histórico | Linha do tempo de todas as alterações, com valor anterior e novo | Todos, filtrado pela coordenadoria |
 | Alertas | Avisos do momento e avisos guardados | Todos |
 | Relatório | Relatório da Alta Gestão de Riscos por período: semanal, mensal (o padrão), semestral ou anual, com setas para os períodos anteriores. Mostra o que aconteceu no período (riscos cadastrados, PRRs aprovados e devolvidos, investimento aprovado, medições, eventos e encerramentos, pelas datas guardadas em cada risco) e a situação de hoje. Lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, Alta Gestão de Riscos e CGGE |
@@ -115,6 +115,13 @@ Todos os perfis alternam entre os dois painéis. Alta Gestão de Riscos e CGGE a
 Quem é de uma coordenadoria vê no cabeçalho a sigla em maiúsculas e o nome por extenso dela (por exemplo, "COSEGI · nome por extenso"). Os dois vêm do cadastro feito pelo administrador; nenhuma coordenadoria é fixa no código.
 
 **Downloads.** Na tela, os textos longos (relatório anual e justificativa para o TCE) aparecem em Markdown formatado. O botão **Baixar** abre as opções de formato: Excel; CSV de riscos, por coordenadoria, por coordenadoria e faixa, de medições, do quadro e do histórico; e Markdown ou texto puro para o relatório e a justificativa. Os CSVs usam ";", vírgula decimal e acentos preservados, para abrir direto no Excel.
+
+## Facilidades de uso
+
+- **Nada digitado se perde sem aviso:** quem digitou algo e tenta sair da tela antes de salvar (outro menu, outra aba do risco, outro risco, Configurações ou Sair) recebe uma pergunta; "Cancelar" mantém tudo como estava. Fechar ou recarregar a página também pergunta. Filtros e pesquisas não contam como algo a salvar.
+- **O que falta para enviar o PRR:** o resumo ao lado do PRR lista, enquanto se preenche, o que ainda impede o envio, pela mesma regra do servidor. Cada item leva ao campo. Com tudo preenchido, aparece "Pronto para enviar ao gestor".
+- **Erro repetido:** se o mesmo erro aparece duas vezes seguidas, a tela vai até o campo que falta e o destaca.
+- **Celular:** o menu quebra em linhas para Pendências e Alertas ficarem sempre à vista; na matriz, cada célula mostra só a contagem (o nível fica na dica).
 
 ## Decisões da CSGR
 
