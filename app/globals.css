@@ -476,6 +476,12 @@ main>.card{box-shadow:var(--shadow)}
 .chips2{display:flex;align-items:center;gap:6px}
 .arr{color:var(--muted)}
 .sep-line{height:14px}
+/* Encolher blocos: só o cabeçalho fica à vista */
+.card-h .encolhe{flex:none;margin-left:auto}
+.card.encolhido>:not(.card-h){display:none!important}
+.card.encolhido>.card-h{margin-bottom:0}
+/* Pesquisa por data nos históricos */
+.hist-datas .field{margin:0}
 /* O que falta para enviar o PRR: cada item é um atalho para o campo */
 .falta ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px;max-height:230px;overflow:auto}
 .falta-i{background:none;border:0;padding:4px 0;text-align:left;color:var(--accent);font:600 13px/1.35 var(--font-body);cursor:pointer}

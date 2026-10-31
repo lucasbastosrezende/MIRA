@@ -107,7 +107,7 @@ Todos os perfis alternam entre os dois painéis. Alta Gestão de Riscos e CGGE a
 | Matriz | Matriz 5 × 5 com a distribuição por nível e a lista da célula escolhida | Todos |
 | Pendências | O que depende do perfil: rascunhos e devoluções (cadastrador), validações (gestor), aprovações com custo e retorno (Alta Gestão de Riscos) | Todos, menos CGGE |
 | Contexto | Fase 1 da coordenadoria; abre pelo botão Contexto na aba Riscos. É o primeiro passo do Novo risco enquanto a coordenadoria não tem contexto salvo; depois disso, o Novo risco abre direto na identificação e o contexto continua na fase 1 | Todos; edita o cadastrador |
-| Histórico | Linha do tempo de todas as alterações, com valor anterior e novo | Todos, filtrado pela coordenadoria |
+| Histórico | Linha do tempo de todas as alterações, com valor anterior e novo. Pesquisa por data (de / até): o período é buscado no servidor, inteiro, e não só entre os registros mais recentes. A mesma pesquisa existe no histórico de cada risco | Todos, filtrado pela coordenadoria |
 | Alertas | Avisos do momento e avisos guardados | Todos |
 | Relatório | Relatório da Alta Gestão de Riscos por período: semanal, mensal (o padrão), semestral ou anual, com setas para os períodos anteriores. Mostra o que aconteceu no período (riscos cadastrados, PRRs aprovados e devolvidos, investimento aprovado, medições, eventos e encerramentos, pelas datas guardadas em cada risco) e a situação de hoje. Lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, Alta Gestão de Riscos e CGGE |
 | Usuários | Cadastro de pessoas com o relatório de pedido (SEI ou pedido formal, número SEI, data e PDF), registro de pedido de quem já tem conta, busca por nome ou número SEI, download do PDF e do relatório de pedido (.md ou .txt), redefinição de senha, desativação, exclusão e cobertura de cada coordenadoria | Administrador |
@@ -121,6 +121,7 @@ Quem é de uma coordenadoria vê no cabeçalho a sigla em maiúsculas e o nome p
 
 - **Nada digitado se perde sem aviso:** quem digitou algo e tenta sair da tela antes de salvar (outro menu, outra aba do risco, outro risco, Configurações ou Sair) recebe uma pergunta; "Cancelar" mantém tudo como estava. Fechar ou recarregar a página também pergunta. Filtros e pesquisas não contam como algo a salvar.
 - **O que falta para enviar o PRR:** o resumo ao lado do PRR lista, enquanto se preenche, o que ainda impede o envio, pela mesma regra do servidor. Cada item leva ao campo. Com tudo preenchido, aparece "Pronto para enviar ao gestor".
+- **Encolher blocos:** cada bloco com título tem o botão "Encolher / Mostrar". Encolher só esconde o conteúdo (o que foi digitado continua no lugar) e a escolha fica guardada no navegador de quem usa.
 - **Erro repetido:** se o mesmo erro aparece duas vezes seguidas, a tela vai até o campo que falta e o destaca.
 - **Celular:** o menu quebra em linhas para Pendências e Alertas ficarem sempre à vista; na matriz, cada célula mostra só a contagem (o nível fica na dica).
 

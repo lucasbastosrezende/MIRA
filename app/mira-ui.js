@@ -147,6 +147,8 @@ export function mountMira(root) {
     ctxPeek: false,
     // Verdadeiro quando há algo digitado num formulário que ainda não foi salvo (some a cada nova montagem da tela).
     sujo: false,
+    // Pesquisa por data nos históricos: dias "AAAA-MM-DD" e a lista do período que veio do servidor (null = sem filtro).
+    hist: { de: '', ate: '', lista: null },
   };
   // Pessoa com sessão aberta.
   const me = () => S.me;
@@ -3105,7 +3107,10 @@ export function mountMira(root) {
     const hist = isNew
       ? ''
       : '<div class="card"><h3>Histórico deste risco</h3>' +
-        historyList(S.audit.filter(a => a.riskId === r.id).slice(0, 30)) +
+        histBarra((UI.hist.lista || []).filter(a => a.riskId === r.id).length) +
+        historyList(
+          (UI.hist.lista || S.audit).filter(a => a.riskId === r.id).slice(0, UI.hist.lista ? 2000 : 30),
+        ) +
         '</div>';
     return head + step + body + hist;
   }
@@ -3233,15 +3238,57 @@ export function mountMira(root) {
   }
   // Tela Histórico: toda a trilha de auditoria visível para o perfil.
   function viewHist(u) {
-    const list = S.audit
+    const list = (UI.hist.lista || S.audit)
       .filter(a => u.papel === 'altagestao' || u.papel === 'cgge' || a.unit === u.unit)
-      .slice(0, 80);
+      .slice(0, UI.hist.lista ? 2000 : 80);
     return (
       pageHead('Histórico de alterações', 'Quem alterou, quando e o quê. Nada é apagado.') +
       '<div class="card">' +
+      histBarra(list.length) +
       historyList(list, true) +
       '</div>'
     );
+  }
+  // Barra de pesquisa por data dos históricos (de / até), com quantos registros o período tem.
+  function histBarra(n) {
+    const h = UI.hist,
+      on = !!(h.de || h.ate);
+    return (
+      '<div class="row hist-datas" style="align-items:flex-end;margin-bottom:12px">' +
+      '<div class="field"><label for="hist-de">De</label><input type="date" id="hist-de" data-hist="de" value="' +
+      esc(h.de) +
+      '"></div><div class="field"><label for="hist-ate">Até</label><input type="date" id="hist-ate" data-hist="ate" value="' +
+      esc(h.ate) +
+      '"></div>' +
+      (on
+        ? '<button class="btn sm" data-act="hist-limpa">Limpar datas</button><span class="muted small" role="status">' +
+          (h.lista ? n + ' registro(s) no período' : 'Buscando…') +
+          '</span>'
+        : '<span class="muted small">Escolha um dia ou um período para pesquisar.</span>') +
+      '</div>'
+    );
+  }
+  // Busca no servidor o histórico do período escolhido (o estado traz só os registros mais recentes).
+  async function buscaHist() {
+    const h = UI.hist;
+    if (!h.de && !h.ate) {
+      h.lista = null;
+      render(true);
+      return;
+    }
+    // O dia é o do relógio de quem usa: início e fim do dia local viram instantes ISO para o servidor.
+    const ini = h.de ? pd(h.de).toISOString() : '',
+      fim = h.ate ? new Date(pd(h.ate).getTime() + DAY - 1).toISOString() : '';
+    h.lista = null;
+    render(true);
+    try {
+      const r = await api('GET', 'audit?ini=' + encodeURIComponent(ini) + '&fim=' + encodeURIComponent(fim));
+      h.lista = r.audit || [];
+    } catch (e) {
+      h.lista = [];
+      toast(e.message);
+    }
+    render(true);
   }
   /* ===== Quadro: etapas do processo e quem resolve cada risco ===== */
   // Colunas do quadro, na ordem do processo: [chave, nome, situações do risco que entram nela].
@@ -4567,6 +4614,62 @@ export function mountMira(root) {
       '<button class="btn primary" type="submit" style="width:100%">Entrar</button></form></div></section></div>'
     );
   }
+  // Blocos que a pessoa encolheu, guardados no navegador dela (tela + título do bloco).
+  const encolhidos = () => {
+    try {
+      return new Set(JSON.parse(pref.get('encolhidos', '[]')));
+    } catch (e) {
+      return new Set();
+    }
+  };
+  // Põe o botão "Encolher / Mostrar" em cada bloco com título e reaplica o que estava encolhido.
+  // Encolher só esconde o conteúdo: o que foi digitado continua no lugar.
+  function encolhiveis() {
+    if (!root.querySelectorAll || !document.createElement) return;
+    const salvo = encolhidos();
+    root.querySelectorAll('main .card').forEach(c => {
+      let h = c.firstElementChild;
+      if (!h) return;
+      // Bloco com só um título (h3) no topo: o título passa para o cabeçalho padrão (.card-h).
+      if (h.tagName === 'H3') {
+        const w = document.createElement('div');
+        w.className = 'card-h';
+        c.insertBefore(w, h);
+        w.appendChild(h);
+        h = w;
+      }
+      if (!h.classList || !h.classList.contains('card-h')) return;
+      const tit = h.querySelector('h3');
+      if (!tit) return;
+      const chave = UI.view + ':' + tit.textContent.trim().slice(0, 80),
+        fechado = salvo.has(chave);
+      c.classList.toggle('encolhido', fechado);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn sm encolhe';
+      b.dataset.encolhe = chave;
+      h.appendChild(b);
+      rotuloEncolhe(b, fechado);
+    });
+  }
+  // Texto e estado do botão de encolher (texto e seta, nunca só a seta).
+  function rotuloEncolhe(b, fechado) {
+    b.setAttribute('aria-expanded', String(!fechado));
+    b.textContent = fechado ? 'Mostrar ▾' : 'Encolher ▴';
+    b.title = fechado ? 'Mostrar o conteúdo deste bloco' : 'Esconder o conteúdo deste bloco';
+  }
+  // Encolhe ou mostra um bloco e guarda a escolha no navegador.
+  function trocaEncolhe(b) {
+    const c = b.closest('.card');
+    if (!c) return;
+    const fechado = !c.classList.contains('encolhido'),
+      salvo = encolhidos();
+    c.classList.toggle('encolhido', fechado);
+    if (fechado) salvo.add(b.dataset.encolhe);
+    else salvo.delete(b.dataset.encolhe);
+    pref.set('encolhidos', JSON.stringify([...salvo]));
+    rotuloEncolhe(b, fechado);
+  }
   // Monta a tela inteira a partir de S e UI. keep = manter a rolagem.
   // Toda alteração de estado termina aqui; não há atualização parcial além dos resumos ao vivo.
   function render(keep) {
@@ -4664,6 +4767,7 @@ export function mountMira(root) {
       v +
       '</main></div>';
     if (UI.view === 'risco' && UI.tab === 2) refreshIdent(true);
+    encolhiveis();
     window.scrollTo(0, keep ? sy : 0);
   }
 
@@ -5273,6 +5377,10 @@ export function mountMira(root) {
         UI.warnAck = false;
         render();
         break;
+      case 'hist-limpa':
+        UI.hist = { de: '', ate: '', lista: null };
+        render(true);
+        break;
       case 'clearfilt':
         UI.filt = { unit: '', nv: '', st: '', cell: null };
         render(true);
@@ -5795,6 +5903,7 @@ export function mountMira(root) {
     t.dataset.filtra !== undefined ||
     t.dataset.ubusca !== undefined ||
     t.dataset.rbusca !== undefined ||
+    t.dataset.hist !== undefined ||
     t.dataset.marco !== undefined ||
     t.name === 'tema' ||
     (!!t.id && t.id.indexOf('cfg-') === 0);
@@ -5843,6 +5952,12 @@ export function mountMira(root) {
         UI.sujo = true;
         prrLive();
       }
+      return;
+    }
+    // Botão de encolher ou mostrar um bloco (não remonta a tela).
+    const enc = e.target.closest('[data-encolhe]');
+    if (enc && enc.dataset.encolhe) {
+      trocaEncolhe(enc);
       return;
     }
     // Item de "O que falta para enviar" no resumo do PRR: leva ao campo.
@@ -5949,6 +6064,11 @@ export function mountMira(root) {
     if (t.dataset.filter) {
       UI.filt[t.dataset.filter] = t.value;
       render(true);
+      return;
+    }
+    if (t.dataset.hist) {
+      UI.hist[t.dataset.hist] = t.value;
+      buscaHist();
       return;
     }
     if (t.dataset.qfilt !== undefined) {

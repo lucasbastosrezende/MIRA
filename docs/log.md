@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 141 verificações, todas passando |
+| API | 145 verificações, todas passando |
 | Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
@@ -190,6 +190,16 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Achado:** teste manual do usuário. A Alta Gestão devolveu o PRR, o supervisor (gestor) ajustou e reenviou, e o PRR não apareceu de novo para a Alta Gestão. O envio do gestor levava o PRR para "aguardando gestor", ou seja, para a fila dele mesmo; o botão dizia "Enviar para validação do gestor".
 - **Resolvido:** quando quem envia é o gestor da coordenadoria, o envio já é a validação dele: o PRR vai direto à Alta Gestão, com a mesma marca de alçada e o mesmo aviso da validação comum (`encaminhaAlta` em `lib/service.js`, usada pelas duas ações). Para o gestor, o botão diz "Validar e enviar à Alta Gestão de Riscos" e a pendência do devolvido diz "ajustar e enviar de novo à Alta Gestão de Riscos". O envio do cadastrador continua indo ao gestor.
 - **Conferido:** teste de API (o gestor reenvia, a situação vira "aguardando Alta Gestão", a Alta Gestão vê o risco e recebe um segundo aviso) e o caminho no navegador: Alta Gestão devolve → supervisor reenvia pela tela → o PRR sai da fila do supervisor e aparece na fila e nos alertas da Alta Gestão.
+
+### 23. Encolher blocos e pesquisa por data nos históricos
+- **Pedido:** opção para reduzir o texto na tela, encolhendo blocos, e pesquisa por data nos históricos.
+- **Feito:** botão "Encolher / Mostrar" em todo bloco com título, lembrado no navegador; filtro "De / Até" na tela Histórico e no histórico de cada risco. O estado entrega só os 500 registros mais recentes, por isso o período é buscado no servidor (`GET /api/audit?ini=&fim=`), com as mesmas regras de quem vê o quê e no máximo 2.000 registros.
+- **Conferido:** 4 testes de API (o período traz o que aconteceu, outra coordenadoria não aparece, período vazio, datas invertidas recusadas) e 7 cenários no navegador (encolher, lembrar depois de recarregar, mostrar de novo, encolher o PRR sem perder o texto, pesquisa por dia, período vazio e "Limpar datas", histórico do risco, celular sem rolagem lateral). Um dos cenários falhou na primeira rodada por erro do próprio roteiro (procurava uma classe que o bloco não usa).
+
+### 24. Atalho da mira só segurando
+- **Pedido:** a troca de tema pela mira passa a ser segurando.
+- **Feito:** clique simples não muda nada; segurar e soltar depois de 0,6 s troca o tema; segurar até 2 s troca só a cor da mira. No celular, segurar não abre o menu de toque.
+- **Conferido:** no navegador, os quatro casos (clique, 0,9 s, 2,3 s, toque curto).
 
 ## Visual
 

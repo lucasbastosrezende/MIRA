@@ -486,6 +486,21 @@ const ok = (c, m) => {
   });
   ok(r.s === 200 && r.risk.status === 'em_tratamento', 'Alta Gestão aprova');
 
+  // Pesquisa do histórico por data: o período vem do servidor, com as mesmas regras de quem vê o quê
+  const hoje0 = new Date(Date.now() - 864e5).toISOString(),
+    hoje1 = new Date(Date.now() + 864e5).toISOString();
+  r = await call('altagestao', 'GET', 'audit?ini=' + hoje0 + '&fim=' + hoje1);
+  ok(r.s === 200 && r.audit.some(a => a.riskId === 'R-001'), 'histórico do período traz o que aconteceu');
+  r = await call('cad2', 'GET', 'audit?ini=' + hoje0 + '&fim=' + hoje1);
+  ok(
+    r.s === 200 && !r.audit.some(a => a.unit === 'Cosegi'),
+    'histórico do período não mostra outra coordenadoria',
+  );
+  r = await call('altagestao', 'GET', 'audit?ini=2001-01-01T00:00:00.000Z&fim=2001-01-02T00:00:00.000Z');
+  ok(r.s === 200 && r.audit.length === 0, 'período sem registros volta vazio');
+  r = await call('altagestao', 'GET', 'audit?ini=' + hoje1 + '&fim=' + hoje0);
+  ok(r.s === 422, 'data inicial depois da final é recusada');
+
   // Monitoramento (fase 5) e trilha de auditoria
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'add-med', valor: 12 });
   ok(r.s === 200, 'medição 12 (crítico)');
