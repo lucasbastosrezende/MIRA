@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 139 verificações, todas passando |
+| API | 141 verificações, todas passando |
 | Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
@@ -184,7 +184,12 @@ Roteiro de UX (fora do repositório), 9 cenários:
 
 No roteiro principal, o cenário T08 esperava que todo risco novo começasse pelo contexto. Ele foi ajustado à regra nova; como o risco desse cenário é a base dos seguintes, a primeira rodada caiu em cascata (24 de 49) antes do ajuste. Depois do ajuste, 49 de 49.
 
-No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de justificativa ao TCE só aparece para riscos avaliados, e o cenário dependia de riscos deixados por rodadas anteriores. O cenário passou a criar o seu risco; na rodada seguinte, 13 de 13.
+No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de justificativa ao TCE só aparece para riscos avaliados, e o cenário dependia de riscos deixados por rodadas anteriores. O cenário passou a criar o seu risco, já com um PRR, porque o botão fica desativado de propósito enquanto o risco não tem PRR; na rodada seguinte, 13 de 13.
+
+### 22. PRR devolvido pela Alta Gestão e reenviado pelo supervisor não voltava a ela
+- **Achado:** teste manual do usuário. A Alta Gestão devolveu o PRR, o supervisor (gestor) ajustou e reenviou, e o PRR não apareceu de novo para a Alta Gestão. O envio do gestor levava o PRR para "aguardando gestor", ou seja, para a fila dele mesmo; o botão dizia "Enviar para validação do gestor".
+- **Resolvido:** quando quem envia é o gestor da coordenadoria, o envio já é a validação dele: o PRR vai direto à Alta Gestão, com a mesma marca de alçada e o mesmo aviso da validação comum (`encaminhaAlta` em `lib/service.js`, usada pelas duas ações). Para o gestor, o botão diz "Validar e enviar à Alta Gestão de Riscos" e a pendência do devolvido diz "ajustar e enviar de novo à Alta Gestão de Riscos". O envio do cadastrador continua indo ao gestor.
+- **Conferido:** teste de API (o gestor reenvia, a situação vira "aguardando Alta Gestão", a Alta Gestão vê o risco e recebe um segundo aviso) e o caminho no navegador: Alta Gestão devolve → supervisor reenvia pela tela → o PRR sai da fila do supervisor e aparece na fila e nos alertas da Alta Gestão.
 
 ## Visual
 

@@ -463,9 +463,20 @@ const ok = (c, m) => {
     r.s === 200 && r.risk.status === 'devolvido' && r.risk.prr.responsavel === 'empresateste',
     'Alta Gestão devolve indicando a empresa terceirizada',
   );
-  await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-ok' });
-  ok(r.s === 200 && r.risk.prr.responsavelId === emp.id, 'empresa indicada segue como responsável');
+  // O supervisor ajusta e reenvia o PRR devolvido pela Alta Gestão: o envio dele já é a validação,
+  // e o PRR volta à Alta Gestão em vez de parar na fila do próprio gestor.
+  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  ok(
+    r.s === 200 && r.risk.status === 'ag_altagestao',
+    'gestor reenvia o PRR devolvido e ele volta à Alta Gestão',
+  );
+  ok(r.risk.prr.responsavelId === emp.id, 'empresa indicada segue como responsável');
+  st = await call('altagestao', 'GET', 'state');
+  ok(
+    st.risks.some(x => x.id === 'R-001' && x.status === 'ag_altagestao') &&
+      st.alerts.filter(a => a.tipo === 'aprovacao' && a.riskId === 'R-001').length >= 2,
+    'Alta Gestão vê o PRR reenviado e recebe o aviso de novo',
+  );
   // Regra do MGR (p. 21): a CSGR emite parecer; aprovar sem parecer é recusado
   r = await call('altagestao', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
   ok(r.s === 422, 'aprovar sem parecer é recusado');

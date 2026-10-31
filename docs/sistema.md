@@ -41,13 +41,14 @@ rascunho → avaliado → aguardando gestor → aguardando Alta Gestão → em t
                           │                    │                  │
                           └──── devolvido ◄────┘                  └→ evento ocorreu → encerrado
                                   │
-                                  └→ (cadastrador corrige e reenvia ao gestor)
+                                  ├→ (cadastrador corrige e reenvia ao gestor)
+                                  └→ (gestor corrige e envia direto à Alta Gestão)
 ```
 
 - **Rascunho:** identificado, ainda sem avaliação.
 - **Avaliado:** tem probabilidade e impacto; falta o PRR.
 - **Aguardando gestor / aguardando Alta Gestão:** PRR em validação. Ninguém edita o risco nessa etapa.
-- **Devolvido:** gestor ou Alta Gestão de Riscos devolveu com motivo obrigatório; o motivo aparece no topo do PRR para quem vai corrigir.
+- **Devolvido:** gestor ou Alta Gestão de Riscos devolveu com motivo obrigatório; o motivo aparece no topo do PRR para quem vai corrigir. Se quem corrige e envia é o cadastrador, o PRR volta ao gestor. Se é o próprio gestor (supervisor), o envio já é a validação dele e o PRR vai direto à Alta Gestão de Riscos, que recebe o aviso de novo. O mesmo vale para um PRR que o gestor elabora.
 - **Em tratamento:** PRR aprovado; começa o monitoramento da métrica.
 - **Evento ocorreu:** o risco se materializou; gestor e Alta Gestão de Riscos são avisados para reavaliar. Dali o risco volta ao tratamento ("Retomar o tratamento") ou o PRR é reaberto para revisão e passa de novo pelas validações.
 - **Encerrado:** fechado pelo gestor; sai dos riscos ativos e dos painéis.

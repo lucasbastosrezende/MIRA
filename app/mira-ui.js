@@ -596,7 +596,7 @@ export function mountMira(root) {
         .filter(r => r.status === 'ag_gestor' || r.status === 'devolvido')
         .map(r =>
           r.status === 'devolvido'
-            ? { r, txt: 'PRR devolvido: ajustar com o cadastrador e reenviar', crit: true }
+            ? { r, txt: 'PRR devolvido: ajustar e enviar de novo à Alta Gestão de Riscos', crit: true }
             : { r, txt: 'PRR aguardando sua validação', crit: false },
         );
     if (u.papel === 'altagestao')
@@ -2825,7 +2825,12 @@ export function mountMira(root) {
       '</div>' +
       faq(['metrica', 'parametros', 'residual', 'contingencia', 'criterios', 'responsavel']) +
       '</aside></div>' +
-      '<div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">Enviar para validação do gestor</button></div>';
+      '<div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">' +
+      // O gestor que envia já valida: o PRR vai direto à Alta Gestão (mesma regra do servidor).
+      (u.papel === 'gestor'
+        ? 'Validar e enviar à Alta Gestão de Riscos'
+        : 'Enviar para validação do gestor') +
+      '</button></div>';
     const ro =
       '<div class="kvgrid">' +
       roField('Forma de tratamento', cap(p.tratamento) + ' — ' + TRAT[p.tratamento], true) +
@@ -5371,7 +5376,11 @@ export function mountMira(root) {
           break;
         }
         await refresh(true);
-        toast('PRR enviado ao gestor da ' + r.unit + '.');
+        toast(
+          u.papel === 'gestor'
+            ? 'PRR validado e enviado à Alta Gestão de Riscos.'
+            : 'PRR enviado ao gestor da ' + r.unit + '.',
+        );
         break;
       }
       // Decisões sobre o PRR: gestor valida, Alta Gestão aprova, ambos podem devolver com motivo
