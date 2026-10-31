@@ -1,0 +1,21 @@
+{
+  "name": "mira",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MIRA · Monitoramento Integrado de Riscos e Ações (SETIC)",
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1",
+    "admin": "node --no-warnings scripts/criar-admin.js",
+    "test": "npm run test:api && npm run test:ui",
+    "test:api": "node --no-warnings tests/api.test.js",
+    "test:ui": "node --no-warnings tests/ui.smoke.mjs"
+  },
+  "engines": { "node": ">=22.13" },
+  "dependencies": {
+    "next": "^15.5.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

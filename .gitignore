@@ -1,0 +1,29 @@
+# Dependências e build
+node_modules
+.next
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Banco e segredos: nunca no repositório
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.local
+.env.*.local
+
+# Saídas de teste e de navegador (o roteiro de ponta a ponta roda fora do repositório)
+e2e-data/
+test-results/
+playwright-report/
+coverage/
+shots/
+*.log
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
