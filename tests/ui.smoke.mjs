@@ -196,7 +196,10 @@ async function mkRisk(who, f, prob, imp, exp, upTo) {
   if (upTo === 'gestor') return r;
   await call('ges', 'POST', `risks/${r.id}/action`, { action: 'gestor-ok' });
   if (upTo === 'altagestao') return r;
-  await call('altagestao', 'POST', `risks/${r.id}/action`, { action: 'altagestao-ok' });
+  await call('altagestao', 'POST', `risks/${r.id}/action`, {
+    action: 'altagestao-ok',
+    motivo: 'Parecer favorável.',
+  });
   await call(who, 'POST', `risks/${r.id}/action`, { action: 'add-med', valor: 7 });
   return r;
 }

@@ -84,23 +84,39 @@ Fonte única: o **MGR v1.0** (PDF "Modelo de Gestão de Riscos", Setic, 2025). E
 | # | Regra (o que o MGR diz) | Fonte | Situação no código | O que fazer |
 |---|---|---|---|---|
 | O1 | O perfil que aprova os PRRs e faz o relatório anual é a **CSGR**. "Alta gestão" é quem o CGGE subsidia, e não a CSGR. | p. 4, 7 (Quadro 1), 20–23 | Errado na branch 3: o perfil aparece como "Alta Gestão de Riscos" (`PAPEL.altagestao`, `STAT.ag_altagestao` "Aguardando Alta Gestão"). | Voltar a exibir "CSGR" em toda a tela, nos avisos, no relatório e na documentação, e o código interno para `csgr` (Passo 0, seção 4). |
-| O2 | Faixas da Figura 5: **1–2 Irrelevante, 3–4 Baixo, 5–9 Médio, 10–16 Alto, 20–25 Extremo**. O exemplo 2 × 5 = 10 é Alto. | p. 17–18 | Errado: `band` usa 3–5 / 6–10 / 12–16. | Item 1 e 27 (Etapa 1). |
-| O3 | Cores da legenda: Extremo **vermelho**, Alto **laranja**, Médio **amarelo**, Baixo **verde**, Irrelevante **azul claro**. | p. 18 | Parcial: `--l0` é cinza-azulado (`#DDE3EA`). | Item 21 (Etapa 1): `--l0` azul claro e `--l4` vermelho nos três blocos de `globals.css`. |
-| O4 | Para a probabilidade, "deve-se considerar o Quadro 2": a descrição de cada nota é a do Quadro 2, literal (ver abaixo). | p. 15 | Errado: `PROB` tem frequências inventadas ("menos de 1 vez a cada 5 anos"). | Trocar o texto de `PROB` pelo Quadro 2. Não depende de decisão. |
-| O5 | Para o impacto, "deve-se considerar o Quadro 3": a descrição de cada nota é a do Quadro 3, literal (ver abaixo). | p. 16–17 | Errado: `IMPS` tem textos próprios. | Trocar o texto de `IMPS` pelo Quadro 3. |
-| O6 | Formas de tratamento: evitar, transferir, mitigar, aceitar, **com o sentido do MGR** (ver abaixo). | p. 20–21 | Parcial: os quatro nomes existem, mas `TRAT` tem textos próprios (ex.: "aceitar" sem a condição de custo ou nível reduzido). | Trocar o texto de `TRAT`. |
+| O2 | Matriz **5 × 5** (Figura 5): probabilidade de 1 a 5 × impacto de 1 a 5 = **25 células**; o nível é P × I e vai de **1 a 25**. Cada célula tem a faixa da Figura 5 (tabela "Matriz 5 × 5" abaixo). | p. 17–18 | Parcial: a matriz 5 × 5 e o nível P × I já existem; `band` dá faixa diferente da Figura 5 em 4 das 25 células (as de valor 5 e as de valor 10). | Item 1 e 27: ajustar `band` para as 25 células baterem com a Figura 5. **Aguardando confirmação do usuário.** |
+| O3 | Cores da legenda: Extremo **vermelho**, Alto **laranja**, Médio **amarelo**, Baixo **verde**, Irrelevante **azul claro**. | p. 18 | Feito na branch `desenvolvimento-resolvendo-problemas`. Tokens `--m0..--m4` (fundo) e `--mf0..--mf4` (texto) em `globals.css`, nos temas claro e escuro. | Item 21 (Etapa 1): `--l0` azul claro e `--l4` vermelho nos três blocos de `globals.css`. |
+| O4 | Para a probabilidade, "deve-se considerar o Quadro 2": a descrição de cada nota é a do Quadro 2, literal (ver abaixo). | p. 15 | Feito na branch `desenvolvimento-resolvendo-problemas`. | Trocar o texto de `PROB` pelo Quadro 2. Não depende de decisão. |
+| O5 | Para o impacto, "deve-se considerar o Quadro 3": a descrição de cada nota é a do Quadro 3, literal (ver abaixo). | p. 16–17 | Feito na branch `desenvolvimento-resolvendo-problemas`. | Trocar o texto de `IMPS` pelo Quadro 3. |
+| O6 | Formas de tratamento: evitar, transferir, mitigar, aceitar, **com o sentido do MGR** (ver abaixo). | p. 20–21 | Feito na branch `desenvolvimento-resolvendo-problemas`. | Trocar o texto de `TRAT`. |
 | O7 | A probabilidade é dada "na **linha do tempo definida**" (ex.: "considerando os últimos 12 meses"). | p. 14–15 | Falta. | Item 3: campo obrigatório "Linha do tempo" na avaliação, mostrado na pergunta da probabilidade e na exportação. |
 | O8 | O nível de criticidade "deve **considerar as ações de controle já existentes**". O nível que vai para a matriz e o mapa é esse. | p. 14 | Falta: "Controles existentes" só aparece no PRR, depois da nota. | Item 4: "Controles existentes" passa para a avaliação, **antes** das notas. Isso responde a dúvida "inerente ou residual": as faixas e o mapa usam o nível avaliado com os controles existentes. |
 | O9 | Os riscos devem ser categorizados; a CSGR optou pela categorização pelas setoriais: **CAGD, Coge, Code, Cosegi, Caf e Coinfra**. | p. 13, 27 (Apêndice B) | Falta: não existe campo de categorização; a coordenadoria é criada livre pelo administrador. | As 6 setoriais viram modelo pronto de coordenadoria (resposta do usuário, seção 7); a categorização do risco é a coordenadoria dele. |
-| O10 | A planilha de identificação e avaliação tem: Setorial, Data, ID, **Categorização**, Causa, Risco (evento), Impacto, Probabilidade, Impacto (nota), Nível de risco. | p. 28 (Apêndice C) | Parcial. | Item 16: a exportação ganha essas colunas, com esses nomes. |
-| O11 | O PRR tem: Setorial, Data, ID, Categorização, Risco (evento), **Controles existentes**, Ação proposta, Métrica, Responsável, Parâmetros **Crítico, Alerta e Ideal**. | p. 29 (Apêndice D) | Parcial: os campos existem, mas a exportação não traz todos. | Itens 16a e 16. |
-| O12 | A CSGR "emitirá **parecer** favorável ou não, apresentando as correções necessárias ou sugerindo melhorias". | p. 21 | Parcial: o motivo é opcional na aprovação. | Item 20: parecer obrigatório na aprovação e na devolução. |
+| O10 | A planilha de identificação e avaliação tem: Setorial, Data, ID, **Categorização**, Causa, Risco (evento), Impacto, Probabilidade, Impacto (nota), Nível de risco. | p. 28 (Apêndice C) | Feito na branch `desenvolvimento-resolvendo-problemas`. Faltam só "Linha do tempo" e "Controles existentes" na avaliação (O7, O8). | Item 16: a exportação ganha essas colunas, com esses nomes. |
+| O11 | O PRR tem: Setorial, Data, ID, Categorização, Risco (evento), **Controles existentes**, Ação proposta, Métrica, Responsável, Parâmetros **Crítico, Alerta e Ideal**. | p. 29 (Apêndice D) | Feito na branch `desenvolvimento-resolvendo-problemas`. | Itens 16a e 16. |
+| O12 | A CSGR "emitirá **parecer** favorável ou não, apresentando as correções necessárias ou sugerindo melhorias". | p. 21 | Feito na branch `desenvolvimento-resolvendo-problemas`. Aprovar sem parecer é recusado no servidor. | Item 20: parecer obrigatório na aprovação e na devolução. |
 | O13 | Os PRRs "serão concatenados em um **relatório**", elaborado pela CSGR e "atualizado periodicamente, a cada ano". | p. 23 | Parcial: o relatório não lista os PRRs. | Item 14: seção com cada PRR. |
-| O14 | Contexto tem como entregáveis: escopo, designação dos responsáveis, roadmap e **apresentação do MGR à equipe**, com a linha do tempo da implementação. | p. 10–11 | Parcial: escopo e marcos existem; a designação existe pelo cadastro com SEI; a apresentação do MGR à equipe não é registrada. | Item 17: registrar a data da apresentação do MGR à equipe. O checklist das 8 ações do Apêndice A **não** é obrigatório (o MGR o chama de "exemplo", p. 11). |
-| O15 | Os riscos podem ser reavaliados em 5 situações: novos riscos, **mudança no nível**, ocorrência do evento, mudança no PRR, mudança no processo. | p. 22 | Parcial: o aviso só sai quando o nível sobe. | Item 19a: aviso quando o nível muda, para cima ou para baixo. |
+| O14 | Contexto tem como entregáveis: escopo, designação dos responsáveis, roadmap e **apresentação do MGR à equipe**, com a linha do tempo da implementação. | p. 10–11 | Feito: a apresentação do MGR à equipe é registrada como marco do cronograma do contexto (confirmado pelo usuário). | Nada. O checklist das 8 ações do Apêndice A **não** é obrigatório (o MGR o chama de "exemplo", p. 11). |
+| O15 | Os riscos podem ser reavaliados em 5 situações: novos riscos, **mudança no nível**, ocorrência do evento, mudança no PRR, mudança no processo. | p. 22 | Feito na branch `desenvolvimento-resolvendo-problemas`. O aviso sai quando o nível sobe ou baixa. | Item 19a: aviso quando o nível muda, para cima ou para baixo. |
 | O16 | Comunicação em todas as 5 fases, "que garanta a interação entre todos os envolvidos". O MGR não diz a forma. | p. 9 (Figura 2), 22 | Feito em parte: avisos de aprovação, devolução, evento, revisão, medição e prazo. | Nada específico obrigatório. Avisos a mais (designação, criação de risco) são melhoria (item 11). |
 | O17 | O gestor de riscos (titular da coordenadoria) elabora o PRR, define o escopo, designa os responsáveis, aprova "a identificação, análise e tratamento", acompanha o monitoramento e estabelece prazos. | p. 8, 10, 20 | Feito: `gestor-ok`, `canEdit`, `ctxEdit`, `canMon` e o prazo do PRR aceitam o gestor (branch 4). | Nada obrigatório. |
 | O18 | O monitoramento é feito "pelo gestor do risco em conjunto com os designados no PRR, sob supervisão da CSGR", com referência na métrica e nos parâmetros. | p. 22 | Feito: `canMon` (gestor e cadastrador), medições pela métrica e pelos parâmetros, CSGR vê todos. | Nada. |
+
+### Matriz 5 × 5 (Figura 5, MGR p. 18)
+
+Probabilidade de 1 a 5 nas colunas, impacto de 1 a 5 nas linhas: 25 células. O nível é probabilidade × impacto e vai de 1 a 25. Exemplo do MGR (p. 17): probabilidade 2 × impacto 5 = nível 10.
+
+| Impacto \ Probabilidade | 1 Raro | 2 Pouco provável | 3 Provável | 4 Muito provável | 5 Praticamente certo |
+|---|---|---|---|---|---|
+| **5 Muito alto** | 5 · Médio | 10 · Alto | 15 · Alto | 20 · Extremo | 25 · Extremo |
+| **4 Alto** | 4 · Baixo | 8 · Médio | 12 · Alto | 16 · Alto | 20 · Extremo |
+| **3 Médio** | 3 · Baixo | 6 · Médio | 9 · Médio | 12 · Alto | 15 · Alto |
+| **2 Baixo** | 2 · Irrelevante | 4 · Baixo | 6 · Médio | 8 · Médio | 10 · Alto |
+| **1 Muito baixo** | 1 · Irrelevante | 2 · Irrelevante | 3 · Baixo | 4 · Baixo | 5 · Médio |
+
+Cores da legenda: Irrelevante azul claro, Baixo verde, Médio amarelo, Alto laranja, Extremo vermelho.
+
+Hoje o MIRA já pinta as 25 células com essas cores, mas `band` põe 4 delas em outra faixa: 5 (P1 × I5 e P5 × I1) aparece como Baixo em vez de Médio, e 10 (P2 × I5 e P5 × I2) aparece como Médio em vez de Alto.
 
 ### Textos literais do MGR
 
@@ -181,8 +197,8 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 
 | # | Item | Obrigatório | Situação | Etapa |
 |---|---|---|---|---|
-| 1 | Faixas de nível erradas | O2 | Pendente | 1 |
-| 2 | Descrições de probabilidade e impacto | O4, O5 | Pendente (texto já definido) | 1 |
+| 1 | Faixas de nível erradas | O2 | Aguardando confirmação do usuário (4 das 25 células) | 1 |
+| 2 | Descrições de probabilidade e impacto | O4, O5 | Feito | 1 |
 | 3 | Linha do tempo da probabilidade | O7 | Pendente | 1 |
 | 4 | Controles existentes antes das notas | O8 | Pendente (já definido) | 1 |
 | 5 | Gestor sem as etapas do edital | O17 | Feito no que é obrigatório (branch 4) | — |
@@ -196,20 +212,20 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 | 13 | Percentuais e reais sem base | Melhoria (fora do MGR) | Pendente (decisão) | 3 |
 | 14 | Relatório anual sem os PRRs | O13 | Parcial | 1 |
 | 15 | Critérios do tratamento | Melhoria | Pendente | 3 |
-| 16 | Exportação com os Apêndices C e D e a categorização | O9, O10, O11 | Parcial | 1 |
-| 17 | Apresentação do MGR à equipe | O14 | Parcial | 1 |
+| 16 | Exportação com os Apêndices C e D e a categorização | O9, O10, O11 | Feito (colunas dos Apêndices C e D) | 1 |
+| 17 | Apresentação do MGR à equipe | O14 | Feito (marco do cronograma) | 1 |
 | 18 | Priorização só pelo nível | Melhoria | Pendente (decisão) | 3 |
-| 19 | Aviso de mudança de nível (19a) e descarte (19b) | O15 (19a); melhoria (19b) | Pendente | 1 e 3 |
-| 20 | Parecer da CSGR | O12 | Pendente | 1 |
-| 21 | Escala na reavaliação e cores da matriz | O3 | Pendente | 1 |
-| 22 | IA com os textos dos Quadros 2 e 3 | Consequência de O4 e O5 | Pendente | 1 |
+| 19 | Aviso de mudança de nível (19a) e descarte (19b) | O15 (19a); melhoria (19b) | Feito 19a; 19b pendente | 1 e 3 |
+| 20 | Parecer da CSGR | O12 | Feito | 1 |
+| 21 | Escala na reavaliação e cores da matriz | O3 | Feito (cores); falta o nome da escala na reavaliação | 1 |
+| 22 | IA com os textos dos Quadros 2 e 3 | Consequência de O4 e O5 | Pendente (baixa prioridade) | 3 |
 | 23 | Bloqueio de login burlável | Correção (segurança) | Pendente | 1 |
 | 24 | CSV sem proteção contra fórmulas | Correção (segurança) | Pendente | 1 |
 | 25 | Primeiro acesso e cookie | Correção (segurança) | Parcial | 1 |
-| 26 | IA externa (desligar, aviso, sem treino) | Melhoria (fora do MGR) | Pendente (decisão de segurança) | 3 |
+| 26 | IA externa (desligar, aviso, sem treino) | Melhoria (fora do MGR) | Pendente (baixa prioridade; decisão de segurança) | 3 |
 | 27 | Faixas repetidas e testes sem o edital | O2 | Pendente | 1 |
 | 28 | Nome do perfil CSGR | O1 | Pendente | Passo 0 |
-| 29 | Textos das formas de tratamento | O6 | Pendente | 1 |
+| 29 | Textos das formas de tratamento | O6 | Feito | 1 |
 
 ---
 
@@ -397,7 +413,10 @@ Um ou dois PRs, conforme o tamanho, quando o usuário pedir. Os itens obrigatór
 - Avisar o gestor quando um risco é criado (`createRisk`) e quando a avaliação muda (`updateAval`), com `alertAdd`.
 - Preparar o envio por e-mail atrás de uma interface (hoje simulado). O serviço de e-mail é decisão de infraestrutura e não deve entrar como dependência sem aprovação.
 
-### 26 · IA externa
+### 26 · IA externa (baixa prioridade)
+
+Pedido do usuário: estudar a possibilidade de IA, mas só depois de todo o resto.
+
 - Variável `MIRA_IA=0|1`, desligada por padrão.
 - Aviso na tela do assistente: o texto sai do servidor e vai para um serviço externo.
 - Só ligar com provedor que garanta, por contrato, que os dados não são usados para treino; citar isso em `docs/sistema.md`.

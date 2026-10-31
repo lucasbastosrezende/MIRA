@@ -317,7 +317,13 @@ const ok = (c, m) => {
   await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
   r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-ok' });
   ok(r.s === 200 && r.risk.status === 'ag_altagestao', 'gestor encaminha');
+  // Regra do MGR (p. 21): a CSGR emite parecer; aprovar sem parecer é recusado
   r = await call('altagestao', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
+  ok(r.s === 422, 'aprovar sem parecer é recusado');
+  r = await call('altagestao', 'POST', 'risks/R-001/action', {
+    action: 'altagestao-ok',
+    motivo: 'Parecer favorável: ação adequada ao risco.',
+  });
   ok(r.s === 200 && r.risk.status === 'em_tratamento', 'Alta Gestão aprova');
 
   // Monitoramento (fase 5) e trilha de auditoria
@@ -335,6 +341,23 @@ const ok = (c, m) => {
     motivo: 'Nova vulnerabilidade pública',
   });
   ok(r.s === 200 && r.risk.niveis.length === 2, 'reavaliação registra histórico');
+  // Regra do MGR (p. 22): mudança no nível é motivo de reavaliação, para cima ou para baixo
+  st = await call('ges', 'GET', 'state');
+  ok(
+    st.alerts.some(a => a.tipo === 'nivel' && a.msg.includes('subiu de 10 para 15')),
+    'aviso quando o nível sobe',
+  );
+  r = await call('cad', 'POST', 'risks/R-001/action', {
+    action: 'reaval',
+    prob: 2,
+    imp: 5,
+    motivo: 'Correção aplicada pelo fornecedor',
+  });
+  st = await call('ges', 'GET', 'state');
+  ok(
+    r.s === 200 && st.alerts.some(a => a.tipo === 'nivel' && a.msg.includes('baixou de 15 para 10')),
+    'aviso quando o nível baixa',
+  );
   st = await call('cad', 'GET', 'state');
   const ch = st.audit.filter(a => a.riskId === 'R-001');
   ok(
@@ -432,7 +455,10 @@ const ok = (c, m) => {
   ok(r.s === 200, 'PRR reaberto pode ser editado');
   await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
   await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-ok' });
-  r = await call('altagestao', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
+  r = await call('altagestao', 'POST', 'risks/R-001/action', {
+    action: 'altagestao-ok',
+    motivo: 'Parecer favorável à revisão.',
+  });
   ok(r.s === 200 && r.risk.status === 'em_tratamento', 'PRR revisado passa de novo pelas aprovações');
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'concluir-acao' });
   ok(r.s === 200 && !!r.risk.prr.concluidaEm, 'ação do PRR marcada como concluída');

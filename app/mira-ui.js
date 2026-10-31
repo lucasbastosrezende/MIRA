@@ -342,9 +342,9 @@ export function mountMira(root) {
         h +=
           '<div class="cell' +
           (isSel ? ' sel' : '') +
-          '" style="background:var(--l' +
+          '" style="background:var(--m' +
           b +
-          ');color:var(--f' +
+          ');color:var(--mf' +
           b +
           ')"' +
           (mode === 'count' && c ? ' data-cell="' + p + '-' + i + '"' : '') +
@@ -607,7 +607,7 @@ export function mountMira(root) {
           k = p + '-' + i,
           c = counts[k] || 0,
           on = !!(sel && sel.p === p && sel.i === i),
-          st = 'style="--hb:var(--l' + b + ');--hf:var(--f' + b + ')"';
+          st = 'style="--hb:var(--m' + b + ');--hf:var(--mf' + b + ')"';
         const tip =
           'Probabilidade ' +
           p +
@@ -655,7 +655,7 @@ export function mountMira(root) {
       '<ul class="legend">' +
       LV.map(
         (l, i) =>
-          '<li><i style="background:var(--l' +
+          '<li><i style="background:var(--m' +
           i +
           ')"></i>' +
           l +
@@ -676,7 +676,7 @@ export function mountMira(root) {
             p =>
               '<i style="flex:' +
               p.n +
-              ';background:var(--s' +
+              ';background:var(--m' +
               p.b +
               ')" data-tip="' +
               esc(
@@ -698,7 +698,7 @@ export function mountMira(root) {
       bar +
       '</div><ul class="legend">' +
       parts
-        .map(p => '<li><i style="background:var(--s' + p.b + ')"></i>' + LV[p.b] + ' <b>' + p.n + '</b></li>')
+        .map(p => '<li><i style="background:var(--m' + p.b + ')"></i>' + LV[p.b] + ' <b>' + p.n + '</b></li>')
         .join('') +
       (semAval ? '<li class="muted">Sem avaliação <b>' + semAval + '</b></li>' : '') +
       '</ul>'
@@ -2071,9 +2071,10 @@ export function mountMira(root) {
         mot +
         '<div class="actions"><button class="btn primary" data-act="gestor-ok">Validar e encaminhar à Alta Gestão</button><button class="btn danger" data-act="gestor-dev">Devolver ao cadastrador</button></div>'
       );
+    // Regra do MGR (p. 21): a CSGR emite parecer favorável ou não, por isso o campo é obrigatório para ela.
     if (canAlta(u, r))
       return (
-        mot +
+        '<div class="field"><label for="ap-motivo">Parecer (obrigatório)</label><textarea id="ap-motivo" rows="3"></textarea></div>' +
         '<div class="actions"><button class="btn primary" data-act="altagestao-ok">Aprovar PRR</button><button class="btn danger" data-act="altagestao-dev">Devolver</button></div>'
       );
     return '';
@@ -3298,11 +3299,11 @@ export function mountMira(root) {
               return (
                 '<td class="num hmcell"' +
                 (n
-                  ? ' style="background:color-mix(in srgb,var(--l' +
+                  ? ' style="background:color-mix(in srgb,var(--m' +
                     i +
                     ') ' +
                     Math.round(35 + (65 * n) / mx) +
-                    '%,transparent);color:var(--f' +
+                    '%,transparent);color:var(--mf' +
                     i +
                     ')"'
                   : '') +
@@ -4000,30 +4001,51 @@ export function mountMira(root) {
   // Nome do estado da métrica na exportação.
   const MST = { critico: 'Crítico', alerta: 'Alerta', ok: 'Ideal' };
   // Colunas da exportação, iguais no CSV e no Excel: título, tipo (txt, num, brl, x, data), largura máxima no Excel e como ler o valor.
+  // Dia local (AAAA-MM-DD) de um registro com data e hora, para as colunas de data da exportação.
+  const diaLocal = ts => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return (
+      d.getFullYear() +
+      '-' +
+      String(d.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(d.getDate()).padStart(2, '0')
+    );
+  };
+  // Regra do MGR (p. 28–29): as primeiras colunas seguem a planilha do Apêndice C (identificação e avaliação)
+  // e as do Apêndice D (PRR), com os nomes do MGR. A categorização é a coordenadoria do risco.
   const EXPORT = [
+    ['Setorial', 'txt', 14, r => r.unit],
+    ['Data', 'data', 0, r => diaLocal(r.criadoEm)],
     ['ID', 'txt', 10, r => r.id],
-    ['Coordenadoria', 'txt', 14, r => r.unit],
+    ['Categorização', 'txt', 14, r => r.unit],
     ['Título', 'txt', 40, r => r.titulo],
     ['Causa', 'txt', 50, r => r.causa],
-    ['Evento', 'txt', 50, r => r.evento],
+    ['Risco (evento)', 'txt', 50, r => r.evento],
     ['Impacto', 'txt', 50, r => r.impacto],
     ['Objetivo afetado', 'txt', 40, r => r.objetivo],
     ['Probabilidade', 'num', 0, r => r.prob],
-    ['Nota de impacto', 'num', 0, r => r.imp],
-    ['Nível', 'num', 0, r => nivel(r) || ''],
+    ['Impacto (nota)', 'num', 0, r => r.imp],
+    ['Nível de risco', 'num', 0, r => nivel(r) || ''],
     ['Faixa', 'txt', 12, r => (nivel(r) ? LV[band(nivel(r))] : '')],
+    ['Controles existentes', 'txt', 50, r => r.prr && r.prr.controles],
+    ['Ação proposta', 'txt', 50, r => r.prr && r.prr.acao],
+    ['Métrica', 'txt', 40, r => r.prr && r.prr.metrica],
+    ['Unidade da métrica', 'txt', 14, r => r.prr && r.prr.unidadeMetrica],
+    ['Responsável', 'txt', 30, r => r.prr && r.prr.responsavel],
+    ['Parâmetro crítico', 'txt', 14, r => r.prr && r.prr.critico],
+    ['Parâmetro alerta', 'txt', 14, r => r.prr && r.prr.alerta],
+    ['Parâmetro ideal', 'txt', 14, r => r.prr && r.prr.ideal],
     ['Situação', 'txt', 20, r => STAT[r.status][0]],
     ['Exposição estimada', 'brl', 0, r => r.exposicao],
     ['Exposição esperada', 'brl', 0, r => (nivel(r) ? econ(r).cur : '')],
     ['Tratamento', 'txt', 12, r => (r.prr ? cap(r.prr.tratamento) : '')],
-    ['Ação', 'txt', 50, r => r.prr && r.prr.acao],
-    ['Responsável', 'txt', 30, r => r.prr && r.prr.responsavel],
     ['Prazo', 'data', 0, r => r.prr && r.prr.prazo],
     ['Custo do PRR', 'brl', 0, r => r.prr && r.prr.custo],
     ['Exposição depois do PRR', 'brl', 0, r => (r.prr && nivel(r) ? econ(r).res : '')],
     ['Redução esperada', 'brl', 0, r => (r.prr && nivel(r) ? econ(r).gain : '')],
     ['Retorno por real', 'x', 0, r => (r.prr && nivel(r) && econ(r).ratio != null ? econ(r).ratio : '')],
-    ['Métrica', 'txt', 40, r => r.prr && r.prr.metrica],
     ['Última medição', 'num', 0, r => (lastMed(r) ? lastMed(r).valor : '')],
     ['Estado da métrica', 'txt', 12, r => MST[metricSt(r)] || ''],
     ['Responsável pela resolução', 'txt', 24, r => (r.delegado ? r.delegado.nome : '')],
