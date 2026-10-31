@@ -8,9 +8,9 @@ MIRA · Monitoramento Integrado de Riscos e Ações (SETIC). Plataforma que cond
 
 - Stack: Next.js 15 (App Router), React 19, Node >= 22.13, SQLite nativo (`node:sqlite`). Sem dependências extras.
 - Remoto: https://github.com/lucasbastosrezende/MIRA
-- Estrutura: `app/` (interface; `mira-ui.js` monta toda a tela e `globals.css` tem os estilos), `lib/` (`logic.js` regras do MGR, `service.js` regras de negócio e auditoria, `api.js` roteador, `db.js` banco), `tests/`, `docs/` (documentação), `.github/` (modelo de PR).
+- Estrutura: `app/` (interface; `mira-ui.js` monta toda a tela e `globals.css` tem os estilos), `lib/` (`logic.js` regras do MGR, `service.js` regras de negócio e auditoria, `api.js` roteador, `db.js` banco), `scripts/` (comandos de implantação), `tests/`, `docs/` (documentação), `.github/` (modelo de PR).
 - Documentação nova vai em `docs/` e entra na tabela "Documentação" do `README.md`. Na raiz ficam só o `README.md` e este `CLAUDE.md`.
-- Comandos: `npm run dev`, `npm test` (roda `npm run test:api` e `npm run test:ui`).
+- Comandos: `npm run dev`, `npm test` (roda `npm run test:api` e `npm run test:ui`), `npm run admin -- <usuario>` (cria o administrador na implantação).
 
 ## Idioma
 
@@ -34,10 +34,11 @@ Exemplos: `feature/ui-tela-do-risco`, `fix/datas-sem-fuso`, `docs/claude-md`.
 
 Promoção: `desenvolvimento` → `homologacao` → `main`, sempre por PR.
 
-## Git: um tópico, uma branch, um PR
+## Git: branches de trabalho e PRs
 
-- Cada tópico tem a sua branch e o seu pull request com destino `desenvolvimento`. Não misture assuntos.
-- Se um tópico depende de outro ainda não mesclado, a branch sai da branch de que depende, o PR continua apontando para `desenvolvimento`, e a dependência é dita na seção "Ordem de merge" do PR.
+- Cada tópico tem a sua branch, derivada de `desenvolvimento`. Não misture assuntos sem necessidade.
+- Pull request só quando o usuário pedir, e o menor número possível: um PR pode juntar vários commits e tópicos relacionados. O destino é sempre `desenvolvimento`.
+- Se o trabalho depende de algo ainda não mesclado, a branch sai da branch de que depende (ou a incorpora com merge), e a dependência é dita na seção "Ordem de merge" do PR.
 - Commit pequeno e coerente com o tópico. Commits não são amendados nem reescritos depois de enviados.
 - Quem faz o merge é o usuário ou o dono do repositório. Claude não mescla PR nem força push.
 
@@ -88,16 +89,22 @@ Antes de commitar: `npm run test:api` e `node --no-warnings tests/ui.smoke.mjs` 
 ## Dados e privacidade
 
 - O sistema começa vazio. Não coloque dados de exemplo, nomes de pessoas nem riscos inventados no código, no README ou em commits.
-- Nunca use nomes de pessoas fictícias ou reais em dados de demonstração. Os únicos usuários de demonstração permitidos são `altagestao1` (perfil CSGR, nome exibido "altagestão1") e `testeusuario` (cadastrador da Cosegi). O campo de usuário só aceita letras minúsculas sem acento, por isso `altagestao1`.
+- Nunca use nomes de pessoas fictícias ou reais em dados de demonstração. Os únicos usuários de demonstração permitidos são `criadordeusuario` (administrador, cria coordenadorias e pessoas), `altagestao1` (perfil Alta Gestão de Riscos, código `altagestao`), `testeusuario` (cadastrador da Cosegi) e `supervisortesteusuario` (gestor de riscos da Cosegi, supervisor do `testeusuario`), além das contas de teste `teste1` a `teste20` e da empresa terceirizada de demonstração `empresateste`. Só o `criadordeusuario` é fixo: coordenadorias, as demais contas e os dados de demonstração podem ser apagados quando o usuário pedir. O campo de usuário só aceita letras minúsculas sem acento, por isso `altagestao1`.
 - Banco de demonstração e capturas de tela ficam fora do repositório (pasta temporária). Nunca commite `data/`, `.env.local`, chaves ou tokens.
+
+## Código
+
+- Todo JavaScript fica indentado para leitura humana, no padrão do Prettier 3.3.3: aspas simples, 110 colunas, ponto e vírgula, `arrowParens: avoid`. O Prettier é só ferramenta (rodado de fora do repositório); não entra no `package.json`.
+- O código tem que ser auditável: cabeçalho no topo de cada arquivo dizendo o papel dele, um comentário acima de cada função ou constante dizendo o que faz, e a regra do MGR ou de segurança escrita onde ela é aplicada.
+- Reorganização sem mudança de comportamento vai numa branch `refactor/`, e o PR diz como isso foi conferido (por exemplo, comparando a árvore sintática antes e depois).
 
 ## Interface
 
-- Estilo existente: HTML em strings, funções curtas, nomes em português, comentário só onde o motivo não é óbvio. Siga o que está ao redor.
+- Estilo existente: HTML em strings, funções curtas, nomes em português. Siga o que está ao redor.
 - Cores e tipografia só pelos tokens de `globals.css` (`--accent`, `--l0..l4`, `--s0..s4`...). Tema escuro sai dos mesmos tokens.
 - Estado nunca só por cor: use ícone e texto (`toneTag`).
 - Reaproveite as peças: `pageHead`, `cardH`, `tile`, `toneTag`, `heat`, `.card`, `.tiles`, `.dash`.
 - Todo texto que vem de dados passa por `esc()`; dicas flutuantes usam `data-tip` (texto puro).
 - Datas sem hora ("2026-12-15") passam por `pd()`/`fd()`, nunca por `new Date()` direto.
 - Confira em largura de computador e de celular (390px) e em tema claro e escuro.
-- Não deixe valores brutos do sistema (`ag_csgr`, `2026-12-15`) na tela.
+- Não deixe valores brutos do sistema (`ag_altagestao`, `2026-12-15`) na tela.
