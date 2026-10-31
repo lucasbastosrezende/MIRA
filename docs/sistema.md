@@ -30,7 +30,7 @@ Quem é de uma coordenadoria não enxerga nem acessa por endereço os riscos de 
 |---|---|
 | 1 · Contexto | A coordenadoria registra o escopo da gestão de riscos, as pessoas designadas e um cronograma de marcos com data e situação (previsto, concluído, atrasado). É o primeiro passo do **Novo risco**: sem escopo salvo, o servidor não aceita o cadastro do risco. |
 | 2 · Identificação | Título, causa, evento, impacto e objetivo afetado. Enquanto se digita, uma pré-visualização mostra a frase completa do MGR, os campos recebem avisos de qualidade e o sistema aponta riscos parecidos já cadastrados. |
-| 3 · Avaliação | Probabilidade e impacto de 1 a 5, cada nota com descrição. O nível é probabilidade × impacto, na matriz 5 × 5. Informa-se também a exposição financeira estimada em reais, no formato brasileiro (4.000.000 ou 4.000.000,50); embaixo do campo aparece como o valor foi entendido e a conta da exposição esperada (valor cheio × percentual da probabilidade). |
+| 3 · Avaliação | Primeiro os controles existentes e a linha do tempo da probabilidade (ex.: últimos 12 meses), obrigatórios (MGR p. 14–15); a tela mostra a pergunta do MGR com essa linha do tempo. Depois, probabilidade e impacto de 1 a 5, cada nota com o texto dos Quadros 2 e 3 do MGR. O nível é probabilidade × impacto, na matriz 5 × 5. Informa-se também a exposição financeira estimada em reais, no formato brasileiro (4.000.000 ou 4.000.000,50); embaixo do campo aparece como o valor foi entendido e a conta da exposição esperada (valor cheio × percentual da probabilidade). |
 | 4 · Tratamento (PRR) | Forma de tratamento (mitigar, evitar, transferir, aceitar), controles existentes, ação, responsável, prazo, custo, métrica com limites crítico, alerta e ideal, e o risco residual esperado. O residual começa igual ao nível de hoje, com atalhos para reduzir 1 na probabilidade, no impacto ou nos dois, e mostra a conta da exposição residual. Um resumo ao lado recalcula enquanto se preenche. |
 | 5 · Monitoramento | Medições da métrica em gráfico, sobre as faixas dos limites; reavaliação do nível com motivo; registro de que o evento ocorreu; depois do evento, retomar o tratamento ou reabrir o PRR para revisão (com motivo); marcar a ação do PRR como concluída; encerramento pelo gestor. |
 
@@ -137,8 +137,9 @@ A chamada sai do servidor e a chave nunca vai para o navegador. Sem a chave, o s
 ## Segurança e auditoria
 
 - **Senhas:** guardadas com scrypt e salt aleatório, comparadas em tempo constante.
-- **Sessão:** cookie `HttpOnly` com `SameSite=Strict`, válida por 8 horas.
-- **Tentativas de login:** depois de 5 tentativas erradas, o usuário fica bloqueado por 5 minutos.
+- **Sessão:** cookie `HttpOnly` com `SameSite=Strict`, válida por 8 horas. Com `MIRA_HTTPS=1` (instância atrás de HTTPS), o cookie também é `Secure`.
+- **Tentativas de login:** 5 tentativas erradas do mesmo usuário e endereço bloqueiam por 5 minutos; 10 erros do mesmo usuário em 15 minutos bloqueiam por 15 minutos, de qualquer endereço. O endereço só vem do cabeçalho `X-Forwarded-For` com `MIRA_TRUST_PROXY=1` (proxy confiável na frente); sem isso, o cabeçalho é ignorado.
+- **Exportação CSV:** texto que começa com `=`, `+`, `-` ou `@` ganha um apóstrofo, para não virar fórmula ao abrir no Excel.
 - **Requisições:** toda requisição que não é leitura precisa de um cabeçalho próprio do MIRA, o que barra envios feitos por outros sites.
 - **Permissões:** conferidas no servidor em cada ação. O navegador recebe só os riscos que o perfil pode ver.
 - **Auditoria:** a tabela de auditoria só recebe inserções; não existe rota para editar ou apagar o histórico.

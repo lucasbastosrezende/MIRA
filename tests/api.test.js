@@ -15,8 +15,8 @@ const count = t =>
     .get().n;
 const jars = {};
 // Chama a API como a pessoa 'who', guardando o cookie de sessão de cada uma.
-async function call(who, method, path, body) {
-  const h = { 'x-requested-with': 'mira', 'content-type': 'application/json' };
+async function call(who, method, path, body, extra) {
+  const h = { 'x-requested-with': 'mira', 'content-type': 'application/json', ...(extra || {}) };
   if (jars[who]) h.cookie = 'mira_sid=' + jars[who];
   const res = await handle(
     new Request('http://x/api/' + path, {
@@ -238,6 +238,31 @@ const ok = (c, m) => {
   );
   r = await call('cad', 'POST', 'login', { username: 'cad.cosegi', password: 'errada' });
   ok(r.s === 401, 'senha errada');
+  // Segurança: trocar o X-Forwarded-For a cada tentativa não escapa do bloqueio (sem proxy confiável, ele é ignorado)
+  let ult;
+  for (let i = 0; i < 6; i++)
+    ult = await call(
+      'x',
+      'POST',
+      'login',
+      { username: 'outro.usuario', password: 'errada' },
+      {
+        'x-forwarded-for': '10.0.0.' + i,
+      },
+    );
+  ok(ult.s === 429, 'bloqueio de login não é burlado trocando o X-Forwarded-For');
+  // Segurança: com MIRA_HTTPS=1 o cookie de sessão sai com Secure
+  process.env.MIRA_HTTPS = '1';
+  const rs = await handle(
+    new Request('http://x/api/login', {
+      method: 'POST',
+      headers: { 'x-requested-with': 'mira', 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'ges.cosegi', password: 'senha-forte-2' }),
+    }),
+    ['login'],
+  );
+  delete process.env.MIRA_HTTPS;
+  ok(/;\s*Secure/.test(rs.headers.get('set-cookie') || ''), 'cookie Secure com MIRA_HTTPS=1');
   for (const [k, u] of [
     ['cad', 'cad.cosegi'],
     ['ges', 'ges.cosegi'],
@@ -310,8 +335,26 @@ const ok = (c, m) => {
   ok(r.s === 404, 'outra coordenadoria não acessa por id');
 
   // Avaliação (fase 3) e PRR (fase 4)
-  r = await call('cad', 'POST', 'risks/R-001/aval', { prob: 2, imp: 5, exposicao: 4000000 });
-  ok(r.s === 200 && r.risk.status === 'avaliado' && r.risk.niveis.length === 1, 'avalia nível 10');
+  // Regra do MGR (p. 14–15): controles existentes e linha do tempo vêm antes das notas e são obrigatórios
+  r = await call('cad', 'POST', 'risks/R-001/aval', { prob: 2, imp: 5, linhaTempo: 'últimos 12 meses' });
+  ok(r.s === 422 && /controles/i.test(r.error || ''), 'avaliação sem controles existentes é recusada');
+  r = await call('cad', 'POST', 'risks/R-001/aval', { prob: 2, imp: 5, controles: 'Nenhum' });
+  ok(r.s === 422 && /linha do tempo/i.test(r.error || ''), 'avaliação sem linha do tempo é recusada');
+  r = await call('cad', 'POST', 'risks/R-001/aval', {
+    prob: 2,
+    imp: 5,
+    exposicao: 4000000,
+    controles: 'Antivírus e atualizações mensais',
+    linhaTempo: 'últimos 12 meses',
+  });
+  ok(
+    r.s === 200 &&
+      r.risk.status === 'avaliado' &&
+      r.risk.niveis.length === 1 &&
+      r.risk.linhaTempo === 'últimos 12 meses' &&
+      r.risk.controles === 'Antivírus e atualizações mensais',
+    'avalia nível 10 com controles e linha do tempo',
+  );
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
   ok(r.s === 422, 'enviar PRR vazio é barrado');
   const prr = {

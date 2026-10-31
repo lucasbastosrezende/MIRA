@@ -89,8 +89,8 @@ Fonte única: o **MGR v1.0** (PDF "Modelo de Gestão de Riscos", Setic, 2025). E
 | O4 | Para a probabilidade, "deve-se considerar o Quadro 2": a descrição de cada nota é a do Quadro 2, literal (ver abaixo). | p. 15 | Feito na branch `desenvolvimento-resolvendo-problemas`. | Trocar o texto de `PROB` pelo Quadro 2. Não depende de decisão. |
 | O5 | Para o impacto, "deve-se considerar o Quadro 3": a descrição de cada nota é a do Quadro 3, literal (ver abaixo). | p. 16–17 | Feito na branch `desenvolvimento-resolvendo-problemas`. | Trocar o texto de `IMPS` pelo Quadro 3. |
 | O6 | Formas de tratamento: evitar, transferir, mitigar, aceitar, **com o sentido do MGR** (ver abaixo). | p. 20–21 | Feito na branch `desenvolvimento-resolvendo-problemas`. | Trocar o texto de `TRAT`. |
-| O7 | A probabilidade é dada "na **linha do tempo definida**" (ex.: "considerando os últimos 12 meses"). | p. 14–15 | Falta. | Item 3: campo obrigatório "Linha do tempo" na avaliação, mostrado na pergunta da probabilidade e na exportação. |
-| O8 | O nível de criticidade "deve **considerar as ações de controle já existentes**". O nível que vai para a matriz e o mapa é esse. | p. 14 | Falta: "Controles existentes" só aparece no PRR, depois da nota. | Item 4: "Controles existentes" passa para a avaliação, **antes** das notas. Isso responde a dúvida "inerente ou residual": as faixas e o mapa usam o nível avaliado com os controles existentes. |
+| O7 | A probabilidade é dada "na **linha do tempo definida**" (ex.: "considerando os últimos 12 meses"). | p. 14–15 | Feito na branch `desenvolvimento-resolvendo-problemas`. Campo obrigatório "Linha do tempo" na avaliação; a pergunta do MGR mostra a linha do tempo. | Item 3: campo obrigatório "Linha do tempo" na avaliação, mostrado na pergunta da probabilidade e na exportação. |
+| O8 | O nível de criticidade "deve **considerar as ações de controle já existentes**". O nível que vai para a matriz e o mapa é esse. | p. 14 | Feito na branch `desenvolvimento-resolvendo-problemas`. "Controles existentes" obrigatório na avaliação, antes das notas; o PRR mostra os mesmos controles. | Item 4: "Controles existentes" passa para a avaliação, **antes** das notas. Isso responde a dúvida "inerente ou residual": as faixas e o mapa usam o nível avaliado com os controles existentes. |
 | O9 | Os riscos devem ser categorizados; a CSGR optou pela categorização pelas setoriais: **CAGD, Coge, Code, Cosegi, Caf e Coinfra**. | p. 13, 27 (Apêndice B) | Falta: não existe campo de categorização; a coordenadoria é criada livre pelo administrador. | As 6 setoriais viram modelo pronto de coordenadoria (resposta do usuário, seção 7); a categorização do risco é a coordenadoria dele. |
 | O10 | A planilha de identificação e avaliação tem: Setorial, Data, ID, **Categorização**, Causa, Risco (evento), Impacto, Probabilidade, Impacto (nota), Nível de risco. | p. 28 (Apêndice C) | Feito na branch `desenvolvimento-resolvendo-problemas`. Faltam só "Linha do tempo" e "Controles existentes" na avaliação (O7, O8). | Item 16: a exportação ganha essas colunas, com esses nomes. |
 | O11 | O PRR tem: Setorial, Data, ID, Categorização, Risco (evento), **Controles existentes**, Ação proposta, Métrica, Responsável, Parâmetros **Crítico, Alerta e Ideal**. | p. 29 (Apêndice D) | Feito na branch `desenvolvimento-resolvendo-problemas`. | Itens 16a e 16. |
@@ -215,8 +215,8 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 |---|---|---|---|---|
 | 1 | Faixas de nível erradas | O2 | Feito | 1 |
 | 2 | Descrições de probabilidade e impacto | O4, O5 | Feito | 1 |
-| 3 | Linha do tempo da probabilidade | O7 | Pendente | 1 |
-| 4 | Controles existentes antes das notas | O8 | Pendente (já definido) | 1 |
+| 3 | Linha do tempo da probabilidade | O7 | Feito | 1 |
+| 4 | Controles existentes antes das notas | O8 | Feito | 1 |
 | 5 | Gestor sem as etapas do edital | O17 | Feito no que é obrigatório (branch 4) | — |
 | 6 | Monitoramento sem o gestor | O18 | Feito (branch 4) | — |
 | 7 | Apetite a risco e alçada | Melhoria ("poderá") | Pendente (decisão) | 3 |
@@ -224,7 +224,7 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 | 9 | PRR travado depois da aprovação | Melhoria | Parcial | 3 |
 | 10 | Responsável da ação em texto livre | Melhoria | Parcial | 3 |
 | 11 | Avisos de designação e de criação de risco | Melhoria (O16 não diz a forma) | Parcial | 3 |
-| 12 | Residual padrão 1 × 1 | Correção (número errado) | Parcial | 1 |
+| 12 | Residual padrão 1 × 1 | Correção (número errado) | Feito em parte: o residual começa igual ao risco de hoje (sem redução inventada); tornar obrigatório fica como melhoria | 1 |
 | 13 | Percentuais e reais sem base | Melhoria (fora do MGR) | Parcial: percentuais pelo meio das faixas da escala baseada na ISO 31000 (5%, 20%, 45%, 75%, 95%); nota 5 nunca abaixo de 90% | 3 |
 | 14 | Relatório anual sem os PRRs | O13 | Parcial | 1 |
 | 15 | Critérios do tratamento | Melhoria | Feito: seção "Critérios do tratamento (MGR p. 21)" no PRR | 3 |
@@ -233,11 +233,11 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 | 18 | Priorização só pelo nível | Melhoria | Pendente (decisão) | 3 |
 | 19 | Aviso de mudança de nível (19a) e descarte (19b) | O15 (19a); melhoria (19b) | Feito 19a; 19b pendente | 1 e 3 |
 | 20 | Parecer da CSGR | O12 | Feito | 1 |
-| 21 | Escala na reavaliação e cores da matriz | O3 | Feito (cores); falta o nome da escala na reavaliação | 1 |
+| 21 | Escala na reavaliação e cores da matriz | O3 | Feito (cores e nome da escala na reavaliação) | 1 |
 | 22 | IA com os textos dos Quadros 2 e 3 | Consequência de O4 e O5 | Pendente (baixa prioridade) | 3 |
-| 23 | Bloqueio de login burlável | Correção (segurança) | Pendente | 1 |
-| 24 | CSV sem proteção contra fórmulas | Correção (segurança) | Pendente | 1 |
-| 25 | Primeiro acesso e cookie | Correção (segurança) | Parcial | 1 |
+| 23 | Bloqueio de login burlável | Correção (segurança) | Feito (MIRA_TRUST_PROXY e limite por usuário) | 1 |
+| 24 | CSV sem proteção contra fórmulas | Correção (segurança) | Feito | 1 |
+| 25 | Primeiro acesso e cookie | Correção (segurança) | Feito (cookie Secure com MIRA_HTTPS=1) | 1 |
 | 26 | IA externa (desligar, aviso, sem treino) | Melhoria (fora do MGR) | Pendente (baixa prioridade; decisão de segurança) | 3 |
 | 27 | Faixas repetidas e testes sem o edital | O2 | Feito (`altoOuExtremo` e `BANDS` em `lib/logic.js`) | 1 |
 | 28 | Nome do perfil CSGR | O1 | Pendente | Passo 0 |

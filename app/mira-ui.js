@@ -2070,9 +2070,33 @@ export function mountMira(root) {
           esc(ia.justificativaImpacto || '') +
           ') <button class="btn sm" data-act="ia-notas">Aplicar</button></div>'
         : '';
+    // Controles de hoje: no risco; em riscos antigos, o que estava no PRR.
+    const ctrl = r.controles || (r.prr && r.prr.controles) || '';
+    // Pergunta do MGR (p. 15): "Qual a probabilidade da <causa> desencadear o <evento>, na <linha do tempo>?"
+    const pergunta =
+      '<p class="info-box" id="av-pergunta" style="margin:0 0 12px">Qual a probabilidade de <b>' +
+      esc(r.causa) +
+      '</b> desencadear <b>' +
+      esc(r.evento) +
+      '</b>, considerando <b id="av-linha-txt">' +
+      esc(r.linhaTempo || 'a linha do tempo definida') +
+      '</b>?</p>';
+    const antes = ed
+      ? '<div class="g2"><div class="field"><label for="f-controles">Controles existentes</label><textarea id="f-controles" rows="2" placeholder="O que já existe hoje para reduzir esse risco">' +
+        esc(ctrl) +
+        '</textarea><div class="hint">O MGR manda considerar os controles de hoje antes de dar as notas. Se não houver, escreva "Nenhum".</div></div>' +
+        '<div class="field"><label for="f-linha">Linha do tempo da probabilidade</label><input id="f-linha" list="dl-linha" value="' +
+        esc(r.linhaTempo || '') +
+        '" placeholder="Ex.: últimos 12 meses" style="width:100%"><datalist id="dl-linha"><option value="últimos 12 meses"></option><option value="últimos 6 meses"></option><option value="próximos 12 meses"></option></datalist><div class="hint">Período considerado ao dar a nota de probabilidade.</div></div></div>'
+      : '<div class="kvgrid">' +
+        roField('Controles existentes', ctrl, true) +
+        roField('Linha do tempo da probabilidade', r.linhaTempo || 'não informada') +
+        '</div>';
     return (
       '<div class="card"><h3>Fase 3 · Avaliação</h3>' +
       sug +
+      antes +
+      pergunta +
       '<div class="row"><div class="grow"><label>Probabilidade</label>' +
       radios('prob', PROB, r.prob) +
       '</div><div class="grow"><label>Impacto</label>' +
@@ -2597,9 +2621,12 @@ export function mountMira(root) {
           Object.keys(TRAT).map(k => [k, cap(k) + ' — ' + TRAT[k]]),
           p.tratamento,
         ) +
-          '<div class="field"><label for="p-controles">Controles existentes</label><textarea id="p-controles" rows="2">' +
-          esc(p.controles) +
-          '</textarea><div class="hint">O que já existe hoje para reduzir esse risco.</div></div><div class="field"><label for="p-acao">Ação proposta</label><textarea id="p-acao" rows="3">' +
+          // Controles existentes vêm da avaliação (fase 3), onde o MGR manda considerá-los antes das notas.
+          '<div class="kvgrid" style="margin-bottom:12px">' +
+          roField('Controles existentes (da avaliação)', r.controles || p.controles, true) +
+          '</div><input type="hidden" id="p-controles" value="' +
+          esc(r.controles || p.controles || '') +
+          '"><div class="field"><label for="p-acao">Ação proposta</label><textarea id="p-acao" rows="3">' +
           esc(p.acao) +
           '</textarea><div class="hint">Mitigar, evitar ou transferir: o que será feito. Aceitar: por que o risco é aceito.</div></div>' +
           // Todo risco diz o que fazer se o evento ocorrer; o aviso de evento repete esse plano.
@@ -2702,7 +2729,7 @@ export function mountMira(root) {
     const ro =
       '<div class="kvgrid">' +
       roField('Forma de tratamento', cap(p.tratamento) + ' — ' + TRAT[p.tratamento], true) +
-      roField('Controles existentes', p.controles, true) +
+      roField('Controles existentes', r.controles || p.controles, true) +
       roField('Ação proposta', p.acao, true) +
       roField('Se o evento ocorrer, faça isto', p.contingencia, true) +
       '</div>' +
@@ -2781,12 +2808,24 @@ export function mountMira(root) {
           '</td></tr>',
       )
       .join('');
-    const sel = (id, v) =>
+    // Lista de notas com o nome da escala (ex.: "3 · Provável"), como na avaliação.
+    const sel = (id, v, escala) =>
       '<select id="' +
       id +
       '">' +
       [1, 2, 3, 4, 5]
-        .map(k => '<option value="' + k + '"' + (k === v ? ' selected' : '') + '>' + k + '</option>')
+        .map(
+          k =>
+            '<option value="' +
+            k +
+            '"' +
+            (k === v ? ' selected' : '') +
+            '>' +
+            k +
+            ' · ' +
+            escala[k - 1][0] +
+            '</option>',
+        )
         .join('') +
       '</select>';
     const now = m
@@ -2818,9 +2857,9 @@ export function mountMira(root) {
       '</tbody></table></div>' +
       (mon
         ? '<div class="g2" style="margin-top:12px"><div><label for="r-prob">Probabilidade</label>' +
-          sel('r-prob', r.prob) +
+          sel('r-prob', r.prob, PROB) +
           '</div><div><label for="r-imp">Impacto</label>' +
-          sel('r-imp', r.imp) +
+          sel('r-imp', r.imp, IMPS) +
           '</div></div><div class="field" style="margin-top:8px"><label for="r-motivo">Motivo da reavaliação</label><input id="r-motivo" style="width:100%"></div><div class="actions"><button class="btn primary" data-act="reaval">Reavaliar nível</button>' +
           (r.status === 'em_tratamento'
             ? '<button class="btn danger" data-act="evento">O evento ocorreu</button>'
@@ -4494,7 +4533,8 @@ export function mountMira(root) {
     ['Impacto (nota)', 'num', 0, r => r.imp],
     ['Nível de risco', 'num', 0, r => nivel(r) || ''],
     ['Faixa', 'txt', 12, r => (nivel(r) ? LV[band(nivel(r))] : '')],
-    ['Controles existentes', 'txt', 50, r => r.prr && r.prr.controles],
+    ['Linha do tempo da probabilidade', 'txt', 24, r => r.linhaTempo],
+    ['Controles existentes', 'txt', 50, r => r.controles || (r.prr && r.prr.controles)],
     ['Ação proposta', 'txt', 50, r => r.prr && r.prr.acao],
     ['Se o evento ocorrer, faça isto', 'txt', 50, r => r.prr && r.prr.contingencia],
     ['Viabilidade e custo da solução', 'txt', 40, r => r.prr && r.prr.viabilidade],
@@ -4784,6 +4824,9 @@ export function mountMira(root) {
       .replace(/\|/g, '/');
   // Célula do CSV entre aspas, com aspas internas duplicadas.
   const csvq = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  // Segurança: texto que começa com =, +, -, @, tabulação ou retorno vira fórmula no Excel. Nas colunas de texto
+  // ele ganha um apóstrofo na frente; números de verdade não passam por aqui e continuam abrindo como número.
+  const semFormula = (v, k) => (k === 'txt' && /^[=+\-@\t\r]/.test(String(v)) ? "'" + v : v);
   // Excel em português lê ";" como separador e vírgula como decimal; o BOM garante os acentos.
   const csvv = (v, k) =>
     v == null || v === '' || v === false
@@ -4798,7 +4841,7 @@ export function mountMira(root) {
     '\ufeff' +
     cols.map(c => csvq(c[0])).join(';') +
     '\r\n' +
-    rows.map(r => r.map((v, i) => csvq(csvv(v, cols[i][1]))).join(';')).join('\r\n');
+    rows.map(r => r.map((v, i) => csvq(semFormula(csvv(v, cols[i][1]), cols[i][1]))).join(';')).join('\r\n');
   // CSV dos riscos visíveis, separado por ";".
   const csvAll = () => csvOf(EXPORT, expRows());
   // Planilha Excel com a aba Riscos e a aba Por coordenadoria (app/planilha.js).
@@ -4958,7 +5001,13 @@ export function mountMira(root) {
           toast('Valor da exposição não entendido. Use, por exemplo, 4.000.000.');
           break;
         }
-        await api('POST', 'risks/' + r.id + '/aval', { prob: p, imp: i, exposicao });
+        await api('POST', 'risks/' + r.id + '/aval', {
+          prob: p,
+          imp: i,
+          exposicao,
+          controles: val('f-controles').trim(),
+          linhaTempo: val('f-linha').trim(),
+        });
         await refresh(true);
         toast('Avaliação salva: nível ' + p * i + '.');
         break;
@@ -5284,6 +5333,8 @@ export function mountMira(root) {
     [/residua/i, '#p-probres'],
     [/parecer|motivo|observação/i, '#ap-motivo,textarea[id$="motivo"]'],
     [/probabilidade e impacto|probabilidade/i, 'input[name="prob"]'],
+    [/controles/i, '#f-controles'],
+    [/linha do tempo/i, '#f-linha'],
     [/causa/i, '#f-causa'],
     [/evento/i, '#f-evento'],
     [/impacto/i, '#f-impacto'],
@@ -5568,6 +5619,10 @@ export function mountMira(root) {
   }
   // Digitação: atualiza a identificação ou o resumo do PRR ao vivo e filtra a lista de pessoas.
   const onInput = e => {
+    if (e.target.id === 'f-linha') {
+      const o = document.getElementById('av-linha-txt');
+      if (o) o.textContent = e.target.value.trim() || 'a linha do tempo definida';
+    }
     // Pesquisa nas listas de pessoas: esconde, a cada letra, as opções que não têm o texto digitado.
     if (e.target.dataset.filtra) {
       const q = e.target.value.trim().toLowerCase(),

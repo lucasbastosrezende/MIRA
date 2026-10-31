@@ -14,8 +14,8 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 121 verificações, todas passando |
-| Interface (smoke) | todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
+| API | 125 verificações, todas passando |
+| Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Visual | capturas no computador e a 390 px, temas claro e escuro, sem rolagem lateral e sem erro na página |
 
@@ -74,6 +74,26 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 ### 11. Números da matriz pequenos
 - **Achado:** captura da matriz com o visual novo.
 - **Resolvido:** os números das células vazias passaram de 10 para 16 px e os das células com risco para 22 px, em negrito.
+
+### 12. Regras do MGR que faltavam na avaliação
+- **Achado:** plano, regras O7 e O8 (MGR p. 14–15).
+- **Resolvido:** a avaliação exige "Controles existentes" (antes das notas) e "Linha do tempo da probabilidade"; a tela mostra a pergunta do MGR com a linha do tempo, e o PRR mostra os mesmos controles.
+- **Conferido:** testes da API (avaliação sem controles ou sem linha do tempo é recusada) e o roteiro de navegador preenchendo os dois campos.
+
+### 13. Correções de segurança
+- **Achado:** plano, itens 23, 24 e 25.
+- **Resolvido:**
+  - o bloqueio de login não aceita mais o X-Forwarded-For sem proxy confiável (`MIRA_TRUST_PROXY=1`) e tem um limite só por usuário;
+  - o CSV põe apóstrofo em texto que começa com `=`, `+`, `-` ou `@`;
+  - o cookie sai com `Secure` quando `MIRA_HTTPS=1`.
+- **Conferido:**
+  - teste da API com 6 tentativas trocando o X-Forwarded-For (terminam bloqueadas);
+  - teste do cookie Secure;
+  - no navegador, um risco com título `=1+1 teste` saiu no CSV como `'=1+1 teste`.
+
+### 14. Coluna nova fora de ordem no CSV
+- **Achado:** o roteiro de navegador (T26) acusou a "Linha do tempo" entre "Controles existentes" e "Ação proposta", que no Apêndice D ficam lado a lado.
+- **Resolvido:** a coluna foi para antes dos controles.
 
 ## Visual
 
