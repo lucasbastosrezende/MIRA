@@ -80,9 +80,9 @@ A tabela com todos os cenários testados, incluindo o roteiro de ponta a ponta n
 
 Estão em `lib/logic.js`:
 
-- **Faixas de nível:** 1–2 irrelevante, 3–5 baixo, 6–10 médio, 12–16 alto, 20–25 extremo.
+- **Faixas de nível (MGR, Figura 5):** 1–2 irrelevante, 3–4 baixo, 5–9 médio, 10–16 alto, 20–25 extremo.
 - **Descrição das notas 1 a 5** de probabilidade e impacto.
-- **Probabilidade em percentual** (5%, 15%, 35%, 60%, 85%) usada só no painel de Alta Gestão para estimar
+- **Probabilidade em percentual** (5%, 20%, 45%, 75%, 95%, o meio de cada faixa da escala baseada na ISO 31000) usada só no painel de Alta Gestão para estimar
   exposição em reais. É uma premissa para comparar opções, não uma previsão de perda.
 - **Alertas por e-mail** ainda não saem do sistema: os avisos aparecem na aba Alertas.
 

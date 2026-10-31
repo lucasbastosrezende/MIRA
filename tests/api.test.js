@@ -40,6 +40,29 @@ const ok = (c, m) => {
   if (!c) process.exitCode = 1;
 };
 (async () => {
+  // Regra do MGR (p. 17–18, Figura 5): matriz 5 × 5, 25 células, nível = probabilidade × impacto (1 a 25)
+  const Lg = require('../lib/logic.js');
+  const FIG5 = [
+    // impacto 1 a 5 (linhas) × probabilidade 1 a 5 (colunas): faixa esperada (0 Irrelevante … 4 Extremo)
+    [0, 0, 1, 1, 2],
+    [0, 1, 2, 2, 3],
+    [1, 2, 2, 3, 3],
+    [1, 2, 3, 3, 4],
+    [2, 3, 3, 4, 4],
+  ];
+  const erradas = [];
+  for (let i = 1; i <= 5; i++)
+    for (let p = 1; p <= 5; p++) if (Lg.band(p * i) !== FIG5[i - 1][p - 1]) erradas.push(p + '×' + i);
+  ok(
+    !erradas.length,
+    'as 25 células da matriz batem com a Figura 5' + (erradas.length ? ': ' + erradas : ''),
+  );
+  ok(Lg.LV[Lg.band(10)] === 'Alto', 'exemplo do MGR: 2 × 5 = 10 é Alto');
+  // Premissa da exposição esperada: percentuais crescentes, e a nota 5 (nível 25, Extremo) nunca abaixo de 90%
+  ok(
+    [1, 2, 3, 4].every(n => Lg.PPCT[n] < Lg.PPCT[n + 1]) && Lg.PPCT[5] >= 0.9,
+    'percentual da probabilidade 5 é de pelo menos 90%',
+  );
   // Implantação: não há criação de conta pela API; o administrador é criado pelo comando no servidor
   let r = await call('x', 'GET', 'status');
   ok(r.s === 200 && r.needsSetup === undefined, 'status não oferece primeiro acesso');
@@ -280,6 +303,10 @@ const ok = (c, m) => {
     tratamento: 'mitigar',
     controles: 'x',
     acao: 'Análise periódica de vulnerabilidades',
+    contingencia: 'Isolar o sistema afetado e acionar a equipe de resposta a incidentes',
+    viabilidade: 'Viável com a equipe atual',
+    restricoes: 'Nenhuma',
+    recursos: 'Duas pessoas da equipe e a ferramenta de varredura já contratada',
     responsavel: 'Pessoa Cad',
     prazo: '2026-12-30',
     custo: 85000,
@@ -300,6 +327,18 @@ const ok = (c, m) => {
   await call('cad', 'POST', 'risks/R-001/prr', { prr });
 
   // Tramitação do PRR: cada perfil só decide na sua vez; devolver exige motivo
+  // Todo PRR diz o que fazer se o evento ocorrer; sem isso o envio é recusado
+  await call('cad', 'POST', 'risks/R-001/prr', { prr: { ...prr, contingencia: '' } });
+  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  ok(
+    r.s === 422 && /evento ocorrer/.test(r.error || JSON.stringify(r)),
+    'PRR sem plano para o evento é recusado',
+  );
+  // Regra do MGR (p. 21): restrições legais e recursos fazem parte do tratamento
+  await call('cad', 'POST', 'risks/R-001/prr', { prr: { ...prr, restricoes: '' } });
+  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  ok(r.s === 422, 'PRR sem restrições legais é recusado');
+  await call('cad', 'POST', 'risks/R-001/prr', { prr });
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
   ok(r.s === 200 && r.risk.status === 'ag_gestor', 'envia ao gestor');
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
@@ -438,6 +477,11 @@ const ok = (c, m) => {
   // Depois do evento: retomar o tratamento ou reabrir o PRR (com motivo); o gestor também pode agir
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'evento' });
   ok(r.s === 200 && r.risk.status === 'ocorrido', 'cadastrador registra que o evento ocorreu');
+  st = await call('ges', 'GET', 'state');
+  ok(
+    st.alerts.some(a => a.tipo === 'evento' && a.msg.includes('Faça agora: Isolar o sistema afetado')),
+    'aviso de evento traz o que fazer (plano do PRR)',
+  );
   r = await call('ges', 'POST', 'risks/R-001/action', { action: 'retomar' });
   ok(r.s === 422, 'retomar o tratamento exige motivo');
   r = await call('ges', 'POST', 'risks/R-001/action', { action: 'retomar', motivo: 'Evento contido' });

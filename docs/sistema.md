@@ -56,9 +56,9 @@ rascunho → avaliado → aguardando gestor → aguardando Alta Gestão → em t
 
 | Conceito | Regra |
 |---|---|
-| Nível | Probabilidade × impacto, de 1 a 25 |
-| Faixas | 1–2 irrelevante · 3–5 baixo · 6–10 médio · 12–16 alto · 20–25 extremo |
-| Probabilidade em percentual | 1 = 5% · 2 = 15% · 3 = 35% · 4 = 60% · 5 = 85% |
+| Nível | Probabilidade (1 a 5) × impacto (1 a 5), de 1 a 25, na matriz 5 × 5 |
+| Faixas (MGR, Figura 5) | 1–2 irrelevante · 3–4 baixo · 5–9 médio · 10–16 alto · 20–25 extremo |
+| Probabilidade em percentual | 1 = 5% · 2 = 20% · 3 = 45% · 4 = 75% · 5 = 95% (meio de cada faixa da escala baseada na ISO 31000: menos de 10%, 10–30%, 31–60%, 61–90%, mais de 90%; a nota 5 nunca abaixo de 90%) |
 | Exposição esperada | Percentual da probabilidade × exposição financeira estimada |
 | Exposição depois do PRR | Percentual da probabilidade residual × exposição × (impacto residual ÷ impacto atual). Se o tratamento é "aceitar", não há redução. |
 | Redução esperada | Exposição esperada − exposição depois do PRR |
@@ -168,6 +168,6 @@ A tabela de testes e os resultados estão em [testes.md](testes.md).
 ## Limites conhecidos
 
 - E-mails são simulados.
-- Faixas de nível, notas e percentuais precisam ser conferidos com o MGR oficial.
+- Faixas de nível e notas seguem o MGR (Figura 5 e Quadros 2 e 3). Os percentuais de probabilidade são premissa do sistema, não do MGR.
 - Um único arquivo SQLite, pensado para uso interno em uma instalação; não há réplica nem acesso de fora da máquina.
 - Testado no Chromium; outros navegadores e o build de produção ainda não foram testados (veja [testes.md](testes.md)).

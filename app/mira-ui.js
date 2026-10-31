@@ -20,6 +20,7 @@ export function mountMira(root) {
     PAPEL,
     LV,
     band,
+    BANDS,
     PROB,
     IMPS,
     PPCT,
@@ -27,6 +28,7 @@ export function mountMira(root) {
     STAT,
     PHASES,
     nivel,
+    altoOuExtremo,
     curPhase,
     lastMed,
     metricSt,
@@ -140,6 +142,8 @@ export function mountMira(root) {
   const me = () => S.me;
   // Busca um risco pelo ID nos dados carregados.
   const rk = id => S.risks.find(r => r.id === id);
+  // Percentual da nota de probabilidade (1 a 5) na premissa da exposição esperada, em texto (ex.: "45%").
+  const pctTxt = n => Math.round(PPCT[n] * 100) + '%';
   // Riscos que o perfil pode ver.
   const scope = () => S.risks; // o servidor já entrega só o que o perfil pode ver
   // Siglas das coordenadorias que o perfil pode ver. Não há lista fixa: o administrador cria cada uma.
@@ -660,7 +664,7 @@ export function mountMira(root) {
           ')"></i>' +
           l +
           ' <span class="muted">' +
-          ['1–2', '3–5', '6–10', '12–16', '20–25'][i] +
+          BANDS[i] +
           '</span></li>',
       ).join('') +
       '</ul>'
@@ -948,7 +952,7 @@ export function mountMira(root) {
       counts[k] = (counts[k] || 0) + 1;
       (ids[k] = ids[k] || []).push(r);
     });
-    const alto = aval.filter(r => nivel(r) >= 12).length;
+    const alto = aval.filter(r => altoOuExtremo(r)).length;
     const monit = list.filter(r => metricSt(r) !== 'sem'),
       crit = monit.filter(r => metricSt(r) === 'critico').length,
       fora = monit.filter(r => metricSt(r) === 'alerta').length + crit;
@@ -970,8 +974,8 @@ export function mountMira(root) {
         'Nível alto ou extremo',
         alto,
         alto
-          ? alto + ' de ' + aval.length + ' avaliados · nível 12 ou mais'
-          : 'Nenhum risco com nível 12 ou mais',
+          ? alto + ' de ' + aval.length + ' avaliados · Alto ou Extremo (nível 10 ou mais)'
+          : 'Nenhum risco Alto ou Extremo',
         alto ? 'crit' : 'ok',
         aval.length ? pct(alto, aval.length) : null,
       ) +
@@ -1158,7 +1162,7 @@ export function mountMira(root) {
       costC = withC.reduce((a, x) => a + x.e.cost, 0),
       bc = costC ? withC.reduce((a, x) => a + x.e.gain, 0) / costC : 0;
     const semPrr = list.filter(
-      r => nivel(r) >= 12 && !['em_tratamento', 'ocorrido'].includes(r.status),
+      r => altoOuExtremo(r) && !['em_tratamento', 'ocorrido'].includes(r.status),
     ).length;
     const sum = !tot
       ? 'Ainda não há riscos avaliados com exposição financeira.'
@@ -1201,7 +1205,11 @@ export function mountMira(root) {
           esc(
             'Soma das exposições estimadas, sem aplicar a probabilidade: ' +
               brl(cheio) +
-              '. A exposição esperada multiplica cada valor pelo percentual da probabilidade do risco (5% a 85%).',
+              '. A exposição esperada multiplica cada valor pelo percentual da probabilidade do risco (' +
+              pctTxt(1) +
+              ' a ' +
+              pctTxt(5) +
+              ').',
           ) +
           '">Valor cheio, sem a probabilidade: <b>' +
           brlc(cheio) +
@@ -1455,7 +1463,11 @@ export function mountMira(root) {
       '## Tramitação do PRR',
       ap || '- sem registros',
       '',
-      'Premissas: probabilidades convertidas em 5%, 15%, 35%, 60% e 85%. Todas as alterações deste risco estão registradas no histórico do MIRA (quem, quando e o quê).',
+      'Premissas: probabilidades convertidas em ' +
+        [1, 2, 3, 4].map(pctTxt).join(', ') +
+        ' e ' +
+        pctTxt(5) +
+        ' (meio de cada faixa da escala baseada na ISO 31000). Todas as alterações deste risco estão registradas no histórico do MIRA (quem, quando e o quê).',
     ].join('\n');
   }
 
@@ -2278,6 +2290,26 @@ export function mountMira(root) {
     );
   }
   // Fase 4 · Tratamento (PRR): formulário em 4 seções, ou leitura e decisão para gestor e Alta Gestão.
+  // Critérios do tratamento que vêm do próprio risco (MGR p. 21): o nível de criticidade, com a conta
+  // à vista, e as causas. Nada é calculado sem aparecer na tela.
+  const criterios = r =>
+    '<div class="info-box" style="margin-bottom:12px"><div><b>Nível de criticidade:</b> probabilidade ' +
+    r.prob +
+    ' (' +
+    PROB[r.prob - 1][0] +
+    ') × impacto ' +
+    r.imp +
+    ' (' +
+    IMPS[r.imp - 1][0] +
+    ') = <b>' +
+    nivel(r) +
+    '</b> · ' +
+    LV[band(nivel(r))] +
+    ' (faixa ' +
+    BANDS[band(nivel(r))] +
+    ' da matriz 5 × 5)</div><div style="margin-top:4px"><b>Causa que dá origem ao risco:</b> ' +
+    esc(r.causa) +
+    '</div></div>';
   function tabPrr(u, r) {
     if (!r.prob || !r.imp)
       return '<div class="card"><h3>Fase 4 · Tratamento</h3><div class="empty">Avalie probabilidade e impacto antes de elaborar o PRR.</div></div>';
@@ -2367,24 +2399,42 @@ export function mountMira(root) {
           esc(p.controles) +
           '</textarea><div class="hint">O que já existe hoje para reduzir esse risco.</div></div><div class="field"><label for="p-acao">Ação proposta</label><textarea id="p-acao" rows="3">' +
           esc(p.acao) +
-          '</textarea><div class="hint">Mitigar, evitar ou transferir: o que será feito. Aceitar: por que o risco é aceito.</div></div>',
+          '</textarea><div class="hint">Mitigar, evitar ou transferir: o que será feito. Aceitar: por que o risco é aceito.</div></div>' +
+          // Todo risco diz o que fazer se o evento ocorrer; o aviso de evento repete esse plano.
+          '<div class="field"><label for="p-conting">Se o evento ocorrer, faça isto</label><textarea id="p-conting" rows="2">' +
+          esc(p.contingencia) +
+          '</textarea><div class="hint">Primeira resposta quando o risco acontecer: quem age e o que faz.</div></div>',
       ) +
       sec(
         2,
-        'Responsável, prazo e custo',
-        '<div class="g3">' +
-          inp('p-resp', 'Responsável pela ação', p.responsavel) +
-          inp('p-prazo', 'Prazo', p.prazo ? String(p.prazo).slice(0, 10) : '', 'date') +
+        'Critérios do tratamento (MGR p. 21)',
+        criterios(r) +
+          '<div class="field"><label for="p-viab">Viabilidade e custo da solução</label><textarea id="p-viab" rows="2">' +
+          esc(p.viabilidade) +
+          '</textarea></div>' +
           // Campo em reais com a leitura do valor embaixo, dentro da mesma coluna.
           '<div class="field"><label for="p-custo">Custo estimado (R$)</label><input id="p-custo" type="text" inputmode="decimal" data-brl placeholder="Ex.: 85.000" value="' +
           esc(brlIn(p.custo)) +
           '" style="width:100%"><div class="hint" id="p-custo-v">' +
           brlLido(brlIn(p.custo)) +
           '</div></div>' +
-          '</div>',
+          '<div class="field"><label for="p-restr">Restrições ou imposições legais</label><textarea id="p-restr" rows="2">' +
+          esc(p.restricoes) +
+          '</textarea><div class="hint">Se não houver, escreva "Nenhuma".</div></div>' +
+          '<div class="field"><label for="p-recur">Recursos financeiros, humanos e tecnológicos</label><textarea id="p-recur" rows="2">' +
+          esc(p.recursos) +
+          '</textarea><div class="hint">O que é preciso e se está disponível.</div></div>',
       ) +
       sec(
         3,
+        'Responsável e prazo',
+        '<div class="g2">' +
+          inp('p-resp', 'Responsável pela ação', p.responsavel) +
+          inp('p-prazo', 'Prazo', p.prazo ? String(p.prazo).slice(0, 10) : '', 'date') +
+          '</div>',
+      ) +
+      sec(
+        4,
         'Acompanhamento da métrica',
         inp('p-metrica', 'Métrica de acompanhamento', p.metrica) +
           '<div class="g2">' +
@@ -2407,7 +2457,7 @@ export function mountMira(root) {
           '</div>',
       ) +
       sec(
-        4,
+        5,
         'Risco residual',
         '<p class="hint" style="margin-top:0">Como o risco fica depois do tratamento. Comece pelo nível de hoje e reduza o que a ação muda.</p>' +
           '<div class="res-atalhos" role="group" aria-label="Atalhos do risco residual">' +
@@ -2444,6 +2494,13 @@ export function mountMira(root) {
       roField('Forma de tratamento', cap(p.tratamento) + ' — ' + TRAT[p.tratamento], true) +
       roField('Controles existentes', p.controles, true) +
       roField('Ação proposta', p.acao, true) +
+      roField('Se o evento ocorrer, faça isto', p.contingencia, true) +
+      '</div>' +
+      criterios(r) +
+      '<div class="kvgrid">' +
+      roField('Viabilidade e custo da solução', p.viabilidade, true) +
+      roField('Restrições ou imposições legais', p.restricoes, true) +
+      roField('Recursos financeiros, humanos e tecnológicos', p.recursos, true) +
       roField('Responsável pela ação', p.responsavel) +
       roField('Prazo', p.prazo ? fd(p.prazo) : '') +
       roField('Custo estimado', brl(p.custo)) +
@@ -2692,7 +2749,7 @@ export function mountMira(root) {
   function viewRiscos(u) {
     const all = scope(u),
       list = filtered(all),
-      alto = all.filter(r => r.status !== 'encerrado' && nivel(r) >= 12).length;
+      alto = all.filter(r => r.status !== 'encerrado' && altoOuExtremo(r)).length;
     return (
       pageHead(
         'Riscos ' + (u.unit ? 'da ' + u.unit : 'da SETIC'),
@@ -2881,7 +2938,10 @@ export function mountMira(root) {
             '</button>'
           : '';
     return (
-      '<li class="q-card"><div class="q-top"><span class="mono muted small">' +
+      '<li class="q-card"' +
+      // Faixa lateral na cor do nível (Figura 5 do MGR); o nome da faixa aparece escrito no cartão (lvc).
+      (n ? ' style="border-left:4px solid var(--m' + band(n) + ')"' : '') +
+      '><div class="q-top"><span class="mono muted small">' +
       r.id +
       '</span>' +
       (n ? lvc(n) : '') +
@@ -2894,6 +2954,10 @@ export function mountMira(root) {
       (r.prr && r.prr.prazo ? ' ' + prazoCell(r) : '') +
       (u.unit ? '' : ' <span class="unit">' + esc(r.unit) + '</span>') +
       '</div>' +
+      // Depois do evento, o cartão mostra o que fazer, tirado do plano de contingência do PRR.
+      (r.status === 'ocorrido' && r.prr && r.prr.contingencia
+        ? '<p class="warn-box" style="margin:0"><b>Faça agora:</b> ' + esc(r.prr.contingencia) + '</p>'
+        : '') +
       quem +
       form +
       '</li>'
@@ -2976,8 +3040,16 @@ export function mountMira(root) {
       delegado: 'Delegação',
       revisao: 'Revisão do PRR',
     };
+    // Faixa do nível do risco do aviso (-1 sem avaliação): pinta a lateral do aviso e entra escrita no tipo.
+    const bandOf = id => {
+      const x = rk(id),
+        n = x ? nivel(x) : 0;
+      return n ? band(n) : -1;
+    };
     const row = (tn, kind, msg, meta, id, isNew) =>
-      '<li><button class="qi" data-open="' +
+      '<li' +
+      (bandOf(id) >= 0 ? ' style="border-left:4px solid var(--m' + bandOf(id) + ');padding-left:4px"' : '') +
+      '><button class="qi" data-open="' +
       id +
       '"><span class="qi-ico t-' +
       tn +
@@ -2987,6 +3059,7 @@ export function mountMira(root) {
       ICO[tn] +
       '</span><span class="qi-b"><span class="qi-k">' +
       kind +
+      (bandOf(id) >= 0 ? ' · ' + LV[bandOf(id)] : '') +
       (isNew ? ' · <span class="new-tag">novo</span>' : '') +
       '</span><span class="qi-msg">' +
       esc(msg) +
@@ -2994,6 +3067,8 @@ export function mountMira(root) {
       (meta ? '<span class="qi-t">' + meta + '</span>' : '') +
       '</span><span class="qi-go" aria-hidden="true">›</span></button></li>';
     const act = dv
+      .slice()
+      .sort((a, b) => (b.crit ? 1 : 0) - (a.crit ? 1 : 0) || bandOf(b.riskId) - bandOf(a.riskId))
       .map(d => row(d.crit ? 'crit' : 'warn', KIND[d.tipo] || d.tipo, d.msg, '', d.riskId, false))
       .join('');
     // O tom segue a gravidade do aviso: métrica crítica e evento ocorrido são críticos; devolução, alerta e nível que subiu pedem atenção.
@@ -3009,7 +3084,15 @@ export function mountMira(root) {
             : a.tipo === 'aprovado'
               ? 'ok'
               : 'info';
+    const TOM = { crit: 0, warn: 1, info: 2, ok: 3 };
     const inf = st
+      .slice()
+      .sort(
+        (a, b) =>
+          TOM[toneOf(a)] - TOM[toneOf(b)] ||
+          bandOf(b.riskId) - bandOf(a.riskId) ||
+          String(b.ts).localeCompare(a.ts),
+      )
       .map(a => row(toneOf(a), KIND[a.tipo] || a.tipo, a.msg, fdt(a.ts), a.riskId, !a.lido[u.id]))
       .join('');
     const sec = (t, sub, n, body, empty) =>
@@ -3175,7 +3258,7 @@ export function mountMira(root) {
               ' | ' +
               L.filter(r => r.unit === x).length +
               ' | ' +
-              L.filter(r => r.unit === x && nivel(r) >= 12).length +
+              L.filter(r => r.unit === x && altoOuExtremo(r)).length +
               ' | ' +
               F.novos.filter(r => r.unit === x).length +
               ' | ' +
@@ -3185,7 +3268,7 @@ export function mountMira(root) {
         ].join('\n')
       : '- nenhuma coordenadoria criada';
     const altos =
-      L.filter(r => nivel(r) >= 12)
+      L.filter(r => altoOuExtremo(r))
         .sort((a, b) => nivel(b) - nivel(a))
         .map(
           r =>
@@ -3263,7 +3346,7 @@ export function mountMira(root) {
     const P = perAtual(),
       Fp = fatosPer(P);
     const gain = E.reduce((a, x) => a + x.e.gain, 0),
-      alto = L.filter(r => nivel(r) >= 12).length;
+      alto = L.filter(r => altoOuExtremo(r)).length;
     const cnt = (x, i) => L.filter(r => r.unit === x && band(nivel(r)) === i).length,
       mx = Math.max(1, ...units().flatMap(x => LV.map((l, i) => cnt(x, i))));
     const tiles =
@@ -3272,7 +3355,7 @@ export function mountMira(root) {
       tile(
         'Nível alto ou extremo',
         alto,
-        alto ? 'Entram no relatório com situação e responsável' : 'Nenhum risco com nível 12 ou mais',
+        alto ? 'Entram no relatório com situação e responsável' : 'Nenhum risco Alto ou Extremo',
         alto ? 'crit' : 'ok',
       ) +
       tile('Novos no período', Fp.novos.length, 'Riscos cadastrados em ' + esc(P.nome)) +
@@ -3951,6 +4034,10 @@ export function mountMira(root) {
       tratamento: val('p-trat'),
       controles: val('p-controles').trim(),
       acao: val('p-acao').trim(),
+      contingencia: val('p-conting').trim(),
+      viabilidade: val('p-viab').trim(),
+      restricoes: val('p-restr').trim(),
+      recursos: val('p-recur').trim(),
       responsavel: val('p-resp').trim(),
       prazo: val('p-prazo'),
       custo: parseBRL(val('p-custo')) || 0,
@@ -4031,6 +4118,10 @@ export function mountMira(root) {
     ['Faixa', 'txt', 12, r => (nivel(r) ? LV[band(nivel(r))] : '')],
     ['Controles existentes', 'txt', 50, r => r.prr && r.prr.controles],
     ['Ação proposta', 'txt', 50, r => r.prr && r.prr.acao],
+    ['Se o evento ocorrer, faça isto', 'txt', 50, r => r.prr && r.prr.contingencia],
+    ['Viabilidade e custo da solução', 'txt', 40, r => r.prr && r.prr.viabilidade],
+    ['Restrições ou imposições legais', 'txt', 40, r => r.prr && r.prr.restricoes],
+    ['Recursos financeiros, humanos e tecnológicos', 'txt', 40, r => r.prr && r.prr.recursos],
     ['Métrica', 'txt', 40, r => r.prr && r.prr.metrica],
     ['Unidade da métrica', 'txt', 14, r => r.prr && r.prr.unidadeMetrica],
     ['Responsável', 'txt', 30, r => r.prr && r.prr.responsavel],
@@ -4123,7 +4214,7 @@ export function mountMira(root) {
         return [
           un,
           xs.length,
-          xs.filter(q => nivel(q.r) >= 12).length,
+          xs.filter(q => altoOuExtremo(q.r)).length,
           s('cur'),
           s('res'),
           s('gain'),

@@ -84,7 +84,7 @@ Fonte única: o **MGR v1.0** (PDF "Modelo de Gestão de Riscos", Setic, 2025). E
 | # | Regra (o que o MGR diz) | Fonte | Situação no código | O que fazer |
 |---|---|---|---|---|
 | O1 | O perfil que aprova os PRRs e faz o relatório anual é a **CSGR**. "Alta gestão" é quem o CGGE subsidia, e não a CSGR. | p. 4, 7 (Quadro 1), 20–23 | Errado na branch 3: o perfil aparece como "Alta Gestão de Riscos" (`PAPEL.altagestao`, `STAT.ag_altagestao` "Aguardando Alta Gestão"). | Voltar a exibir "CSGR" em toda a tela, nos avisos, no relatório e na documentação, e o código interno para `csgr` (Passo 0, seção 4). |
-| O2 | Matriz **5 × 5** (Figura 5): probabilidade de 1 a 5 × impacto de 1 a 5 = **25 células**; o nível é P × I e vai de **1 a 25**. Cada célula tem a faixa da Figura 5 (tabela "Matriz 5 × 5" abaixo). | p. 17–18 | Parcial: a matriz 5 × 5 e o nível P × I já existem; `band` dá faixa diferente da Figura 5 em 4 das 25 células (as de valor 5 e as de valor 10). | Item 1 e 27: ajustar `band` para as 25 células baterem com a Figura 5. **Aguardando confirmação do usuário.** |
+| O2 | Matriz **5 × 5** (Figura 5): probabilidade de 1 a 5 × impacto de 1 a 5 = **25 células**; o nível é P × I e vai de **1 a 25**. Cada célula tem a faixa da Figura 5 (tabela "Matriz 5 × 5" abaixo). | p. 17–18 | Feito: `band` segue a Figura 5 nas 25 células (teste em `tests/api.test.js`). | Nada. |
 | O3 | Cores da legenda: Extremo **vermelho**, Alto **laranja**, Médio **amarelo**, Baixo **verde**, Irrelevante **azul claro**. | p. 18 | Feito na branch `desenvolvimento-resolvendo-problemas`. Tokens `--m0..--m4` (fundo) e `--mf0..--mf4` (texto) em `globals.css`, nos temas claro e escuro. | Item 21 (Etapa 1): `--l0` azul claro e `--l4` vermelho nos três blocos de `globals.css`. |
 | O4 | Para a probabilidade, "deve-se considerar o Quadro 2": a descrição de cada nota é a do Quadro 2, literal (ver abaixo). | p. 15 | Feito na branch `desenvolvimento-resolvendo-problemas`. | Trocar o texto de `PROB` pelo Quadro 2. Não depende de decisão. |
 | O5 | Para o impacto, "deve-se considerar o Quadro 3": a descrição de cada nota é a do Quadro 3, literal (ver abaixo). | p. 16–17 | Feito na branch `desenvolvimento-resolvendo-problemas`. | Trocar o texto de `IMPS` pelo Quadro 3. |
@@ -156,6 +156,12 @@ Usar estes textos sem mudar palavras. No MGR, o cabeçalho dos Quadros 2 e 3 est
 - Impacto: "Ocorrendo a <CAUSA> que originou o <EVENTO/RISCO>, qual impacto no alcance do <OBJETIVO>?"
 - Nível: "O <EVENTO/RISCO> tem <PROBABILIDADE> e <IMPACTO>. Logo, o nível do risco é igual a <PROBABILIDADE x IMPACTO>."
 
+### Feito além do MGR, a pedido do usuário
+
+- **Plano para o caso de o evento ocorrer** (`prr.contingencia`, obrigatório no envio do PRR): o aviso de evento e o cartão do quadro mostram "Faça agora: …".
+- **Cores pela gravidade:** cartão do quadro e avisos com faixa lateral na cor do nível do risco e o nome da faixa escrito; avisos ordenados do mais grave para o mais leve.
+- **Fase do risco:** o risco em rascunho já passou pela identificação e aparece na fase 3 (avaliação).
+
 ### O que os documentos **não** obrigam (melhoria, não conformidade)
 
 - **Apetite a risco e alçada (item 7):** o MGR diz que a Setic "poderá regulamentar" (p. 19). Enquanto não houver regulamento, não há regra para aplicar.
@@ -197,7 +203,7 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 
 | # | Item | Obrigatório | Situação | Etapa |
 |---|---|---|---|---|
-| 1 | Faixas de nível erradas | O2 | Aguardando confirmação do usuário (4 das 25 células) | 1 |
+| 1 | Faixas de nível erradas | O2 | Feito | 1 |
 | 2 | Descrições de probabilidade e impacto | O4, O5 | Feito | 1 |
 | 3 | Linha do tempo da probabilidade | O7 | Pendente | 1 |
 | 4 | Controles existentes antes das notas | O8 | Pendente (já definido) | 1 |
@@ -209,9 +215,9 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 | 10 | Responsável da ação em texto livre | Melhoria | Parcial | 3 |
 | 11 | Avisos de designação e de criação de risco | Melhoria (O16 não diz a forma) | Parcial | 3 |
 | 12 | Residual padrão 1 × 1 | Correção (número errado) | Parcial | 1 |
-| 13 | Percentuais e reais sem base | Melhoria (fora do MGR) | Pendente (decisão) | 3 |
+| 13 | Percentuais e reais sem base | Melhoria (fora do MGR) | Parcial: percentuais pelo meio das faixas da escala baseada na ISO 31000 (5%, 20%, 45%, 75%, 95%); nota 5 nunca abaixo de 90% | 3 |
 | 14 | Relatório anual sem os PRRs | O13 | Parcial | 1 |
-| 15 | Critérios do tratamento | Melhoria | Pendente | 3 |
+| 15 | Critérios do tratamento | Melhoria | Feito: seção "Critérios do tratamento (MGR p. 21)" no PRR | 3 |
 | 16 | Exportação com os Apêndices C e D e a categorização | O9, O10, O11 | Feito (colunas dos Apêndices C e D) | 1 |
 | 17 | Apresentação do MGR à equipe | O14 | Feito (marco do cronograma) | 1 |
 | 18 | Priorização só pelo nível | Melhoria | Pendente (decisão) | 3 |
@@ -223,7 +229,7 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 | 24 | CSV sem proteção contra fórmulas | Correção (segurança) | Pendente | 1 |
 | 25 | Primeiro acesso e cookie | Correção (segurança) | Parcial | 1 |
 | 26 | IA externa (desligar, aviso, sem treino) | Melhoria (fora do MGR) | Pendente (baixa prioridade; decisão de segurança) | 3 |
-| 27 | Faixas repetidas e testes sem o edital | O2 | Pendente | 1 |
+| 27 | Faixas repetidas e testes sem o edital | O2 | Feito (`altoOuExtremo` e `BANDS` em `lib/logic.js`) | 1 |
 | 28 | Nome do perfil CSGR | O1 | Pendente | Passo 0 |
 | 29 | Textos das formas de tratamento | O6 | Feito | 1 |
 
