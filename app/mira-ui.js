@@ -1643,6 +1643,11 @@ export function mountMira(root) {
     'Probabilidade residual': v => (PROB[v - 1] ? v + ' · ' + PROB[v - 1][0] : v),
     'Nota de impacto': v => (IMPS[v - 1] ? v + ' · ' + IMPS[v - 1][0] : v),
     'Impacto residual': v => (IMPS[v - 1] ? v + ' · ' + IMPS[v - 1][0] : v),
+    // O responsável é guardado pelo código interno da pessoa; na tela aparece o nome (nunca o código).
+    'Responsável (pessoa do sistema)': v => {
+      const p = (S.team || []).concat(S.users || []).find(x => x.id === v);
+      return p ? p.nome : 'pessoa do sistema';
+    },
   };
   // Valor do histórico em texto legível (usa FMTV quando o campo é conhecido).
   const fmtV = (c, v) => (v === '' || v == null ? '' : FMTV[c] ? FMTV[c](v) : String(v));
