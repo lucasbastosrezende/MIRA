@@ -60,7 +60,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;backgroun
 .logo svg{width:30px;height:30px;color:var(--accent)}
 /* Mascote: a mira do topo gira para o lado do mouse (--mira-rot) e o ponto central segue o mouse (--mira-dx/dy).
    A cor é a da mira (--mira), que só muda pelo easter egg de segurar a mira. */
-.mira-btn{all:unset;display:inline-flex;cursor:pointer;border-radius:50%;-webkit-tap-highlight-color:transparent}
+.mira-btn{all:unset;display:inline-flex;cursor:pointer;border-radius:50%;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .mira-btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .mira-btn svg{color:var(--mira);transform:rotate(var(--mira-rot,0deg));transition:transform .35s cubic-bezier(.2,.8,.2,1)}
 .mira-btn svg .mira-ponto{transform:translate(var(--mira-dx,0px),var(--mira-dy,0px));transition:transform .2s ease-out}

@@ -4446,41 +4446,50 @@ export function mountMira(root) {
       de.style.setProperty('--mira-dy', (-3 * dist).toFixed(2) + 'px');
     });
   };
-  // Easter egg: clicar na mira passa para o próximo tema; segurar a mira (0,7 s) troca a cor dela.
+  // Easter egg, só segurando a mira (um clique simples não muda nada):
+  // - segurar e soltar depois de 0,6 s: passa para o próximo tema (o mesmo que a tela de Configurações troca);
+  // - continuar segurando até 2 s: troca a cor da mira (e o tema fica como estava).
+  const MIRA_TEMA_MS = 600,
+    MIRA_COR_MS = 2000;
   let miraTimer = 0,
-    miraSegurou = false;
+    miraIni = 0,
+    miraCor = false;
   const onMiraDown = e => {
     const m = e.target.closest && e.target.closest('[data-mira]');
     if (!m) return;
-    miraSegurou = false;
+    miraIni = Date.now();
+    miraCor = false;
     m.classList.add('segurando');
     miraTimer = setTimeout(() => {
-      miraSegurou = true;
+      miraCor = true;
       const atual = pref.get('mira-cor', MIRA_CORES[0]),
         prox = MIRA_CORES[(MIRA_CORES.indexOf(atual) + 1) % MIRA_CORES.length];
       pref.set('mira-cor', prox);
       document.documentElement.style.setProperty('--mira', prox);
       toast('A mira mudou de cor.');
-    }, 700);
+    }, MIRA_COR_MS);
   };
-  const onMiraUp = () => {
+  // Fim do gesto sem efeito (o ponteiro saiu ou o sistema cancelou): nada muda.
+  const onMiraCancel = () => {
     clearTimeout(miraTimer);
+    miraIni = 0;
     const m = document.querySelector('.mira-btn.segurando');
     if (m) m.classList.remove('segurando');
   };
-  // Clique na mira: próximo tema (o mesmo que a tela de Configurações troca).
-  function miraClique() {
-    if (miraSegurou) {
-      miraSegurou = false;
-      return;
-    }
+  // Soltou a mira: se segurou o bastante e a cor não mudou, passa para o próximo tema.
+  const onMiraUp = () => {
+    const segurou = miraIni ? Date.now() - miraIni : 0;
+    onMiraCancel();
+    if (segurou < MIRA_TEMA_MS || miraCor) return;
     const atual = pref.get('tema', 'setic'),
       i = TEMAS.findIndex(x => x[0] === atual),
       prox = TEMAS[(i + 1) % TEMAS.length];
     trocaTema(prox[0]);
     toast('Tema: ' + prox[1] + '.');
     if (UI.view === 'config') render(true);
-  }
+  };
+  // Clique na mira: não faz nada (o tema muda só segurando); existe para o clique não seguir para outra ação.
+  function miraClique() {}
   // Tela Configurações (clique no perfil): escolha do tema, com amostra das cores, e o tema editável.
   function viewConfig(u) {
     const atual = pref.get('tema', 'setic');
@@ -6151,7 +6160,7 @@ export function mountMira(root) {
   root.addEventListener('focusout', hideTip);
   root.addEventListener('pointerdown', onMiraDown);
   root.addEventListener('pointerup', onMiraUp);
-  root.addEventListener('pointercancel', onMiraUp);
+  root.addEventListener('pointercancel', onMiraCancel);
   if (document.addEventListener) document.addEventListener('pointermove', onMove);
   /* ===== Início ===== */
   (async () => {
@@ -6186,7 +6195,7 @@ export function mountMira(root) {
     root.removeEventListener('focusout', hideTip);
     root.removeEventListener('pointerdown', onMiraDown);
     root.removeEventListener('pointerup', onMiraUp);
-    root.removeEventListener('pointercancel', onMiraUp);
+    root.removeEventListener('pointercancel', onMiraCancel);
     if (document.removeEventListener) document.removeEventListener('pointermove', onMove);
     root.innerHTML = '';
   };
