@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 125 verificações, todas passando |
+| API | 127 verificações, todas passando |
 | Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Visual | capturas no computador e a 390 px, temas claro e escuro, sem rolagem lateral e sem erro na página |
@@ -94,6 +94,16 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 ### 14. Coluna nova fora de ordem no CSV
 - **Achado:** o roteiro de navegador (T26) acusou a "Linha do tempo" entre "Controles existentes" e "Ação proposta", que no Apêndice D ficam lado a lado.
 - **Resolvido:** a coluna foi para antes dos controles.
+
+### 15. Residual 1 × 1 inventava redução
+- **Achado:** plano, item 12. Com o residual vazio, a conta usava probabilidade 0 e mostrava redução total (ex.: R$ 840 mil num risco 5 × 5 de R$ 1 mi); o servidor ainda gravava vazio como 1 × 1, e as listas do residual não tinham opção vazia.
+- **Resolvido:**
+  - sem residual informado não há redução;
+  - o servidor guarda vazio como vazio;
+  - o envio exige probabilidade e impacto residuais;
+  - as listas ganharam "Escolha…";
+  - a tela e a justificativa ao TCE mostram "residual pendente".
+- **Conferido:** testes da API (PRR sem residual não gera redução e não é enviado) e o roteiro de navegador (49 de 49).
 
 ## Visual
 

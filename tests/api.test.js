@@ -58,6 +58,20 @@ const ok = (c, m) => {
     'as 25 células da matriz batem com a Figura 5' + (erradas.length ? ': ' + erradas : ''),
   );
   ok(Lg.LV[Lg.band(10)] === 'Alto', 'exemplo do MGR: 2 × 5 = 10 é Alto');
+  // Sem residual informado não há redução (antes, 5 × 5 com R$ 1 mi mostrava R$ 840 mil de redução inventada)
+  const semRes = Lg.econ({
+    prob: 5,
+    imp: 5,
+    exposicao: 1e6,
+    prr: { tratamento: 'mitigar', custo: 50000, probRes: '', impRes: '' },
+  });
+  ok(semRes.gain === 0 && semRes.res === semRes.cur, 'PRR sem residual não gera redução');
+  ok(
+    Lg.prrErrors({ probRes: '', impRes: '' }, { semDefinir: true }).includes(
+      'Informe a probabilidade e o impacto residuais.',
+    ),
+    'PRR sem residual não é enviado',
+  );
   // Premissa da exposição esperada: percentuais crescentes, e a nota 5 (nível 25, Extremo) nunca abaixo de 90%
   ok(
     [1, 2, 3, 4].every(n => Lg.PPCT[n] < Lg.PPCT[n + 1]) && Lg.PPCT[5] >= 0.9,

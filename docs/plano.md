@@ -224,7 +224,7 @@ A coluna "Obrigatório" aponta a regra da seção 3. "Melhoria" quer dizer que n
 | 9 | PRR travado depois da aprovação | Melhoria | Parcial | 3 |
 | 10 | Responsável da ação em texto livre | Melhoria | Parcial | 3 |
 | 11 | Avisos de designação e de criação de risco | Melhoria (O16 não diz a forma) | Parcial | 3 |
-| 12 | Residual padrão 1 × 1 | Correção (número errado) | Feito em parte: o residual começa igual ao risco de hoje (sem redução inventada); tornar obrigatório fica como melhoria | 1 |
+| 12 | Residual padrão 1 × 1 | Correção (número errado) | Feito: sem residual informado não há redução; o envio exige probabilidade e impacto residuais | 1 |
 | 13 | Percentuais e reais sem base | Melhoria (fora do MGR) | Parcial: percentuais pelo meio das faixas da escala baseada na ISO 31000 (5%, 20%, 45%, 75%, 95%); nota 5 nunca abaixo de 90% | 3 |
 | 14 | Relatório anual sem os PRRs | O13 | Parcial | 1 |
 | 15 | Critérios do tratamento | Melhoria | Feito: seção "Critérios do tratamento (MGR p. 21)" no PRR | 3 |
@@ -356,6 +356,10 @@ Ordem sugerida dentro da etapa: 28 (nome CSGR) → 1 e 27 (faixas) → 2, 29 e 2
 ### 17 · Apresentação do MGR à equipe (O14)
 
 - **Pode ser feito assim:** no contexto (`ctxEscopo`/`ctxMarco` em `lib/service.js`, `ctxCards` em `app/mira-ui.js`), registrar a data da apresentação do MGR à equipe, com auditoria. O cronograma já existe nos marcos.
+
+---
+
+**Etapa 1 concluída em 31/10/2026** na branch `desenvolvimento-resolvendo-problemas` (PR #34). A Etapa 2 segue na branch `feature/etapa-2-decisoes-csgr`.
 
 ---
 

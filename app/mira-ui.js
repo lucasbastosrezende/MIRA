@@ -1446,7 +1446,7 @@ export function mountMira(root) {
     const e = econ(r),
       p = r.prr || emptyPrr(),
       n = nivel(r),
-      nr = (p.probRes || 1) * (p.impRes || 1);
+      nr = p.probRes && p.impRes ? p.probRes * p.impRes : 0;
     const ap = (p.aprov || [])
       .map(
         a =>
@@ -1485,13 +1485,15 @@ export function mountMira(root) {
       '- Forma de tratamento: ' + cap(p.tratamento) + '. ' + mdc(p.acao),
       '- Custo estimado: ' + brl(e.cost) + '.',
       '- Responsável: ' + mdc(p.responsavel || '—') + '. Prazo: ' + fd(p.prazo) + '.',
-      '- Risco residual esperado: nível ' +
-        nr +
-        ' (' +
-        LV[band(nr)] +
-        '). Exposição residual: ' +
-        brl(e.res) +
-        '.',
+      nr
+        ? '- Risco residual esperado: nível ' +
+          nr +
+          ' (' +
+          LV[band(nr)] +
+          '). Exposição residual: ' +
+          brl(e.res) +
+          '.'
+        : '- Risco residual: pendente (probabilidade e impacto residuais não informados); sem redução calculada.',
       '- Redução esperada: ' +
         brl(e.gain) +
         (e.ratio != null
@@ -2188,12 +2190,12 @@ export function mountMira(root) {
     if (!p || !r.prob || !r.imp) return '';
     const e = econ(r),
       n = nivel(r),
-      nr = (p.probRes || 1) * (p.impRes || 1);
+      nr = p.probRes && p.impRes ? p.probRes * p.impRes : 0;
     return (
       '<div class="tiles sum"><div class="tile"><div class="tile-h"><span>Risco atual → residual</span></div><div class="tile-chips">' +
       lvc(n) +
       '<span class="arr" aria-hidden="true">→</span>' +
-      lvc(nr) +
+      (nr ? lvc(nr) : html(rx(Etiqueta, { tom: 'warn', children: 'Residual pendente' }))) +
       '</div><span class="tile-f">' +
       (p.tratamento === 'aceitar' ? 'Risco aceito: sem redução' : 'Depois do tratamento') +
       '</span></div>' +
@@ -2274,7 +2276,7 @@ export function mountMira(root) {
     const x = Object.assign({}, r, { prr: Object.assign({}, r.prr || emptyPrr(), p) }),
       e = econ(x),
       n = nivel(r),
-      nr = (Number(p.probRes) || 1) * (Number(p.impRes) || 1);
+      nr = Number(p.probRes) && Number(p.impRes) ? Number(p.probRes) * Number(p.impRes) : 0;
     const c = Number(p.critico),
       a = Number(p.alerta),
       i = Number(p.ideal),
@@ -2317,7 +2319,7 @@ export function mountMira(root) {
       '<div class="kvl"><span>Risco atual → residual</span><div class="chips2">' +
       lvc(n) +
       '<span class="arr" aria-hidden="true">→</span>' +
-      lvc(nr) +
+      (nr ? lvc(nr) : html(rx(Etiqueta, { tom: 'warn', children: 'Residual pendente' }))) +
       '</div></div>' +
       row('Exposição esperada', brlc(e.cur) + ' → ' + brlc(e.res)) +
       row(
@@ -2335,6 +2337,9 @@ export function mountMira(root) {
   // Conta do risco residual, explicada: nível de hoje e depois do PRR, e a exposição residual
   // (valor cheio × percentual da probabilidade residual × impacto residual ÷ impacto de hoje).
   function resConta(r, p) {
+    // Sem residual escolhido, a conta não é feita: nada de supor 1 × 1.
+    if (!Number(p.probRes) || !Number(p.impRes))
+      return '<div class="info-box">Escolha a probabilidade e o impacto residuais para ver a conta. Sem eles, não há redução.</div>';
     const pr = Number(p.probRes) || 1,
       ir = Number(p.impRes) || 1,
       n = nivel(r),
@@ -2707,13 +2712,19 @@ export function mountMira(root) {
           sel(
             'p-probres',
             'Probabilidade residual',
-            PROB.map((x, i) => [i + 1, i + 1 + ' · ' + x[0] + ' (' + Math.round(PPCT[i + 1] * 100) + '%)']),
+            [
+              ['', 'Escolha…'],
+              ...PROB.map((x, i) => [
+                i + 1,
+                i + 1 + ' · ' + x[0] + ' (' + Math.round(PPCT[i + 1] * 100) + '%)',
+              ]),
+            ],
             p.probRes,
           ) +
           sel(
             'p-impres',
             'Impacto residual',
-            IMPS.map((x, i) => [i + 1, i + 1 + ' · ' + x[0]]),
+            [['', 'Escolha…'], ...IMPS.map((x, i) => [i + 1, i + 1 + ' · ' + x[0]])],
             p.impRes,
           ) +
           '</div><div id="res-conta">' +
@@ -2747,8 +2758,8 @@ export function mountMira(root) {
       roField('Crítico', p.critico) +
       roField('Alerta', p.alerta) +
       roField('Ideal', p.ideal) +
-      roField('Probabilidade residual', (p.probRes || 1) + ' · ' + PROB[(p.probRes || 1) - 1][0]) +
-      roField('Impacto residual', (p.impRes || 1) + ' · ' + IMPS[(p.impRes || 1) - 1][0]) +
+      roField('Probabilidade residual', p.probRes ? p.probRes + ' · ' + PROB[p.probRes - 1][0] : 'pendente') +
+      roField('Impacto residual', p.impRes ? p.impRes + ' · ' + IMPS[p.impRes - 1][0] : 'pendente') +
       '</div>';
     const stat = stChip(r);
     const decide =
