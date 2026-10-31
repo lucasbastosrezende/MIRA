@@ -116,6 +116,13 @@ Quem é de uma coordenadoria vê no cabeçalho a sigla em maiúsculas e o nome p
 
 **Downloads.** Na tela, os textos longos (relatório anual e justificativa para o TCE) aparecem em Markdown formatado. O botão **Baixar** abre as opções de formato: Excel; CSV de riscos, por coordenadoria, por coordenadoria e faixa, de medições, do quadro e do histórico; e Markdown ou texto puro para o relatório e a justificativa. Os CSVs usam ";", vírgula decimal e acentos preservados, para abrir direto no Excel.
 
+## Configurações, temas e mascote
+
+- **Configurações:** clicar no próprio nome, no topo, abre a tela de Configurações. A escolha vale só para o navegador de quem usa.
+- **Temas:** SETIC (padrão, nas cores da SETIC, claro ou escuro conforme o computador), Noturno, Suave (meio-termo entre claro e escuro), Conforto dos olhos (creme e tons quentes) e Editável (cor principal e base clara ou escura à escolha). As cores dos níveis de risco seguem sempre a Figura 5 do MGR, em qualquer tema.
+- **Mascote:** a mira do topo gira para o lado do mouse e o ponto central segue o mouse.
+- **Easter egg:** clicar na mira passa para o próximo tema (o mesmo da tela de Configurações). Segurar a mira por um instante troca a cor dela. A cor da mira só muda por esse gesto; trocar de tema não muda a mira.
+
 ## Assistente de IA (opcional)
 
 Com a variável `ANTHROPIC_API_KEY` definida em `.env.local`, o cadastrador pode escrever o risco com as próprias palavras e pedir ao assistente que:

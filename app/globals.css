@@ -4,7 +4,9 @@
    Irrelevante azul claro, Baixo verde, Médio amarelo, Alto laranja, Extremo vermelho. */
 :root{
   --bg:#F2F4F6; --surface:#FFFFFF; --surface2:#E9EDF1; --ink:#101C2B; --muted:#5A6878; --line:#D3DAE2;
-  --accent:#0C5C73; --accent-ink:#FFFFFF; --accent-soft:#D9ECF1;
+  --accent:#16407A; --accent-ink:#FFFFFF; --accent-soft:#DCE6F4;
+  /* Cores da SETIC (azul, amarelo e verde): faixa do topo e mira do mascote. A mira só muda de cor pelo easter egg. */
+  --setic-azul:#16407A; --setic-amarelo:#F2B705; --setic-verde:#1F8A4C; --mira:#1F8A4C;
   --l0:#DDE3EA; --f0:#3B4856; --l1:#CFEBD5; --f1:#14532D; --l2:#FFF0B8; --f2:#6B4E00; --l3:#FFD1A3; --f3:#7A3200; --l4:#F7B4B0; --f4:#7F1414;
   --m0:#7FDBF2; --mf0:#0A2F3A; --m1:#7DE89A; --mf1:#0B3D1C; --m2:#FFF23A; --mf2:#3D3500; --m3:#F08A3C; --mf3:#2E1200; --m4:#D32F2F; --mf4:#FFFFFF;
   --s0:#8A98A8; --s1:#2E9E57; --s2:#D9A400; --s3:#E8731A; --s4:#D02F2F;
@@ -13,18 +15,36 @@
   --font-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
   --font-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+@media (prefers-color-scheme: dark){:root:not([data-theme]){
   --bg:#0D141C; --surface:#151F2A; --surface2:#1D2937; --ink:#E6EDF4; --muted:#93A3B5; --line:#2A3846;
-  --accent:#4CC3DD; --accent-ink:#06222B; --accent-soft:#123642;
+  --accent:#F2C94C; --accent-ink:#1A1400; --accent-soft:#3A3212;
   --l0:#243140; --f0:#B8C4D2; --l1:#153D25; --f1:#9FE0B4; --l2:#4A3C0A; --f2:#F2D676; --l3:#55290A; --f3:#FFB87A; --l4:#5E1A1A; --f4:#FFA6A0;
   --m0:#4FB8D6; --mf0:#04222B; --m1:#4CBF6E; --mf1:#04220F; --m2:#D9C500; --mf2:#262000; --m3:#D9661F; --mf3:#1F0B00; --m4:#B71C1C; --mf4:#FFFFFF;
   --s0:#6E7F92; --s1:#4CC27F; --s2:#F0BE2E; --s3:#F28A3C; --s4:#F26A6A; --shadow:none; color-scheme:dark}}
-:root[data-theme="dark"]{
+/* Tema Noturno: escuro em qualquer computador. */
+:root[data-theme="dark"],:root[data-theme="noturno"],:root[data-theme="editavel-escuro"]{
   --bg:#0D141C; --surface:#151F2A; --surface2:#1D2937; --ink:#E6EDF4; --muted:#93A3B5; --line:#2A3846;
   --accent:#4CC3DD; --accent-ink:#06222B; --accent-soft:#123642;
   --l0:#243140; --f0:#B8C4D2; --l1:#153D25; --f1:#9FE0B4; --l2:#4A3C0A; --f2:#F2D676; --l3:#55290A; --f3:#FFB87A; --l4:#5E1A1A; --f4:#FFA6A0;
   --m0:#4FB8D6; --mf0:#04222B; --m1:#4CBF6E; --mf1:#04220F; --m2:#D9C500; --mf2:#262000; --m3:#D9661F; --mf3:#1F0B00; --m4:#B71C1C; --mf4:#FFFFFF;
   --s0:#6E7F92; --s1:#4CC27F; --s2:#F0BE2E; --s3:#F28A3C; --s4:#F26A6A; --shadow:none; color-scheme:dark}
+/* Tema Suave: intermediário entre o claro e o escuro. */
+:root[data-theme="suave"]{
+  --bg:#2E3742; --surface:#3A4552; --surface2:#455262; --ink:#F1F4F7; --muted:#C3CCD6; --line:#56657A;
+  --accent:#8FD3E8; --accent-ink:#0B2530; --accent-soft:#2F5563;
+  --l0:#4A5666; --f0:#E4EAF0; --l1:#2F5A3E; --f1:#C8F0D4; --l2:#5E5126; --f2:#FBE7A6; --l3:#6A4027; --f3:#FFD2AE; --l4:#6E3434; --f4:#FFD0CC;
+  --m0:#4FB8D6; --mf0:#04222B; --m1:#4CBF6E; --mf1:#04220F; --m2:#D9C500; --mf2:#262000; --m3:#D9661F; --mf3:#1F0B00; --m4:#B71C1C; --mf4:#FFFFFF;
+  --s0:#8C9BAD; --s1:#5FD08D; --s2:#F0C74A; --s3:#F59A55; --s4:#F47C7C; --shadow:none; color-scheme:dark}
+/* Tema Conforto dos olhos: fundo creme e tons quentes, menos luz azul. */
+:root[data-theme="conforto"]{
+  --bg:#F4ECD8; --surface:#FBF6EA; --surface2:#EFE4CC; --ink:#3B2F1E; --muted:#6E5E45; --line:#DCCDAE;
+  --accent:#8A5A1F; --accent-ink:#FFFFFF; --accent-soft:#F1E0C2;
+  --shadow:0 1px 2px rgb(59 47 30 / 8%)}
+/* Tema Editável: a cor principal vem da configuração (--edit-accent); a base é clara ou escura. */
+:root[data-theme="editavel"],:root[data-theme="editavel-escuro"]{
+  --accent:var(--edit-accent,#16407A); --accent-soft:color-mix(in srgb,var(--accent) 16%,var(--surface))}
+:root[data-theme="editavel"]{--accent-ink:#FFFFFF}
+:root[data-theme="editavel-escuro"]{--accent-ink:#0D141C}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--font-body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px}
 h1,h2,h3{font-family:var(--font-display);margin:0;text-wrap:balance;line-height:1.2}
@@ -33,11 +53,24 @@ h2{font-size:22px} h3{font-size:16px} p{margin:0}
 .muted{color:var(--muted)} .small{font-size:12px}
 .wrap{max-width:1240px;margin:0 auto}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--surface);z-index:30}
-header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line);margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:3px solid var(--line);border-image:linear-gradient(90deg,var(--setic-azul) 0 34%,var(--setic-amarelo) 34% 67%,var(--setic-verde) 67%) 1;margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
 .bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;max-width:1240px;margin:0 auto}
 .logo{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing:.06em}
 .logo small{display:block;font:400 11px var(--font-body);letter-spacing:0;color:var(--muted);margin-top:-2px}
 .logo svg{width:30px;height:30px;color:var(--accent)}
+/* Mascote: a mira do topo gira para o lado do mouse (--mira-rot) e o ponto central segue o mouse (--mira-dx/dy).
+   A cor é a da mira (--mira), que só muda pelo easter egg de segurar a mira. */
+.mira-btn{all:unset;display:inline-flex;cursor:pointer;border-radius:50%;-webkit-tap-highlight-color:transparent}
+.mira-btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.mira-btn svg{color:var(--mira);transform:rotate(var(--mira-rot,0deg));transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.mira-btn svg .mira-ponto{transform:translate(var(--mira-dx,0px),var(--mira-dy,0px));transition:transform .2s ease-out}
+.mira-btn.segurando svg{animation:mira-pulso .7s ease-in-out}
+@keyframes mira-pulso{50%{transform:rotate(var(--mira-rot,0deg)) scale(1.25)}}
+@media (prefers-reduced-motion: reduce){.mira-btn svg,.mira-btn svg .mira-ponto{transition:none}.mira-btn.segurando svg{animation:none}}
+/* Perfil no topo é um botão: abre as Configurações. */
+.who-btn{all:unset;cursor:pointer;border-radius:8px;padding:2px 4px}
+.who-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.who-btn:hover b{text-decoration:underline}
 .spacer{flex:1}
 select,input,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0;max-width:100%}
 select:focus,input:focus,textarea:focus,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -574,3 +607,12 @@ main>.card.decide{box-shadow:0 0 0 1px var(--accent),var(--shadow)}
 .faq details{border-top:1px solid var(--line);padding:6px 0}
 .faq summary{cursor:pointer;font-weight:600;font-size:13px}
 .faq p{margin:6px 0 0;font-size:13px;color:var(--muted)}
+/* Listas de seleção com várias linhas (responsável, empresa): rolagem quando passam do tamanho. */
+select[size]{max-height:190px;overflow-y:auto}
+/* Configurações: cartões de tema com amostra das cores. */
+.temas{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.tema{display:flex;flex-direction:column;gap:6px;border:2px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;background:var(--surface)}
+.tema:has(input:checked){border-color:var(--accent)}
+.tema input{margin:0}
+.tema .amostra{display:flex;height:22px;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.tema .amostra i{flex:1}

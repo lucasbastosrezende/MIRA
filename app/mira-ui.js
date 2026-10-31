@@ -3735,7 +3735,7 @@ export function mountMira(root) {
     );
   }
   // Telas do administrador. Ele não tem coordenadoria e não vê riscos.
-  const ADMIN_VIEWS = ['usuarios', 'unidades', 'historico'];
+  const ADMIN_VIEWS = ['usuarios', 'unidades', 'historico', 'config'];
   // Tipos do relatório de pedido, como aparecem na tela.
   const TIPO_PEDIDO = { sei: 'SEI', formal: 'Pedido formal' };
   // Contas de teste teste1 a teste20 (a mesma regra do servidor): podem existir sem relatório de pedido.
@@ -4021,7 +4021,164 @@ export function mountMira(root) {
   }
   // Marca do MIRA.
   const LOGO =
-    '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/><path d="M16 2v7M16 23v7M2 16h7M23 16h7"/></svg>';
+    '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="16" cy="16" r="10"/><circle class="mira-ponto" cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/><path d="M16 2v7M16 23v7M2 16h7M23 16h7"/></svg>';
+  /* ===== Temas e mascote ===== */
+  // Temas da tela. O padrão é o da SETIC (azul, amarelo e verde), que segue o claro ou escuro do computador.
+  // [chave, nome, descrição, amostra de cores]. A escolha fica só neste navegador (preferência de quem usa).
+  const TEMAS = [
+    [
+      'setic',
+      'SETIC (padrão)',
+      'Cores da SETIC; claro ou escuro conforme o computador.',
+      ['#16407A', '#F2B705', '#1F8A4C', '#F2F4F6'],
+    ],
+    ['noturno', 'Noturno', 'Escuro em qualquer computador.', ['#0D141C', '#151F2A', '#4CC3DD', '#E6EDF4']],
+    ['suave', 'Suave', 'Meio-termo entre o claro e o escuro.', ['#2E3742', '#3A4552', '#8FD3E8', '#F1F4F7']],
+    [
+      'conforto',
+      'Conforto dos olhos',
+      'Fundo creme e tons quentes, menos luz azul.',
+      ['#F4ECD8', '#FBF6EA', '#8A5A1F', '#3B2F1E'],
+    ],
+    [
+      'editavel',
+      'Editável',
+      'Você escolhe a cor principal e a base.',
+      ['#F2F4F6', '#FFFFFF', 'var(--edit-accent,#16407A)', '#101C2B'],
+    ],
+  ];
+  // Cores que a mira pode ter. Só mudam pelo easter egg (segurar a mira); trocar de tema não muda a mira.
+  const MIRA_CORES = ['#1F8A4C', '#F2B705', '#2A6FDB', '#D32F2F', '#8E44AD', '#0FA3A3'];
+  // Lê e grava preferências deste navegador; sem armazenamento disponível, a tela segue com o padrão.
+  const pref = {
+    get: (k, d) => {
+      try {
+        const v = localStorage.getItem('mira-' + k);
+        return v == null ? d : v;
+      } catch (e) {
+        return d;
+      }
+    },
+    set: (k, v) => {
+      try {
+        localStorage.setItem('mira-' + k, v);
+      } catch (e) {
+        /* sem armazenamento: vale só até recarregar */
+      }
+    },
+  };
+  // Aplica o tema na página: o SETIC tira o atributo (e segue o computador); o editável usa a cor escolhida.
+  function aplicaTema(t) {
+    const de = document.documentElement;
+    if (!de || !de.style) return; // sem página de verdade (testes), não há o que pintar
+    const base = pref.get('edit-base', 'claro');
+    if (t === 'setic' || !TEMAS.some(x => x[0] === t)) de.removeAttribute('data-theme');
+    else de.setAttribute('data-theme', t === 'editavel' && base === 'escuro' ? 'editavel-escuro' : t);
+    if (t === 'editavel') de.style.setProperty('--edit-accent', pref.get('edit-cor', '#16407A'));
+    else de.style.removeProperty('--edit-accent');
+    de.style.setProperty('--mira', pref.get('mira-cor', MIRA_CORES[0]));
+  }
+  // Troca e guarda o tema.
+  function trocaTema(t) {
+    pref.set('tema', t);
+    aplicaTema(t);
+  }
+  aplicaTema(pref.get('tema', 'setic'));
+  // Mascote: a mira gira para o lado do mouse (horário ou anti-horário, pelo menor caminho) e o ponto central
+  // se desloca até 3 px na direção do mouse, como se estivesse mirando.
+  let miraAng = 0,
+    miraQuadro = 0;
+  const onMove = e => {
+    if (miraQuadro) return;
+    miraQuadro = requestAnimationFrame(() => {
+      miraQuadro = 0;
+      const m = document.querySelector('.mira-btn');
+      if (!m) return;
+      const b = m.getBoundingClientRect(),
+        dx = e.clientX - (b.left + b.width / 2),
+        dy = e.clientY - (b.top + b.height / 2);
+      const alvo = (Math.atan2(dy, dx) * 180) / Math.PI + 90;
+      // Menor giro até o alvo, para a mira não dar a volta inteira ao cruzar o ângulo zero.
+      let d = ((((alvo - miraAng) % 360) + 540) % 360) - 180;
+      miraAng += d;
+      const dist = Math.min(1, Math.hypot(dx, dy) / 300),
+        de = document.documentElement;
+      de.style.setProperty('--mira-rot', miraAng.toFixed(1) + 'deg');
+      // O ponto se move no referencial da mira já girada: para a frente, na direção do mouse.
+      de.style.setProperty('--mira-dx', '0px');
+      de.style.setProperty('--mira-dy', (-3 * dist).toFixed(2) + 'px');
+    });
+  };
+  // Easter egg: clicar na mira passa para o próximo tema; segurar a mira (0,7 s) troca a cor dela.
+  let miraTimer = 0,
+    miraSegurou = false;
+  const onMiraDown = e => {
+    const m = e.target.closest && e.target.closest('[data-mira]');
+    if (!m) return;
+    miraSegurou = false;
+    m.classList.add('segurando');
+    miraTimer = setTimeout(() => {
+      miraSegurou = true;
+      const atual = pref.get('mira-cor', MIRA_CORES[0]),
+        prox = MIRA_CORES[(MIRA_CORES.indexOf(atual) + 1) % MIRA_CORES.length];
+      pref.set('mira-cor', prox);
+      document.documentElement.style.setProperty('--mira', prox);
+      toast('A mira mudou de cor.');
+    }, 700);
+  };
+  const onMiraUp = () => {
+    clearTimeout(miraTimer);
+    const m = document.querySelector('.mira-btn.segurando');
+    if (m) m.classList.remove('segurando');
+  };
+  // Clique na mira: próximo tema (o mesmo que a tela de Configurações troca).
+  function miraClique() {
+    if (miraSegurou) {
+      miraSegurou = false;
+      return;
+    }
+    const atual = pref.get('tema', 'setic'),
+      i = TEMAS.findIndex(x => x[0] === atual),
+      prox = TEMAS[(i + 1) % TEMAS.length];
+    trocaTema(prox[0]);
+    toast('Tema: ' + prox[1] + '.');
+    if (UI.view === 'config') render(true);
+  }
+  // Tela Configurações (clique no perfil): escolha do tema, com amostra das cores, e o tema editável.
+  function viewConfig(u) {
+    const atual = pref.get('tema', 'setic');
+    return (
+      pageHead('Configurações', 'Preferências deste navegador para ' + esc(u.nome) + '.') +
+      '<div class="card">' +
+      cardH('Tema', 'Muda as cores da tela. As cores dos níveis de risco seguem sempre a matriz do MGR.') +
+      '<div class="temas" role="radiogroup" aria-label="Tema">' +
+      TEMAS.map(
+        t =>
+          '<label class="tema"><span><input type="radio" name="tema" value="' +
+          t[0] +
+          '"' +
+          (t[0] === atual ? ' checked' : '') +
+          '> <b>' +
+          t[1] +
+          '</b></span><span class="amostra" aria-hidden="true">' +
+          t[3].map(c => '<i style="background:' + c + '"></i>').join('') +
+          '</span><span class="small muted">' +
+          t[2] +
+          '</span></label>',
+      ).join('') +
+      '</div>' +
+      (atual === 'editavel'
+        ? '<div class="g2" style="margin-top:14px"><div class="field"><label for="cfg-cor">Cor principal</label><input type="color" id="cfg-cor" value="' +
+          esc(pref.get('edit-cor', '#16407A')) +
+          '" style="width:100%;height:40px"></div><div class="field"><label for="cfg-base">Base</label><select id="cfg-base" style="width:100%"><option value="claro"' +
+          (pref.get('edit-base', 'claro') === 'claro' ? ' selected' : '') +
+          '>Clara</option><option value="escuro"' +
+          (pref.get('edit-base', 'claro') === 'escuro' ? ' selected' : '') +
+          '>Escura</option></select></div></div>'
+        : '') +
+      '</div>'
+    );
+  }
   // Tela de entrada: usuário e senha. Não há criação de conta por aqui: o administrador é criado na
   // implantação (npm run admin) e cadastra as demais pessoas.
   function viewAuth() {
@@ -4117,6 +4274,7 @@ export function mountMira(root) {
       else if (UI.view === 'alertas') v = viewAlertas(u);
       else if (UI.view === 'usuarios') v = viewUsers(u);
       else if (UI.view === 'unidades') v = viewUnits(u);
+      else if (UI.view === 'config') v = viewConfig(u);
       else v = viewRel(u);
     } catch (e) {
       v =
@@ -4125,18 +4283,19 @@ export function mountMira(root) {
         '</p></div>';
     }
     root.innerHTML =
-      '<header class="top"><div class="bar"><div class="logo">' +
+      '<header class="top"><div class="bar"><div class="logo"><button type="button" class="mira-btn" data-mira aria-label="Mira, o mascote do MIRA">' +
       LOGO +
+      '</button>' +
       '<div>MIRA<small>' +
       esc(unitLabel(u.unit) || 'Monitoramento Integrado de Riscos e Ações · SETIC') +
-      '</small></div></div><span class="spacer"></span><span class="who"><span class="avatar" aria-hidden="true">' +
+      '</small></div></div><span class="spacer"></span><button type="button" class="who who-btn" data-act="config" title="Configurações e tema"><span class="avatar" aria-hidden="true">' +
       esc(initials(u.nome)) +
       '</span><span class="who-t"><b>' +
       esc(u.nome) +
       '</b><span>' +
       PAPEL[u.papel] +
       (u.unit ? ' · ' + esc(siglaUp(u.unit)) : '') +
-      '</span></span></span><button class="btn sm" data-act="logout">Sair</button></div><nav class="nav" aria-label="Seções">' +
+      '</span></span></button><button class="btn sm" data-act="logout">Sair</button></div><nav class="nav" aria-label="Seções">' +
       nav
         .map(
           n =>
@@ -4702,6 +4861,11 @@ export function mountMira(root) {
       api('POST', 'risks/' + r.id + '/action', Object.assign({ action }, extra || {}));
     switch (a) {
       // Navegação, filtros e sessão
+      case 'config':
+        UI.view = 'config';
+        UI.rid = null;
+        render();
+        break;
       case 'novo':
         UI.view = 'risco';
         UI.rid = 'new';
@@ -5213,6 +5377,12 @@ export function mountMira(root) {
   }
   // Cliques da tela inteira, por delegação no elemento raiz (data-act, data-open, data-nav...).
   const onClick = e => {
+    // Clique na mira do topo (o elemento precisa ter o atributo data-mira de fato).
+    const mb = e.target.closest('[data-mira]');
+    if (mb && mb.dataset && 'mira' in mb.dataset) {
+      miraClique();
+      return;
+    }
     const pk = e.target.closest('summary[data-peek]');
     if (pk && pk.dataset.peek) {
       UI.ctxPeek = !pk.parentNode.open;
@@ -5336,6 +5506,16 @@ export function mountMira(root) {
     }
     if (t.name === 'prob' || t.name === 'imp') {
       updAv();
+      return;
+    }
+    if (t.name === 'tema' && t.type === 'radio') {
+      trocaTema(t.value);
+      render(true);
+      return;
+    }
+    if (t.id === 'cfg-cor' || t.id === 'cfg-base') {
+      pref.set(t.id === 'cfg-cor' ? 'edit-cor' : 'edit-base', t.value);
+      aplicaTema('editavel');
       return;
     }
     if (t.dataset.outra) {
@@ -5502,6 +5682,10 @@ export function mountMira(root) {
   root.addEventListener('pointerleave', hideTip);
   root.addEventListener('focusin', onTip);
   root.addEventListener('focusout', hideTip);
+  root.addEventListener('pointerdown', onMiraDown);
+  root.addEventListener('pointerup', onMiraUp);
+  root.addEventListener('pointercancel', onMiraUp);
+  if (document.addEventListener) document.addEventListener('pointermove', onMove);
   /* ===== Início ===== */
   (async () => {
     try {
@@ -5530,6 +5714,10 @@ export function mountMira(root) {
     root.removeEventListener('pointerleave', hideTip);
     root.removeEventListener('focusin', onTip);
     root.removeEventListener('focusout', hideTip);
+    root.removeEventListener('pointerdown', onMiraDown);
+    root.removeEventListener('pointerup', onMiraUp);
+    root.removeEventListener('pointercancel', onMiraUp);
+    if (document.removeEventListener) document.removeEventListener('pointermove', onMove);
     root.innerHTML = '';
   };
 }

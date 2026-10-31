@@ -168,6 +168,8 @@ Usar estes textos sem mudar palavras. No MGR, o cabeçalho dos Quadros 2 e 3 est
 - **Métrica e unidade:** seleção fixa (`METRICAS`, `UNIDADES` em `lib/logic.js`) com a opção "Outra", que abre um campo de texto; na leitura e no relatório aparece "Outra (…)".
 - **Dúvidas frequentes:** blocos de perguntas no PRR e no monitoramento (métrica, limites, risco residual, contingência, critérios, responsável, medição, reavaliação, evento).
 - **Erro na segunda tentativa:** se a mesma ação dá o mesmo erro duas vezes, a tela vai até o campo que falta e o destaca.
+- **Configurações, temas e mascote:** clique no perfil abre as Configurações; temas SETIC (padrão), Noturno, Suave, Conforto dos olhos e Editável; a mira do topo segue o mouse; clicar na mira troca o tema e segurá-la troca a cor dela (easter egg). Ver `docs/sistema.md`.
+- **Listas de seleção:** com rolagem quando passam do tamanho.
 - **Risco Extremo sem tratamento aprovado:** fica sempre em "Exigem ação agora", com o próximo passo, até o PRR ser aprovado. O PRR devolvido entra nas pendências do gestor. Avisos repetidos do mesmo tipo e risco aparecem uma vez só.
 
 ### O que os documentos **não** obrigam (melhoria, não conformidade)
