@@ -193,7 +193,13 @@ const prr = {
 async function mkRisk(who, f, prob, imp, exp, upTo) {
   const r = (await call(who, 'POST', 'risks', f)).risk;
   if (!prob) return r;
-  await call(who, 'POST', `risks/${r.id}/aval`, { prob, imp, exposicao: exp });
+  await call(who, 'POST', `risks/${r.id}/aval`, {
+    prob,
+    imp,
+    exposicao: exp,
+    controles: 'Nenhum',
+    linhaTempo: 'últimos 12 meses',
+  });
   if (upTo === 'aval') return r;
   await call(who, 'POST', `risks/${r.id}/prr`, { prr });
   await call(who, 'POST', `risks/${r.id}/action`, { action: 'send-prr' });
@@ -230,7 +236,14 @@ await mkRisk('cad', F('Risco B', 'ausência de rotina de backup testada'), 3, 5,
 await mkRisk('cad', F('Risco C', 'dependência de fornecedor único de licenças'), 3, 3, 250000, 'altagestao');
 await mkRisk('cad', F('Risco D', 'equipe pequena para a demanda de suporte'), 0);
 // Risco Extremo ainda sem tratamento aprovado: precisa aparecer na fila de ação sem quebrar os painéis.
-await mkRisk('cad', F('Risco F', 'servidor de banco de dados sem suporte do fabricante'), 5, 5, 1000000, 'gestor');
+await mkRisk(
+  'cad',
+  F('Risco F', 'servidor de banco de dados sem suporte do fabricante'),
+  5,
+  5,
+  1000000,
+  'gestor',
+);
 await mkRisk('cad2', F('Risco E', 'link de internet sem contingência definida'), 4, 4, 900000, 'ativo');
 // navegação por perfil
 // Entra com um perfil e abre todas as telas do menu, os dois painéis e as 5 fases de cada risco.

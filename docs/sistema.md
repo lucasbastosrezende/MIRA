@@ -30,7 +30,7 @@ Quem é de uma coordenadoria não enxerga nem acessa por endereço os riscos de 
 |---|---|
 | 1 · Contexto | A coordenadoria registra o escopo da gestão de riscos, as pessoas designadas e um cronograma de marcos com data e situação (previsto, concluído, atrasado). É o primeiro passo do **Novo risco**: sem escopo salvo, o servidor não aceita o cadastro do risco. |
 | 2 · Identificação | Título, causa, evento, impacto e objetivo afetado. Enquanto se digita, uma pré-visualização mostra a frase completa do MGR, os campos recebem avisos de qualidade e o sistema aponta riscos parecidos já cadastrados. |
-| 3 · Avaliação | Probabilidade e impacto de 1 a 5, cada nota com descrição. O nível é probabilidade × impacto, na matriz 5 × 5. Informa-se também a exposição financeira estimada em reais, no formato brasileiro (4.000.000 ou 4.000.000,50); embaixo do campo aparece como o valor foi entendido e a conta da exposição esperada (valor cheio × percentual da probabilidade). |
+| 3 · Avaliação | Primeiro os controles existentes e a linha do tempo da probabilidade (ex.: últimos 12 meses), obrigatórios (MGR p. 14–15); a tela mostra a pergunta do MGR com essa linha do tempo. Depois, probabilidade e impacto de 1 a 5, cada nota com o texto dos Quadros 2 e 3 do MGR. O nível é probabilidade × impacto, na matriz 5 × 5. Informa-se também a exposição financeira estimada em reais, no formato brasileiro (4.000.000 ou 4.000.000,50); embaixo do campo aparece como o valor foi entendido e a conta da exposição esperada (valor cheio × percentual da probabilidade). |
 | 4 · Tratamento (PRR) | Forma de tratamento (mitigar, evitar, transferir, aceitar), controles existentes, ação, responsável, prazo, custo, métrica com limites crítico, alerta e ideal, e o risco residual esperado. O residual começa igual ao nível de hoje, com atalhos para reduzir 1 na probabilidade, no impacto ou nos dois, e mostra a conta da exposição residual. Um resumo ao lado recalcula enquanto se preenche. |
 | 5 · Monitoramento | Medições da métrica em gráfico, sobre as faixas dos limites; reavaliação do nível com motivo; registro de que o evento ocorreu; depois do evento, retomar o tratamento ou reabrir o PRR para revisão (com motivo); marcar a ação do PRR como concluída; encerramento pelo gestor. |
 
@@ -41,13 +41,14 @@ rascunho → avaliado → aguardando gestor → aguardando Alta Gestão → em t
                           │                    │                  │
                           └──── devolvido ◄────┘                  └→ evento ocorreu → encerrado
                                   │
-                                  └→ (cadastrador corrige e reenvia ao gestor)
+                                  ├→ (cadastrador corrige e reenvia ao gestor)
+                                  └→ (gestor corrige e envia direto à Alta Gestão)
 ```
 
 - **Rascunho:** identificado, ainda sem avaliação.
 - **Avaliado:** tem probabilidade e impacto; falta o PRR.
 - **Aguardando gestor / aguardando Alta Gestão:** PRR em validação. Ninguém edita o risco nessa etapa.
-- **Devolvido:** gestor ou Alta Gestão de Riscos devolveu com motivo obrigatório; o motivo aparece no topo do PRR para quem vai corrigir.
+- **Devolvido:** gestor ou Alta Gestão de Riscos devolveu com motivo obrigatório; o motivo aparece no topo do PRR para quem vai corrigir. Se quem corrige e envia é o cadastrador, o PRR volta ao gestor. Se é o próprio gestor (supervisor), o envio já é a validação dele e o PRR vai direto à Alta Gestão de Riscos, que recebe o aviso de novo. O mesmo vale para um PRR que o gestor elabora.
 - **Em tratamento:** PRR aprovado; começa o monitoramento da métrica.
 - **Evento ocorreu:** o risco se materializou; gestor e Alta Gestão de Riscos são avisados para reavaliar. Dali o risco volta ao tratamento ("Retomar o tratamento") ou o PRR é reaberto para revisão e passa de novo pelas validações.
 - **Encerrado:** fechado pelo gestor; sai dos riscos ativos e dos painéis.
@@ -72,8 +73,8 @@ As faixas de nível, as descrições das notas e os percentuais são premissas q
 Há dois tipos de aviso, reunidos na aba Alertas:
 
 - **Prazo da ação**, em texto: "faltam N dias", "vence amanhã", "vence hoje", "vencido há N dias" ou "concluída em". Antes da aprovação aparece como "proposto". Ação concluída não gera aviso de prazo.
-- **Avisos guardados**, que saem da lista principal (e do contador) quando a situação que os gerou foi resolvida e ficam em "Resolvidos". São gerados por um acontecimento: PRR enviado (para o gestor), PRR encaminhado (para a Alta Gestão de Riscos), PRR devolvido e aprovado (para cadastrador e gestor), métrica que entrou em alerta ou crítico (para cadastrador, gestor e Alta Gestão de Riscos), nível que subiu e evento ocorrido (para gestor e Alta Gestão de Riscos). Cada pessoa marca os seus como lidos.
-- **Avisos do momento**, calculados a cada acesso: prazo da ação em até 15 dias ou vencido, e métrica em alerta ou crítico. Aparecem em "Exigem ação agora" e na fila de ação do painel Operacional.
+- **Avisos guardados**, que saem da lista principal (e do contador) quando a situação que os gerou foi resolvida e ficam em "Resolvidos". São gerados por um acontecimento: PRR enviado (para o gestor), PRR encaminhado (para a Alta Gestão de Riscos), PRR devolvido e aprovado (para cadastrador e gestor), métrica que entrou em alerta ou crítico (para cadastrador, gestor e Alta Gestão de Riscos), nível que subiu e evento ocorrido (para gestor e Alta Gestão de Riscos). Cada pessoa marca os seus como lidos, um por um ("Marcar como lido") ou todos de uma vez.
+- **Avisos do momento**, calculados a cada acesso: risco Extremo sem tratamento aprovado, prazo da ação em até 15 dias ou vencido, e métrica em alerta ou crítico. Aparecem em "Exigem ação agora" e na fila de ação do painel Operacional. Não podem ser marcados como lidos, porque só saem quando a situação é resolvida; cada pessoa pode registrar **"Estou ciente"**, que guarda quem e quando, aparece no próprio aviso ("Ciente: …"), no histórico do risco e na seção 7 do relatório, e o aviso continua na lista.
 
 No protótipo os e-mails são simulados: o aviso aparece no sistema, mas nada sai por e-mail.
 
@@ -101,12 +102,12 @@ Todos os perfis alternam entre os dois painéis. Alta Gestão de Riscos e CGGE a
 
 | Tela | Para quê | Quem vê |
 |---|---|---|
-| Riscos | Lista com filtros por coordenadoria, nível e situação; menu Baixar com Excel e os CSVs | Todos |
+| Riscos | Lista com pesquisa (código, título, causa, evento, impacto ou quem abriu; acentos não importam) e filtros por coordenadoria, nível e situação; menu Baixar com Excel e os CSVs | Todos |
 | Quadro | Colunas pelas etapas do processo (identificar e avaliar, elaborar o PRR, em validação, em tratamento, evento ocorreu, encerrado), com quem resolve cada risco e filtro por responsável. O gestor da coordenadoria delega a um cadastrador ou a si mesmo, com uma observação; a delegação vai para o histórico e gera um aviso | Todos menos o administrador; delega o gestor |
 | Matriz | Matriz 5 × 5 com a distribuição por nível e a lista da célula escolhida | Todos |
 | Pendências | O que depende do perfil: rascunhos e devoluções (cadastrador), validações (gestor), aprovações com custo e retorno (Alta Gestão de Riscos) | Todos, menos CGGE |
-| Contexto | Fase 1 da coordenadoria; abre pelo botão Contexto na aba Riscos e é o primeiro passo do Novo risco | Todos; edita o cadastrador |
-| Histórico | Linha do tempo de todas as alterações, com valor anterior e novo | Todos, filtrado pela coordenadoria |
+| Contexto | Fase 1 da coordenadoria; abre pelo botão Contexto na aba Riscos. É o primeiro passo do Novo risco enquanto a coordenadoria não tem contexto salvo; depois disso, o Novo risco abre direto na identificação e o contexto continua na fase 1 | Todos; edita o cadastrador |
+| Histórico | Linha do tempo de todas as alterações, com valor anterior e novo. Pesquisa por data (de / até): o período é buscado no servidor, inteiro, e não só entre os registros mais recentes. A mesma pesquisa existe no histórico de cada risco | Todos, filtrado pela coordenadoria |
 | Alertas | Avisos do momento e avisos guardados | Todos |
 | Relatório | Relatório da Alta Gestão de Riscos por período: semanal, mensal (o padrão), semestral ou anual, com setas para os períodos anteriores. Mostra o que aconteceu no período (riscos cadastrados, PRRs aprovados e devolvidos, investimento aprovado, medições, eventos e encerramentos, pelas datas guardadas em cada risco) e a situação de hoje. Lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, Alta Gestão de Riscos e CGGE |
 | Usuários | Cadastro de pessoas com o relatório de pedido (SEI ou pedido formal, número SEI, data e PDF), registro de pedido de quem já tem conta, busca por nome ou número SEI, download do PDF e do relatório de pedido (.md ou .txt), redefinição de senha, desativação, exclusão e cobertura de cada coordenadoria | Administrador |
@@ -116,12 +117,32 @@ Quem é de uma coordenadoria vê no cabeçalho a sigla em maiúsculas e o nome p
 
 **Downloads.** Na tela, os textos longos (relatório anual e justificativa para o TCE) aparecem em Markdown formatado. O botão **Baixar** abre as opções de formato: Excel; CSV de riscos, por coordenadoria, por coordenadoria e faixa, de medições, do quadro e do histórico; e Markdown ou texto puro para o relatório e a justificativa. Os CSVs usam ";", vírgula decimal e acentos preservados, para abrir direto no Excel.
 
+## Facilidades de uso
+
+- **Nada digitado se perde sem aviso:** quem digitou algo e tenta sair da tela antes de salvar (outro menu, outra aba do risco, outro risco, Configurações ou Sair) recebe uma pergunta; "Cancelar" mantém tudo como estava. Fechar ou recarregar a página também pergunta. Filtros e pesquisas não contam como algo a salvar.
+- **O que falta para enviar o PRR:** o resumo ao lado do PRR lista, enquanto se preenche, o que ainda impede o envio, pela mesma regra do servidor. Cada item leva ao campo. Com tudo preenchido, aparece "Pronto para enviar ao gestor".
+- **Encolher blocos:** cada bloco com título tem o botão "Encolher / Mostrar". Encolher só esconde o conteúdo (o que foi digitado continua no lugar) e a escolha fica guardada no navegador de quem usa.
+- **Erro repetido:** se o mesmo erro aparece duas vezes seguidas, a tela vai até o campo que falta e o destaca.
+- **Celular:** o menu quebra em linhas para Pendências e Alertas ficarem sempre à vista; na matriz, cada célula mostra só a contagem (o nível fica na dica).
+
+## Decisões da CSGR
+
+Tela **Decisões** (a Alta Gestão registra; o CGGE consulta). Cada termo tem um botão **?** que abre a explicação ali mesmo, e ao lado fica o bloco de dúvidas frequentes com os mesmos termos. Cada decisão guarda quem decidiu e quando e vai para o histórico. Sem decisão, vale o comportamento padrão.
+
+- **Premissas financeiras:** percentual de cada nota de probabilidade na exposição esperada (padrão: 5%, 20%, 45%, 75% e 95%). Sem aprovação da CSGR, a justificativa ao TCE sai como minuta. A nota 5 nunca fica abaixo de 90%.
+- **Limite para aceitar o risco (apetite a risco):** maior nível que pode ser aceito sem tratamento. Na tela aparece com o nome simples e, entre parênteses, o termo do MGR (p. 19) e da ISO 31000. Com ele definido, um PRR com "Aceitar" acima desse nível não é enviado.
+- **Priorização:** ordem das filas e listas: pelo nível; nível e prazo; ou nível, prazo e situação.
+- **Limite por coordenadoria:** pode ser definido para cada coordenadoria e vale sobre o geral.
+
+No histórico, cada decisão aparece com o nome legível e os valores por extenso (por exemplo, "Cosegi: até nível 5, até R$ 500.000,00").
+- **Alçada do gestor:** nível e exposição máximos por coordenadoria; o PRR acima deles chega à CSGR marcado como fora da alçada do gestor e no topo da fila (MGR p. 8). Todo PRR continua passando pela CSGR.
+
 ## Configurações, temas e mascote
 
 - **Configurações:** clicar no próprio nome, no topo, abre a tela de Configurações. A escolha vale só para o navegador de quem usa.
 - **Temas:** SETIC (padrão, nas cores da SETIC, claro ou escuro conforme o computador), Noturno, Suave (meio-termo entre claro e escuro), Conforto dos olhos (creme e tons quentes) e Editável (cor principal e base clara ou escura à escolha). As cores dos níveis de risco seguem sempre a Figura 5 do MGR, em qualquer tema.
 - **Mascote:** a mira do topo gira para o lado do mouse e o ponto central segue o mouse.
-- **Easter egg:** clicar na mira passa para o próximo tema (o mesmo da tela de Configurações). Segurar a mira por um instante troca a cor dela. A cor da mira só muda por esse gesto; trocar de tema não muda a mira.
+- **Easter egg (só segurando):** um clique simples na mira não muda nada. Segurar a mira e soltar depois de um instante (0,6 s) passa para o próximo tema (o mesmo da tela de Configurações). Continuar segurando até 2 segundos troca a cor da mira, e o tema fica como estava. A cor da mira só muda por esse gesto; trocar de tema não muda a mira.
 
 ## Assistente de IA (opcional)
 
@@ -137,8 +158,9 @@ A chamada sai do servidor e a chave nunca vai para o navegador. Sem a chave, o s
 ## Segurança e auditoria
 
 - **Senhas:** guardadas com scrypt e salt aleatório, comparadas em tempo constante.
-- **Sessão:** cookie `HttpOnly` com `SameSite=Strict`, válida por 8 horas.
-- **Tentativas de login:** depois de 5 tentativas erradas, o usuário fica bloqueado por 5 minutos.
+- **Sessão:** cookie `HttpOnly` com `SameSite=Strict`, válida por 8 horas. Com `MIRA_HTTPS=1` (instância atrás de HTTPS), o cookie também é `Secure`.
+- **Tentativas de login:** 5 tentativas erradas do mesmo usuário e endereço bloqueiam por 5 minutos; 10 erros do mesmo usuário em 15 minutos bloqueiam por 15 minutos, de qualquer endereço. O endereço só vem do cabeçalho `X-Forwarded-For` com `MIRA_TRUST_PROXY=1` (proxy confiável na frente); sem isso, o cabeçalho é ignorado.
+- **Exportação CSV:** texto que começa com `=`, `+`, `-` ou `@` ganha um apóstrofo, para não virar fórmula ao abrir no Excel.
 - **Requisições:** toda requisição que não é leitura precisa de um cabeçalho próprio do MIRA, o que barra envios feitos por outros sites.
 - **Permissões:** conferidas no servidor em cada ação. O navegador recebe só os riscos que o perfil pode ver.
 - **Auditoria:** a tabela de auditoria só recebe inserções; não existe rota para editar ou apagar o histórico.

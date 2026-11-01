@@ -15,8 +15,8 @@ const count = t =>
     .get().n;
 const jars = {};
 // Chama a API como a pessoa 'who', guardando o cookie de sessão de cada uma.
-async function call(who, method, path, body) {
-  const h = { 'x-requested-with': 'mira', 'content-type': 'application/json' };
+async function call(who, method, path, body, extra) {
+  const h = { 'x-requested-with': 'mira', 'content-type': 'application/json', ...(extra || {}) };
   if (jars[who]) h.cookie = 'mira_sid=' + jars[who];
   const res = await handle(
     new Request('http://x/api/' + path, {
@@ -58,6 +58,20 @@ const ok = (c, m) => {
     'as 25 células da matriz batem com a Figura 5' + (erradas.length ? ': ' + erradas : ''),
   );
   ok(Lg.LV[Lg.band(10)] === 'Alto', 'exemplo do MGR: 2 × 5 = 10 é Alto');
+  // Sem residual informado não há redução (antes, 5 × 5 com R$ 1 mi mostrava R$ 840 mil de redução inventada)
+  const semRes = Lg.econ({
+    prob: 5,
+    imp: 5,
+    exposicao: 1e6,
+    prr: { tratamento: 'mitigar', custo: 50000, probRes: '', impRes: '' },
+  });
+  ok(semRes.gain === 0 && semRes.res === semRes.cur, 'PRR sem residual não gera redução');
+  ok(
+    Lg.prrErrors({ probRes: '', impRes: '' }, { semDefinir: true }).includes(
+      'Informe a probabilidade e o impacto residuais.',
+    ),
+    'PRR sem residual não é enviado',
+  );
   // Premissa da exposição esperada: percentuais crescentes, e a nota 5 (nível 25, Extremo) nunca abaixo de 90%
   ok(
     [1, 2, 3, 4].every(n => Lg.PPCT[n] < Lg.PPCT[n + 1]) && Lg.PPCT[5] >= 0.9,
@@ -238,6 +252,31 @@ const ok = (c, m) => {
   );
   r = await call('cad', 'POST', 'login', { username: 'cad.cosegi', password: 'errada' });
   ok(r.s === 401, 'senha errada');
+  // Segurança: trocar o X-Forwarded-For a cada tentativa não escapa do bloqueio (sem proxy confiável, ele é ignorado)
+  let ult;
+  for (let i = 0; i < 6; i++)
+    ult = await call(
+      'x',
+      'POST',
+      'login',
+      { username: 'outro.usuario', password: 'errada' },
+      {
+        'x-forwarded-for': '10.0.0.' + i,
+      },
+    );
+  ok(ult.s === 429, 'bloqueio de login não é burlado trocando o X-Forwarded-For');
+  // Segurança: com MIRA_HTTPS=1 o cookie de sessão sai com Secure
+  process.env.MIRA_HTTPS = '1';
+  const rs = await handle(
+    new Request('http://x/api/login', {
+      method: 'POST',
+      headers: { 'x-requested-with': 'mira', 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'ges.cosegi', password: 'senha-forte-2' }),
+    }),
+    ['login'],
+  );
+  delete process.env.MIRA_HTTPS;
+  ok(/;\s*Secure/.test(rs.headers.get('set-cookie') || ''), 'cookie Secure com MIRA_HTTPS=1');
   for (const [k, u] of [
     ['cad', 'cad.cosegi'],
     ['ges', 'ges.cosegi'],
@@ -310,8 +349,26 @@ const ok = (c, m) => {
   ok(r.s === 404, 'outra coordenadoria não acessa por id');
 
   // Avaliação (fase 3) e PRR (fase 4)
-  r = await call('cad', 'POST', 'risks/R-001/aval', { prob: 2, imp: 5, exposicao: 4000000 });
-  ok(r.s === 200 && r.risk.status === 'avaliado' && r.risk.niveis.length === 1, 'avalia nível 10');
+  // Regra do MGR (p. 14–15): controles existentes e linha do tempo vêm antes das notas e são obrigatórios
+  r = await call('cad', 'POST', 'risks/R-001/aval', { prob: 2, imp: 5, linhaTempo: 'últimos 12 meses' });
+  ok(r.s === 422 && /controles/i.test(r.error || ''), 'avaliação sem controles existentes é recusada');
+  r = await call('cad', 'POST', 'risks/R-001/aval', { prob: 2, imp: 5, controles: 'Nenhum' });
+  ok(r.s === 422 && /linha do tempo/i.test(r.error || ''), 'avaliação sem linha do tempo é recusada');
+  r = await call('cad', 'POST', 'risks/R-001/aval', {
+    prob: 2,
+    imp: 5,
+    exposicao: 4000000,
+    controles: 'Antivírus e atualizações mensais',
+    linhaTempo: 'últimos 12 meses',
+  });
+  ok(
+    r.s === 200 &&
+      r.risk.status === 'avaliado' &&
+      r.risk.niveis.length === 1 &&
+      r.risk.linhaTempo === 'últimos 12 meses' &&
+      r.risk.controles === 'Antivírus e atualizações mensais',
+    'avalia nível 10 com controles e linha do tempo',
+  );
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
   ok(r.s === 422, 'enviar PRR vazio é barrado');
   const prr = {
@@ -406,9 +463,20 @@ const ok = (c, m) => {
     r.s === 200 && r.risk.status === 'devolvido' && r.risk.prr.responsavel === 'empresateste',
     'Alta Gestão devolve indicando a empresa terceirizada',
   );
-  await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-ok' });
-  ok(r.s === 200 && r.risk.prr.responsavelId === emp.id, 'empresa indicada segue como responsável');
+  // O supervisor ajusta e reenvia o PRR devolvido pela Alta Gestão: o envio dele já é a validação,
+  // e o PRR volta à Alta Gestão em vez de parar na fila do próprio gestor.
+  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  ok(
+    r.s === 200 && r.risk.status === 'ag_altagestao',
+    'gestor reenvia o PRR devolvido e ele volta à Alta Gestão',
+  );
+  ok(r.risk.prr.responsavelId === emp.id, 'empresa indicada segue como responsável');
+  st = await call('altagestao', 'GET', 'state');
+  ok(
+    st.risks.some(x => x.id === 'R-001' && x.status === 'ag_altagestao') &&
+      st.alerts.filter(a => a.tipo === 'aprovacao' && a.riskId === 'R-001').length >= 2,
+    'Alta Gestão vê o PRR reenviado e recebe o aviso de novo',
+  );
   // Regra do MGR (p. 21): a CSGR emite parecer; aprovar sem parecer é recusado
   r = await call('altagestao', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
   ok(r.s === 422, 'aprovar sem parecer é recusado');
@@ -417,6 +485,69 @@ const ok = (c, m) => {
     motivo: 'Parecer favorável: ação adequada ao risco.',
   });
   ok(r.s === 200 && r.risk.status === 'em_tratamento', 'Alta Gestão aprova');
+
+  // Pesquisa do histórico por data: o período vem do servidor, com as mesmas regras de quem vê o quê
+  const hoje0 = new Date(Date.now() - 864e5).toISOString(),
+    hoje1 = new Date(Date.now() + 864e5).toISOString();
+  r = await call('altagestao', 'GET', 'audit?ini=' + hoje0 + '&fim=' + hoje1);
+  ok(r.s === 200 && r.audit.some(a => a.riskId === 'R-001'), 'histórico do período traz o que aconteceu');
+  r = await call('cad2', 'GET', 'audit?ini=' + hoje0 + '&fim=' + hoje1);
+  ok(
+    r.s === 200 && !r.audit.some(a => a.unit === 'Cosegi'),
+    'histórico do período não mostra outra coordenadoria',
+  );
+  r = await call('altagestao', 'GET', 'audit?ini=2001-01-01T00:00:00.000Z&fim=2001-01-02T00:00:00.000Z');
+  ok(r.s === 200 && r.audit.length === 0, 'período sem registros volta vazio');
+  r = await call('altagestao', 'GET', 'audit?ini=' + hoje1 + '&fim=' + hoje0);
+  ok(r.s === 422, 'data inicial depois da final é recusada');
+
+  // "Estou ciente" num alerta que exige ação: registra quem e quando, sem mudar a situação do risco
+  const msgPrazo = 'Prazo da ação em 5 dia(s): risco de teste';
+  r = await call('ges', 'POST', 'risks/R-001/action', {
+    action: 'ciente',
+    chave: 'prazo-R-001',
+    msg: msgPrazo,
+  });
+  ok(
+    r.s === 200 &&
+      r.risk.ciencias.length === 1 &&
+      r.risk.ciencias[0].por &&
+      r.risk.status === 'em_tratamento',
+    'ciência registrada e o risco continua como estava',
+  );
+  r = await call('ges', 'POST', 'risks/R-001/action', {
+    action: 'ciente',
+    chave: 'prazo-R-001',
+    msg: msgPrazo,
+  });
+  ok(r.s === 200 && r.risk.ciencias.length === 1, 'ciência repetida não duplica');
+  r = await call('ges', 'POST', 'risks/R-001/action', {
+    action: 'ciente',
+    chave: 'prazo-R-999',
+    msg: msgPrazo,
+  });
+  ok(r.s === 422, 'ciência de alerta de outro risco é recusada');
+  r = await call('cad2', 'POST', 'risks/R-001/action', {
+    action: 'ciente',
+    chave: 'prazo-R-001',
+    msg: msgPrazo,
+  });
+  ok(r.s === 404, 'outra coordenadoria não registra ciência');
+  st = await call('ges', 'GET', 'state');
+  ok(
+    st.audit.some(a => a.riskId === 'R-001' && a.action === 'Registrou ciência do alerta'),
+    'ciência vai para o histórico',
+  );
+  // Marcar um aviso só como lido
+  const naoLidos = st.alerts.filter(a => !Object.values(a.lido)[0]);
+  ok(naoLidos.length >= 2 && naoLidos.every(a => a.id), 'avisos chegam com o identificador');
+  await call('ges', 'POST', 'alerts/read', { id: naoLidos[0].id });
+  st = await call('ges', 'GET', 'state');
+  ok(
+    st.alerts.find(a => a.id === naoLidos[0].id).lido[Object.keys(st.alerts[0].lido)[0]] === true &&
+      st.alerts.find(a => a.id === naoLidos[1].id).lido[Object.keys(st.alerts[0].lido)[0]] === false,
+    'marca só aquele aviso como lido',
+  );
 
   // Monitoramento (fase 5) e trilha de auditoria
   r = await call('cad', 'POST', 'risks/R-001/action', { action: 'add-med', valor: 12 });
@@ -580,6 +711,84 @@ const ok = (c, m) => {
   ok(r.s === 403, 'CGGE não edita contexto');
   r = await call('cad', 'POST', 'ai', { text: 'algo' });
   ok(r.s === 503, 'IA sem chave retorna 503 claro');
+  // Etapa 2: decisões da CSGR (premissas financeiras, apetite a risco e priorização)
+  r = await call('cad', 'POST', 'config/apetite', { nivelMax: 4 });
+  ok(r.s === 403, 'só a CSGR registra decisões');
+  r = await call('altagestao', 'POST', 'config/premissas', { pct: { 1: 5, 2: 20, 3: 45, 4: 75, 5: 80 } });
+  ok(r.s === 422, 'premissa com a nota 5 abaixo de 90% é recusada');
+  r = await call('altagestao', 'POST', 'config/premissas', {
+    pct: { 1: 5, 2: 20, 3: 45, 4: 75, 5: 95 },
+    aprovada: true,
+  });
+  ok(
+    r.s === 200 && r.config.premissas.aprovada && r.config.premissas.pct[3] === 0.45,
+    'CSGR aprova as premissas',
+  );
+  r = await call('altagestao', 'POST', 'config/apetite', { nivelMax: 4 });
+  ok(
+    r.s === 200 && r.config.apetite.nivelMax === 4 && r.config.apetite.por,
+    'CSGR registra o apetite a risco',
+  );
+  r = await call('altagestao', 'POST', 'config/priorizacao', { metodo: 'nivel-prazo-situacao' });
+  ok(r.s === 200 && r.config.priorizacao.metodo === 'nivel-prazo-situacao', 'CSGR escolhe a priorização');
+  st = await call('altagestao', 'GET', 'state');
+  ok(
+    st.config.apetite.nivelMax === 4 &&
+      st.audit.some(x => /Registrou decisão da CSGR: limite para aceitar o risco/.test(x.action)),
+    'decisão vai para o estado e para a auditoria, com o nome legível',
+  );
+  ok(
+    st.audit
+      .filter(x => /Registrou decisão da CSGR/.test(x.action))
+      .every(x => (x.changes || x.mudancas || []).every(c => !/[{}]/.test(String(c.para)))),
+    'valores das decisões no histórico sem JSON',
+  );
+  // Com o apetite em 4, um risco de nível 10 não pode ser só aceito
+  r = await call('cad', 'POST', 'risks', {
+    titulo: 'Risco para o apetite',
+    causa: 'falta de energia no prédio',
+    evento: 'parada do serviço de protocolo',
+    impacto: 'atraso no atendimento',
+    objetivo: 'manter o atendimento ao cidadão',
+  });
+  const rap = r.risk.id;
+  await call('cad', 'POST', 'risks/' + rap + '/aval', {
+    prob: 2,
+    imp: 5,
+    controles: 'Nenhum',
+    linhaTempo: 'últimos 12 meses',
+  });
+  await call('cad', 'POST', 'risks/' + rap + '/prr', {
+    prr: { ...prr, tratamento: 'aceitar', probRes: 2, impRes: 5 },
+  });
+  r = await call('cad', 'POST', 'risks/' + rap + '/action', { action: 'send-prr' });
+  ok(r.s === 422 && /apetite/.test(r.error || ''), 'Aceitar acima do apetite não é enviado');
+  await call('altagestao', 'POST', 'config/apetite', { nivelMax: '' });
+  r = await call('cad', 'POST', 'risks/' + rap + '/action', { action: 'send-prr' });
+  ok(r.s === 200, 'sem apetite definido, Aceitar volta a valer');
+  // Apetite por coordenadoria vale sobre o geral; coordenadoria inexistente é recusada
+  r = await call('altagestao', 'POST', 'config/apetite', { nivelMax: '', porUnidade: { Inexistente: 4 } });
+  ok(r.s === 422, 'apetite de coordenadoria inexistente é recusado');
+  r = await call('altagestao', 'POST', 'config/apetite', { nivelMax: 9, porUnidade: { Cosegi: 4 } });
+  ok(
+    r.s === 200 && Lg.apetiteDe(r.config, 'Cosegi') === 4 && Lg.apetiteDe(r.config, 'Coinfra') === 9,
+    'apetite da coordenadoria vale sobre o geral',
+  );
+  await call('altagestao', 'POST', 'config/apetite', { nivelMax: '', porUnidade: {} });
+  // Alçada do gestor (MGR p. 8): PRR acima do limite chega à CSGR marcado
+  r = await call('altagestao', 'POST', 'config/alcada', {
+    porUnidade: { Cosegi: { nivelMax: 5, exposicaoMax: '' } },
+  });
+  ok(r.s === 200 && r.config.alcada.porUnidade.Cosegi.nivelMax === 5, 'CSGR registra a alçada do gestor');
+  r = await call('ges', 'POST', 'risks/' + rap + '/action', {
+    action: 'gestor-ok',
+    responsavelId: cadCosegi.id,
+    prazo: '2026-12-30',
+  });
+  ok(
+    r.s === 200 && r.risk.status === 'ag_altagestao' && /nível 10 acima de 5/.test(r.risk.acimaAlcada || ''),
+    'PRR acima da alçada chega marcado à CSGR',
+  );
   r = await call('cad', 'POST', 'alerts/read', {});
   ok(r.s === 200, 'marca avisos como lidos');
   r = await call('x', 'GET', 'state');
