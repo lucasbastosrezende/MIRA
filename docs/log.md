@@ -222,6 +222,12 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Feito:** título, coluna, botão, aviso, explicação do "?" e a mensagem do servidor quando um PRR com "Aceitar" passa do limite. No histórico, as decisões da CSGR saíam com a chave interna ("…: apetite") e valores em JSON; agora saem com o nome e os valores por extenso. Registros antigos do histórico não são reescritos.
 - **Conferido:** teste de API ajustado ao nome novo e um teste novo de valores sem JSON (153 verificações). No navegador: título, botão "Registrar limite", aviso e as três decisões legíveis no histórico.
 
+### 29. Número do risco com 4 dígitos, mês e ano
+- **Pedido:** número do risco com 4 dígitos, mês e ano.
+- **Decisão do usuário:** `R-0001-10-2026`, com hífen, e os 4 dígitos recomeçando a cada mês.
+- **Feito:** o mês e o ano são os do cadastro, no horário de Brasília (`MIRA_TZ` muda o fuso). Os riscos já cadastrados mantêm o número antigo (`R-001`), porque o histórico nunca é reescrito; as rotas e as chaves do "Estou ciente" aceitam os dois formatos. A pesquisa da lista acha o número escrito com hífen, barra ou ponto. Nas tabelas, o número fica numa linha só (no celular quebrava nos hífens).
+- **Conferido:** testes de API do primeiro e do segundo risco do mês e de um risco de número antigo, que continua editável e não entra na contagem.
+
 ## Visual
 
 - Cores, fontes (Sora nos títulos, IBM Plex Sans no texto), cantos e pesos seguem o canvas aprovado pelo usuário ("MIRA · cores e tipografia").

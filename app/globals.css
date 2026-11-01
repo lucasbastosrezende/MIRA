@@ -109,6 +109,8 @@ main{max-width:1240px;margin:20px auto 0;display:flex;flex-direction:column;gap:
 .tbl{width:100%;border-collapse:collapse;font-size:14px}
 .tbl th{text-align:left;font:600 11px var(--font-body);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 .tbl td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+/* Número do risco ou do problema (R-0001-10-2026) numa linha só, sem quebrar nos hífens */
+.tbl td.mono{white-space:nowrap}
 .tbl tr.click{cursor:pointer} .tbl tr.click:hover td{background:var(--surface2)}
 .scroll{overflow-x:auto}
 .matrix{display:grid;grid-template-columns:auto repeat(5,minmax(0,1fr));gap:3px;font-size:12px}
