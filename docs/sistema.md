@@ -19,8 +19,9 @@ As coordenadorias não vêm prontas: o administrador cria cada uma na hora, com 
 | Administrador · implantação | Conta criada na implantação, no servidor (`npm run admin -- <usuario>`). Cria e renomeia as coordenadorias e é o único que cadastra pessoas, sempre com o relatório de pedido (SEI ou pedido formal, com número SEI e data). Redefine senhas, desativa e apaga contas; a conta dele não pode ser apagada. Não tem coordenadoria e não vê riscos; no histórico vê só o que ele fez. |
 | Cadastrador(a) | Registra e edita os riscos da própria coordenadoria, elabora o PRR, registra medições, reavalia o nível e informa quando o evento ocorreu. |
 | Gestor(a) de riscos | Titular (supervisor) da coordenadoria. Valida o PRR e o encaminha à Alta Gestão de Riscos, ou devolve com motivo. Delega no Quadro quem resolve cada risco. Também pode fazer o que o cadastrador faz na própria coordenadoria: cadastrar riscos, editar o contexto e acompanhar o tratamento. Encerra riscos. |
-| Alta Gestão de Riscos | Aprova ou devolve PRRs e gera o relatório anual. Vê todas as coordenadorias. No código e no banco, o perfil é `altagestao` (antes se chamava CSGR; bancos antigos são migrados sozinhos). |
-| CGGE | Só consulta, em todas as coordenadorias. |
+| Alta Gestão de Riscos | É a CSGR. Aprova ou devolve PRRs, registra as decisões da CSGR, orienta nos problemas e responde às propostas de ajuste ao MGR da ASCF, sempre com parecer. Gera o relatório. Vê todas as coordenadorias. No código e no banco, o perfil é `altagestao` (antes se chamava CSGR; bancos antigos são migrados sozinhos). |
+| CGGE | Só consulta, em todas as coordenadorias. Acompanha as propostas de ajuste ao MGR. |
+| ASCF · Assessoria de Conformidade | Elabora o MGR em articulação com a CSGR (tela MGR): propõe ajustes, corrige e reenvia o que a CSGR pedir e registra a versão em vigor. Sem coordenadoria: consulta riscos, problemas, painéis, histórico, relatório e decisões de todas, sem cadastrar nem aprovar. |
 
 Quem é de uma coordenadoria não enxerga nem acessa por endereço os riscos de outra. A regra é conferida no servidor, não só escondida na tela.
 
@@ -140,6 +141,16 @@ Pelo MGR, risco é um evento futuro e incerto. O que já está acontecendo é **
 - **Para não voltar a acontecer:** "Cadastrar risco a partir do problema" abre o risco novo ligado ao problema; ele segue as 5 fases do MGR.
 - Tudo vai para o histórico, e o relatório da Alta Gestão traz os problemas do período.
 
+## MGR: versão em vigor e ajustes (ASCF e CSGR)
+
+A ASCF elabora o Modelo de Gestão de Riscos em articulação com a CSGR. A tela **MGR** (ASCF, Alta Gestão de Riscos e CGGE) mostra:
+
+- **Versão em vigor:** a última registrada pela ASCF (versão, data de aprovação, documento e o que mudou), com as anteriores. Sem registro, vale o MGR v1.0, que é o que o sistema aplica.
+- **Propostas de ajuste:** a ASCF propõe (título, o que muda, por quê e onde no MGR). A CSGR responde "de acordo" ou "pedir ajuste", sempre com parecer; o que volta para ajuste a ASCF corrige e reenvia. Cada passo gera aviso para quem responde e vai para o histórico.
+- **Regras do MGR v1.0 aplicadas pelo sistema**, com a página do MGR, para conferir a conformidade.
+
+As regras ficam no código: uma versão nova do MGR que mude uma regra também pede mudança no sistema.
+
 ## Decisões da CSGR
 
 Tela **Decisões** (a Alta Gestão registra; o CGGE consulta). Cada termo tem um botão **?** que abre a explicação ali mesmo, e ao lado fica o bloco de dúvidas frequentes com os mesmos termos. Cada decisão guarda quem decidiu e quando e vai para o histórico. Sem decisão, vale o comportamento padrão.
@@ -195,7 +206,7 @@ lib/logic.js: regras do MGR usadas tanto no servidor quanto no navegador
 
 - **Next.js 15 (App Router) e React 19**, com Node 22.13 ou mais novo. O banco é o `node:sqlite`, que já vem no Node, sem dependências extras.
 - **Interface:** `mira-ui.js` monta todas as telas como HTML e conversa só com a API. O mesmo arquivo de regras (`logic.js`) decide no navegador o que mostrar e no servidor o que permitir.
-- **Banco:** um arquivo `./data/mira.db` (a pasta muda com `MIRA_DATA_DIR`). As tabelas são `users`, `sessions`, `risks` (cada risco em JSON), `audit`, `alerts` , `ctx` (contexto por coordenadoria), `units` (coordenadorias criadas), `config` (decisões da CSGR), `problemas` (cada problema em JSON) e `user_docs` (relatório de pedido de cada cadastro: tipo, documento, número SEI, data e o PDF quando houver, indexado pelo número SEI). O backup é a cópia desse arquivo.
+- **Banco:** um arquivo `./data/mira.db` (a pasta muda com `MIRA_DATA_DIR`). As tabelas são `users`, `sessions`, `risks` (cada risco em JSON), `audit`, `alerts` , `ctx` (contexto por coordenadoria), `units` (coordenadorias criadas), `config` (decisões da CSGR), `problemas` (cada problema em JSON; a tabela `config` guarda também as versões e propostas do MGR, na chave `mgr`) e `user_docs` (relatório de pedido de cada cadastro: tipo, documento, número SEI, data e o PDF quando houver, indexado pelo número SEI). O backup é a cópia desse arquivo.
 - **Começa vazio:** sem pessoas, sem coordenadorias e sem dados de exemplo. A conta do administrador é criada na implantação com `npm run admin -- <usuario>`; não existe rota da API que crie conta sem login. Num banco anterior a este perfil, as coordenadorias que já têm dados entram na lista e as pessoas continuam entrando; basta criar o administrador com o mesmo comando.
 - **Conta só pelo usuário:** não há campo de nome. O usuário de acesso é o que aparece nas telas e na trilha de auditoria.
 

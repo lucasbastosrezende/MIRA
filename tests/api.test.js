@@ -185,6 +185,7 @@ const R1 = 'R-0001' + FIM_ID;
     ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi', 12],
     ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra', 13],
     ['Consulta', 'cgge.user', 'cgge', null, 14],
+    ['Conformidade', 'ascf.user', 'ascf', 'Cosegi', 15],
   ]) {
     r = await call('adm', 'POST', 'users', {
       nome,
@@ -293,6 +294,8 @@ const R1 = 'R-0001' + FIM_ID;
     ['ges', 'ges.cosegi'],
     ['cad2', 'cad.coinfra'],
     ['cgge', 'cgge.user'],
+    ['ascf', 'ascf.user'],
+    ['altagestao', 'altagestao.teste'],
   ]) {
     r = await call(k, 'POST', 'login', { username: u, password: 'senha-forte-2' });
     ok(r.s === 200, 'login ' + u);
@@ -938,6 +941,83 @@ const R1 = 'R-0001' + FIM_ID;
   ok(r.s !== 200, 'outra coordenadoria não liga risco ao problema');
   r = await call('cad', 'POST', 'problemas', { ...prob, titulo: 'Segundo problema' });
   ok(r.s === 200 && r.problema.id === 'P-0002' + FIM_ID && !r.problema.riscoId, 'problema sem risco ligado');
+  // ASCF: elabora o MGR em articulação com a CSGR
+  st = await call('ascf', 'GET', 'state');
+  ok(
+    st.me.unit === null && st.risks.length > 0 && st.problemas.length > 0 && st.mgr,
+    'ASCF fica sem coordenadoria e consulta riscos e problemas de todas',
+  );
+  r = await call('ascf', 'POST', 'risks', { ...ident });
+  ok(r.s === 403, 'ASCF não cadastra risco');
+  r = await call('ascf', 'POST', 'config/apetite', { nivelMax: 4 });
+  ok(r.s === 403, 'ASCF não registra decisões da CSGR');
+  const ajuste = {
+    titulo: 'Linha do tempo padrão',
+    oQue: 'Usar 12 meses como linha do tempo padrão.',
+    porQue: 'Cada coordenadoria usa um período.',
+    onde: 'p. 15',
+  };
+  r = await call('cad', 'POST', 'mgr', { action: 'propor', ...ajuste });
+  ok(r.s === 403, 'só a ASCF propõe ajuste ao MGR');
+  r = await call('ascf', 'POST', 'mgr', { action: 'propor', ...ajuste, porQue: '' });
+  ok(r.s === 422, 'proposta sem o porquê é recusada');
+  r = await call('ascf', 'POST', 'mgr', { action: 'propor', ...ajuste });
+  ok(r.s === 200 && r.mgr.propostas[0].situacao === 'analise', 'ASCF propõe ajuste ao MGR');
+  st = await call('altagestao', 'GET', 'state');
+  ok(
+    st.alerts.some(a => a.tipo === 'mgr-proposta'),
+    'CSGR recebe o aviso da proposta',
+  );
+  r = await call('ascf', 'POST', 'mgr', { action: 'responder', n: 1, decisao: 'acordo', parecer: 'ok' });
+  ok(r.s === 403, 'ASCF não responde à própria proposta');
+  r = await call('altagestao', 'POST', 'mgr', { action: 'responder', n: 1, decisao: 'ajustar', parecer: '' });
+  ok(r.s === 422, 'resposta da CSGR exige parecer');
+  r = await call('altagestao', 'POST', 'mgr', {
+    action: 'responder',
+    n: 1,
+    decisao: 'ajustar',
+    parecer: 'Citar o Quadro 2.',
+  });
+  ok(r.s === 200 && r.mgr.propostas[0].situacao === 'ajustar', 'CSGR pede ajuste com parecer');
+  r = await call('ascf', 'POST', 'mgr', { action: 'reenviar', n: 1, ...ajuste, onde: 'p. 15, Quadro 2' });
+  ok(r.s === 200 && r.mgr.propostas[0].situacao === 'analise', 'ASCF corrige e reenvia');
+  r = await call('altagestao', 'POST', 'mgr', {
+    action: 'responder',
+    n: 1,
+    decisao: 'acordo',
+    parecer: 'De acordo.',
+  });
+  ok(r.s === 200 && r.mgr.propostas[0].respostas.length === 2, 'CSGR fica de acordo');
+  r = await call('ascf', 'POST', 'mgr', {
+    action: 'versao',
+    versao: '1.1',
+    data: '2099-01-01',
+    mudancas: 'Linha do tempo padrão.',
+  });
+  ok(r.s === 422, 'versão com data no futuro é recusada');
+  r = await call('ascf', 'POST', 'mgr', {
+    action: 'versao',
+    versao: '1.1',
+    data: '2026-10-01',
+    documento: 'SEI 0001',
+    mudancas: 'Linha do tempo padrão.',
+  });
+  ok(r.s === 200 && r.mgr.versoes[0].versao === '1.1', 'ASCF registra a versão em vigor');
+  r = await call('ascf', 'POST', 'mgr', {
+    action: 'versao',
+    versao: '1.1',
+    data: '2026-10-01',
+    mudancas: 'De novo.',
+  });
+  ok(r.s === 422, 'a mesma versão não é registrada duas vezes');
+  st = await call('ascf', 'GET', 'state');
+  ok(
+    st.audit.some(a => /Registrou a versão 1.1 do MGR/.test(a.action)) &&
+      st.alerts.some(a => a.tipo === 'mgr-resposta'),
+    'histórico do MGR e aviso da resposta para a ASCF',
+  );
+  r = await call('cad', 'GET', 'state');
+  ok(r.mgr === null, 'cadastrador não recebe as propostas do MGR');
   r = await call('cad', 'POST', 'alerts/read', {});
   ok(r.s === 200, 'marca avisos como lidos');
   // Servidor no ar que recebe código com esquema novo (o Next recarrega o código e mantém a conexão aberta):

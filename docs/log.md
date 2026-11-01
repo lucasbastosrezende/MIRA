@@ -14,8 +14,8 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 178 verificações, todas passando |
-| Interface (smoke) | 59 verificações, todas passando, incluindo a tela Problemas em cada perfil, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
+| API | 198 verificações, todas passando |
+| Interface (smoke) | 67 verificações, incluindo o perfil ASCF e a tela MGR, todas passando, incluindo a tela Problemas em cada perfil, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
 | Navegador (roteiro de UX) | 9 de 9 cenários das melhorias de uso, fora do repositório (ver item 21) |
@@ -239,6 +239,11 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Achado:** o servidor guarda o banco aberto na memória. Com o código novo recarregado sem reinício (Next em modo de desenvolvimento), as tabelas e colunas novas (`config`, `users.pode_definir`, `problemas`) só eram criadas depois de reiniciar, e até lá as telas quebravam.
 - **Feito:** `lib/db.js` marca a versão do esquema (`ESQUEMA`). Se o código traz uma versão mais nova, a conexão já aberta recebe o que falta; as criações já podiam rodar de novo sem efeito.
 - **Conferido:** teste de API que tira a tabela de um banco já aberto e confere que ela volta. Na 3100, sem reiniciar, o banco ganhou `problemas`, `config` e `pode_definir`, só com uma chamada sem login.
+
+### 32. Perfil ASCF e tela MGR
+- **Pedido:** fazer o papel da ASCF (Assessoria de Conformidade), que elabora o MGR em articulação com a CSGR.
+- **Feito:** perfil `ascf`, cadastrado pelo administrador, sem coordenadoria. Consulta tudo como o CGGE e não cadastra nem aprova. Tela MGR: versão em vigor, propostas de ajuste (a ASCF propõe, a CSGR responde com parecer, a ASCF corrige e reenvia) e as regras do MGR v1.0 aplicadas pelo sistema, com a página. Os perfis sem coordenadoria (CSGR, CGGE e ASCF) passaram a sair de uma regra só (`geral` em `lib/logic.js`).
+- **Conferido:** 20 verificações novas na API (permissões, parecer obrigatório, reenvio, versão no futuro ou repetida, avisos, histórico, cadastrador sem acesso). No navegador: conta criada pelo administrador, proposta, pedido de ajuste da CSGR, aviso que abre a tela MGR, reenvio e versão registrada; a 390 px nos temas claro e escuro, sem rolagem lateral e sem erro.
 
 ## Visual
 

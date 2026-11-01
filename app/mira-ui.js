@@ -252,7 +252,14 @@ export function mountMira(root) {
         });
       if (!['em_tratamento', 'ocorrido'].includes(r.status) || !r.prr) return;
       const d = daysTo(r.prr.prazo);
-      if (d != null && r.prr.prazo && !r.prr.concluidaEm && d <= 15 && u.papel !== 'cgge')
+      if (
+        d != null &&
+        r.prr.prazo &&
+        !r.prr.concluidaEm &&
+        d <= 15 &&
+        u.papel !== 'cgge' &&
+        u.papel !== 'ascf'
+      )
         out.push({
           k: 'prazo-' + r.id,
           tipo: 'prazo',
@@ -317,6 +324,8 @@ export function mountMira(root) {
   // Um aviso guardado deixa de pedir atenção quando a situação que o gerou já foi resolvida: o PRR saiu da fila,
   // a métrica voltou ao ideal, o evento foi tratado, o risco foi encerrado... Ele continua em "Resolvidos".
   function resolvido(a) {
+    // Avisos do MGR (proposta, resposta, versão) ficam até serem lidos.
+    if (a.riskId === 'MGR') return false;
     // Aviso de problema: "acontecendo agora" se resolve quando o problema é resolvido; os outros ficam até a leitura.
     if (/^P-/.test(a.riskId || '')) {
       const p = pb(a.riskId);
@@ -532,14 +541,13 @@ export function mountMira(root) {
   }
   // Barra de filtros da lista de riscos.
   function filterBar(u) {
-    const uopt =
-      u.papel === 'altagestao' || u.papel === 'cgge'
-        ? '<select data-filter="unit" aria-label="Coordenadoria"><option value="">Todas as coordenadorias</option>' +
-          units()
-            .map(x => '<option' + (UI.filt.unit === x ? ' selected' : '') + '>' + esc(x) + '</option>')
-            .join('') +
-          '</select>'
-        : '';
+    const uopt = MIRA.geral(u)
+      ? '<select data-filter="unit" aria-label="Coordenadoria"><option value="">Todas as coordenadorias</option>' +
+        units()
+          .map(x => '<option' + (UI.filt.unit === x ? ' selected' : '') + '>' + esc(x) + '</option>')
+          .join('') +
+        '</select>'
+      : '';
     return (
       '<div class="row" style="align-items:center">' +
       '<input type="search" data-rbusca placeholder="Pesquisar por código, título ou causa" aria-label="Pesquisar riscos" value="' +
@@ -3679,6 +3687,148 @@ export function mountMira(root) {
       '</aside></div>'
     );
   }
+  // Regras do MGR v1.0 que o sistema aplica, com a página do MGR (para a ASCF conferir a conformidade).
+  const REGRAS_MGR = [
+    ['Matriz 5 × 5 e faixas de nível (Figura 5)', 'p. 17–18'],
+    ['Descrição da probabilidade (Quadro 2) e do impacto (Quadro 3)', 'p. 15–17'],
+    ['Controles existentes e linha do tempo antes das notas', 'p. 14–15'],
+    ['Formas de tratamento: evitar, transferir, mitigar, aceitar', 'p. 20–21'],
+    ['Limite para aceitar o risco (apetite a risco)', 'p. 19–21'],
+    ['Parecer da CSGR na aprovação e na devolução do PRR', 'p. 21'],
+    ['Reavaliação quando o nível muda', 'p. 22'],
+    ['Alçada do gestor', 'p. 8'],
+    ['Planilhas de identificação, avaliação e PRR (Apêndices C e D)', 'p. 28–29'],
+  ];
+  // Tela MGR: versão em vigor, propostas de ajuste da ASCF com a resposta da CSGR e as regras aplicadas.
+  function viewMgr(u) {
+    const m = S.mgr || { versoes: [], propostas: [] },
+      asc = u.papel === 'ascf',
+      csgr = u.papel === 'altagestao',
+      vig = m.versoes[m.versoes.length - 1];
+    const SIT = {
+      analise: toneTag('warn', 'Em análise pela CSGR'),
+      acordo: toneTag('ok', 'De acordo'),
+      ajustar: toneTag('crit', 'Ajustar'),
+    };
+    const campo = (id, lab, v, rows) =>
+      '<div class="field"><label for="' +
+      id +
+      '">' +
+      lab +
+      '</label>' +
+      (rows
+        ? '<textarea id="' + id + '" rows="' + rows + '">' + esc(v || '') + '</textarea>'
+        : '<input id="' + id + '" style="width:100%" value="' + esc(v || '') + '">') +
+      '</div>';
+    const prop = p =>
+      '<div class="card">' +
+      cardH(
+        'Proposta ' + p.n + ' · ' + esc(p.titulo),
+        'Por ' + esc(p.por) + ' em ' + fd(p.em),
+        SIT[p.situacao],
+      ) +
+      roField('O que muda', p.oQue, true) +
+      roField('Por quê', p.porQue, true) +
+      roField('Onde no MGR', p.onde, true) +
+      p.respostas
+        .map(
+          x =>
+            '<div class="info-box"><b>' +
+            (x.decisao === 'acordo' ? 'CSGR de acordo' : 'CSGR pediu ajuste') +
+            '</b> · ' +
+            esc(x.por) +
+            ', ' +
+            fdt(x.em) +
+            ': ' +
+            esc(x.parecer) +
+            '</div>',
+        )
+        .join('') +
+      (csgr && p.situacao === 'analise'
+        ? campo('mg-parecer-' + p.n, 'Parecer da CSGR', '', 2) +
+          '<div class="actions"><button class="btn primary" data-act="mgr-acordo" data-n="' +
+          p.n +
+          '">De acordo</button><button class="btn" data-act="mgr-ajustar" data-n="' +
+          p.n +
+          '">Pedir ajuste</button></div>'
+        : '') +
+      (asc && p.situacao === 'ajustar'
+        ? '<details class="more"><summary>Corrigir e reenviar</summary>' +
+          campo('mg-titulo-' + p.n, 'Título', p.titulo) +
+          campo('mg-oque-' + p.n, 'O que muda no MGR', p.oQue, 3) +
+          campo('mg-porque-' + p.n, 'Por quê', p.porQue, 2) +
+          campo('mg-onde-' + p.n, 'Onde no MGR (página ou seção)', p.onde) +
+          '<div class="actions"><button class="btn primary" data-act="mgr-reenviar" data-n="' +
+          p.n +
+          '">Reenviar à CSGR</button></div></details>'
+        : '') +
+      '</div>';
+    return (
+      pageHead(
+        'Modelo de Gestão de Riscos (MGR)',
+        'A ASCF elabora o MGR em articulação com a CSGR: propõe ajustes, a CSGR responde com parecer e a ASCF registra a versão em vigor.',
+      ) +
+      '<div class="card">' +
+      cardH(
+        'Versão em vigor',
+        vig
+          ? 'Versão ' +
+              esc(vig.versao) +
+              ', aprovada em ' +
+              fd(vig.data) +
+              (vig.documento ? ' · ' + esc(vig.documento) : '')
+          : 'Nenhuma versão registrada pela ASCF. O sistema aplica as regras do MGR v1.0.',
+      ) +
+      (m.versoes.length
+        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Versão</th><th>Aprovada em</th><th>Documento</th><th>O que mudou</th><th>Registrada por</th></tr></thead><tbody>' +
+          m.versoes
+            .slice()
+            .reverse()
+            .map(
+              v =>
+                '<tr><td class="mono">' +
+                esc(v.versao) +
+                '</td><td>' +
+                fd(v.data) +
+                '</td><td>' +
+                esc(v.documento || '—') +
+                '</td><td>' +
+                esc(v.mudancas) +
+                '</td><td>' +
+                esc(v.por) +
+                '</td></tr>',
+            )
+            .join('') +
+          '</tbody></table></div>'
+        : '') +
+      (asc
+        ? '<details class="more"><summary>Registrar versão nova</summary><div class="g2">' +
+          campo('mg-versao', 'Versão (ex.: 1.1)', '') +
+          '<div class="field"><label for="mg-data">Aprovada em</label><input id="mg-data" type="date" style="width:100%"></div></div>' +
+          campo('mg-doc', 'Documento (ex.: número SEI)', '') +
+          campo('mg-mudancas', 'O que mudou', '', 3) +
+          '<p class="hint">Se a versão nova muda uma regra que o sistema aplica, a mudança também precisa entrar no código.</p><div class="actions"><button class="btn primary" data-act="mgr-versao">Registrar versão</button></div></details>'
+        : '') +
+      '</div>' +
+      (asc
+        ? '<div class="card">' +
+          cardH('Propor ajuste ao MGR', 'Vai para a CSGR analisar e responder com parecer.') +
+          campo('mg-titulo', 'Título', '') +
+          campo('mg-oque', 'O que muda no MGR', '', 3) +
+          campo('mg-porque', 'Por quê', '', 2) +
+          campo('mg-onde', 'Onde no MGR (página ou seção)', '') +
+          '<div class="actions"><button class="btn primary" data-act="mgr-propor">Enviar à CSGR</button></div></div>'
+        : '') +
+      (m.propostas.length
+        ? m.propostas.slice().reverse().map(prop).join('')
+        : '<div class="card"><h3>Propostas de ajuste</h3><div class="empty">Nenhuma proposta de ajuste.</div></div>') +
+      '<div class="card">' +
+      cardH('Regras do MGR v1.0 aplicadas pelo sistema', 'Para conferir a conformidade.') +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Regra</th><th>MGR</th></tr></thead><tbody>' +
+      REGRAS_MGR.map(x => '<tr><td>' + x[0] + '</td><td>' + x[1] + '</td></tr>').join('') +
+      '</tbody></table></div></div>'
+    );
+  }
   // Tela Matriz: distribuição por nível e riscos da célula escolhida.
   function viewMatriz(u) {
     const base = scope(u).filter(r => r.status !== 'encerrado' && r.prob && r.imp),
@@ -3721,6 +3871,7 @@ export function mountMira(root) {
       gestor: 'PRRs para você validar ou ajustar',
       altagestao: 'PRRs para a Alta Gestão de Riscos decidir',
       cgge: 'Consulta',
+      ascf: 'Consulta',
     }[u.papel];
     const money = r =>
       (u.papel === 'gestor' || u.papel === 'altagestao') && r.prr && r.prob && r.imp
@@ -3768,8 +3919,8 @@ export function mountMira(root) {
         t,
         pend.length
           ? pend.length + ' item(ns) aguardando você, os devolvidos primeiro.'
-          : u.papel === 'cgge'
-            ? 'O perfil CGGE é só de consulta: não cadastra nem aprova.'
+          : u.papel === 'cgge' || u.papel === 'ascf'
+            ? 'Este perfil é só de consulta: não cadastra nem aprova.'
             : 'Tudo em dia.',
       ) +
       '<div class="card">' +
@@ -3780,7 +3931,7 @@ export function mountMira(root) {
   // Tela Histórico: toda a trilha de auditoria visível para o perfil.
   function viewHist(u) {
     const list = (UI.hist.lista || S.audit)
-      .filter(a => u.papel === 'altagestao' || u.papel === 'cgge' || a.unit === u.unit)
+      .filter(a => MIRA.geral(u) || a.unit === u.unit)
       .slice(0, UI.hist.lista ? 2000 : 80);
     return (
       pageHead('Histórico de alterações', 'Quem alterou, quando e o quê. Nada é apagado.') +
@@ -3995,6 +4146,9 @@ export function mountMira(root) {
       problema: 'Problema acontecendo',
       'problema-orientacao': 'Orientação da Alta Gestão',
       'problema-resolvido': 'Problema resolvido',
+      'mgr-proposta': 'Ajuste ao MGR',
+      'mgr-resposta': 'Resposta da CSGR',
+      'mgr-versao': 'Versão do MGR',
     };
     // Faixa do nível do risco do aviso (-1 sem avaliação): pinta a lateral do aviso e entra escrita no tipo.
     const bandOf = id => {
@@ -4522,7 +4676,7 @@ export function mountMira(root) {
       pageHead(
         'Contexto da ' + un,
         'Escopo, responsáveis e cronograma.',
-        u.papel === 'altagestao' || u.papel === 'cgge'
+        MIRA.geral(u)
           ? '<select data-ctxunit aria-label="Coordenadoria">' +
               units()
                 .map(x => '<option' + (x === un ? ' selected' : '') + '>' + esc(x) + '</option>')
@@ -4774,7 +4928,7 @@ export function mountMira(root) {
       pedidoCard() +
       '<div class="row"><div class="card grow" style="max-width:440px"><h3>Cadastrar pessoa</h3><form id="user-form" autocomplete="off">' +
       '<div class="field"><label for="n-user">Usuário de acesso</label><input id="n-user" style="width:100%" required><div class="hint">Minúsculas, números, ponto, hífen ou sublinhado.</div></div>' +
-      '<div class="field"><label for="n-papel">Perfil</label><select id="n-papel" style="width:100%"><option value="cadastrador">Cadastrador(a) · registra riscos da coordenadoria</option><option value="gestor">Gestor(a) de riscos · titular da coordenadoria</option><option value="terceirizado">Empresa terceirizada · contratada para uma demanda da coordenadoria</option><option value="altagestao">Alta Gestão de Riscos · aprova PRRs e gera o relatório</option><option value="cgge">CGGE · só consulta</option></select></div>' +
+      '<div class="field"><label for="n-papel">Perfil</label><select id="n-papel" style="width:100%"><option value="cadastrador">Cadastrador(a) · registra riscos da coordenadoria</option><option value="gestor">Gestor(a) de riscos · titular da coordenadoria</option><option value="terceirizado">Empresa terceirizada · contratada para uma demanda da coordenadoria</option><option value="altagestao">Alta Gestão de Riscos · aprova PRRs e gera o relatório</option><option value="cgge">CGGE · só consulta</option><option value="ascf">ASCF · Assessoria de Conformidade, elabora o MGR com a CSGR</option></select></div>' +
       '<div class="field" id="n-unit-wrap"><label for="n-unit">Coordenadoria</label>' +
       unitSel +
       '</div>' +
@@ -5355,12 +5509,14 @@ export function mountMira(root) {
       // Problemas: o que já está acontecendo; o número mostra quantos ainda estão abertos.
       nav.push(['problemas', 'Problemas', probAbertos().length], ['quadro', 'Quadro'], ['matriz', 'Matriz']);
       // CGGE e empresa terceirizada só acompanham: sem fila de pendências.
-      if (u.papel !== 'cgge' && u.papel !== 'terceirizado')
+      if (!['cgge', 'terceirizado', 'ascf'].includes(u.papel))
         nav.push(['aprov', 'Pendências', pendingFor(u).length]);
       nav.push(['historico', 'Histórico'], ['alertas', 'Alertas', unreadCount(u)]);
       if (u.papel !== 'cadastrador' && u.papel !== 'terceirizado') nav.push(['relatorio', 'Relatório']);
       // Decisões da CSGR: a Alta Gestão registra; o CGGE consulta.
-      if (u.papel === 'altagestao' || u.papel === 'cgge') nav.push(['decisoes', 'Decisões']);
+      if (MIRA.geral(u)) nav.push(['decisoes', 'Decisões']);
+      // MGR: versão em vigor e propostas de ajuste (a ASCF propõe, a CSGR responde, o CGGE acompanha).
+      if (MIRA.geral(u)) nav.push(['mgr', 'MGR']);
     }
     // O risco aberto e o contexto da coordenadoria fazem parte de Riscos no menu.
     const cur =
@@ -5385,6 +5541,7 @@ export function mountMira(root) {
       else if (UI.view === 'config') v = viewConfig(u);
       else if (UI.view === 'decisoes') v = viewDecisoes(u);
       else if (UI.view === 'problemas') v = viewProblemas(u);
+      else if (UI.view === 'mgr') v = viewMgr(u);
       else if (UI.view === 'problema') v = viewProblema(u);
       else v = viewRel(u);
     } catch (e) {
@@ -5575,6 +5732,11 @@ export function mountMira(root) {
   function openRisk(id) {
     // O número de um problema (P-...) abre a tela do problema; os links do histórico e dos alertas usam a mesma via.
     if (/^P-/.test(String(id))) return openProb(id);
+    // Avisos do MGR levam à tela do MGR.
+    if (id === 'MGR') {
+      UI.view = 'mgr';
+      return render();
+    }
     const r = rk(id);
     if (!r) return;
     UI.view = 'risco';
@@ -6053,6 +6215,51 @@ export function mountMira(root) {
         render();
         break;
       // Problemas: registrar, conduzir e transformar em risco para não voltar a acontecer.
+      // MGR: a ASCF propõe, reenvia e registra versão; a CSGR responde.
+      case 'mgr-propor':
+      case 'mgr-reenviar':
+      case 'mgr-acordo':
+      case 'mgr-ajustar':
+      case 'mgr-versao': {
+        const n = el && el.dataset.n,
+          sx = n ? '-' + n : '';
+        const corpo =
+          a === 'mgr-versao'
+            ? {
+                action: 'versao',
+                versao: val('mg-versao').trim(),
+                data: val('mg-data'),
+                documento: val('mg-doc').trim(),
+                mudancas: val('mg-mudancas').trim(),
+              }
+            : a === 'mgr-acordo' || a === 'mgr-ajustar'
+              ? {
+                  action: 'responder',
+                  n,
+                  decisao: a === 'mgr-acordo' ? 'acordo' : 'ajustar',
+                  parecer: val('mg-parecer-' + n).trim(),
+                }
+              : {
+                  action: a === 'mgr-propor' ? 'propor' : 'reenviar',
+                  n,
+                  titulo: val('mg-titulo' + sx).trim(),
+                  oQue: val('mg-oque' + sx).trim(),
+                  porQue: val('mg-porque' + sx).trim(),
+                  onde: val('mg-onde' + sx).trim(),
+                };
+        await api('POST', 'mgr', corpo);
+        await refresh(true);
+        toast(
+          {
+            'mgr-propor': 'Proposta enviada à CSGR.',
+            'mgr-reenviar': 'Proposta reenviada à CSGR.',
+            'mgr-acordo': 'Resposta registrada: de acordo.',
+            'mgr-ajustar': 'Resposta registrada: a ASCF vai ajustar.',
+            'mgr-versao': 'Versão do MGR registrada.',
+          }[a],
+        );
+        break;
+      }
       case 'prob-novo':
         UI.view = 'problema';
         UI.pid = 'new';
@@ -6688,7 +6895,7 @@ export function mountMira(root) {
   function afterLogin() {
     const u = me();
     UI.view = u.papel === 'admin' ? 'usuarios' : 'paineis';
-    UI.panel = u.papel === 'altagestao' || u.papel === 'cgge' ? 'alta' : 'op';
+    UI.panel = MIRA.geral(u) ? 'alta' : 'op';
     UI.rid = null;
     UI.draft = null;
     UI.tce = null;
@@ -6944,7 +7151,7 @@ export function mountMira(root) {
     }
     if (t.id === 'n-papel') {
       const w = document.getElementById('n-unit-wrap');
-      if (w) w.hidden = t.value === 'altagestao' || t.value === 'cgge';
+      if (w) w.hidden = ['altagestao', 'cgge', 'ascf'].includes(t.value);
       const pw = document.getElementById('n-pode-wrap');
       if (pw) pw.hidden = t.value !== 'cadastrador';
       return;
@@ -7034,7 +7241,7 @@ export function mountMira(root) {
       act2user({
         username: val('n-user'),
         papel,
-        unit: papel === 'altagestao' || papel === 'cgge' ? null : val('n-unit'),
+        unit: ['altagestao', 'cgge', 'ascf'].includes(papel) ? null : val('n-unit'),
         podeDefinir: papel === 'cadastrador' && !!(document.getElementById('n-pode') || {}).checked,
         password: val('n-pw'),
       });

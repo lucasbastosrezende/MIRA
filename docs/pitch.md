@@ -13,7 +13,7 @@ Roteiro para apresentar o projeto em cerca de 5 minutos: o que falar, o que most
 | 0:00–0:40 | Problema | Risco registrado de formas diferentes, PRR aprovado fora do sistema, gestão sem visão de custo |
 | 0:40–1:20 | Solução | Um fluxo único do MGR, do contexto ao monitoramento, com dois painéis |
 | 1:20–3:50 | Demonstração | Cadastrar um risco ao vivo e mostrar os dois painéis |
-| 3:50–4:30 | Diferenciais | Guia do MGR, aprovação com números, auditoria que não se apaga |
+| 3:50–4:30 | Diferenciais | Guia do MGR, problemas com plano de agora, aprovação com números, auditoria que não se apaga |
 | 4:30–5:00 | Fechamento | O que muda para a SETIC e próximos passos |
 
 ## O que falar
@@ -25,7 +25,9 @@ Roteiro para apresentar o projeto em cerca de 5 minutos: o que falar, o que most
 "O MIRA conduz as 5 fases do MGR: contexto, identificação, avaliação, tratamento e monitoramento. O cadastrador escreve o risco guiado pelo formato do MGR; o gestor valida; a Alta Gestão de Riscos aprova; a métrica é acompanhada contra limites definidos. Tudo fica registrado: quem, quando e o que mudou. E os dados viram dois painéis, um para a TI agir e outro para a alta gestão decidir."
 
 **Diferenciais (40 s).**
-- "O formulário avisa na hora quando o texto descreve um problema e não um risco."
+- "O formulário avisa na hora quando o texto descreve um problema e não um risco, e o problema não fica sem caminho: vira um registro com o plano de agora, avisa a Alta Gestão na hora e depois vira risco para não voltar a acontecer."
+- "Cada instância tem o seu papel no sistema: o gestor valida, a CSGR aprova com parecer, o CGGE acompanha e a ASCF propõe os ajustes ao MGR, que a CSGR responde."
+- "Cada risco tem número com mês e ano (R-0001-10-2026), fácil de achar e citar."
 - "Quem aprova vê o custo, a redução de exposição e o retorno por real investido antes de clicar em aprovar."
 - "O histórico não pode ser editado nem apagado: é a prestação de contas pronta. A justificativa de despesa para o TCE sai em um clique."
 - "As permissões são conferidas no servidor: uma coordenadoria não vê os riscos da outra."
@@ -41,7 +43,7 @@ Contas de demonstração: `criadordeusuario` (administrador), `altagestao1` (Alt
 |---|---|---|---|
 | 1 | — | Abrir a tela de entrada | "Esta é a porta de entrada, com as 5 fases do MGR." |
 | 2 | `testeusuario` | Entrar e clicar em **Novo risco** | "O cadastrador registra o risco da própria coordenadoria." |
-| 3 | `testeusuario` | No campo Evento, digitar algo que já acontece, por exemplo "o sistema já está fora do ar" | "Repare no aviso: isso é um problema, não um risco." |
+| 3 | `testeusuario` | No campo Evento, digitar algo que já acontece, por exemplo "o sistema já está fora do ar" | "Repare no aviso: isso é um problema, não um risco. Daqui ele pode ser registrado como problema, com o plano de agora." |
 | 4 | `testeusuario` | Reescrever como algo que pode acontecer e preencher os demais campos | "A frase do MGR se monta sozinha ao lado." |
 | 5 | `testeusuario` | Avaliar com probabilidade 4 e impacto 5 e informar a exposição | "Nível 20, extremo, e a exposição em reais que a alta gestão vai usar." |
 | 6 | `testeusuario` | No PRR, preencher ação, custo, métrica e limites; trocar o custo e ver o resumo mudar | "Enquanto preenche, o sistema mostra o risco residual, a redução e o retorno por real." |
@@ -69,15 +71,17 @@ Contas de demonstração: `criadordeusuario` (administrador), `altagestao1` (Alt
 | A IA treina com os nossos dados? | O MIRA não usa os dados para treinar nada. A restrição na API externa depende do contrato do fornecedor; por isso o assistente é opcional e o sistema funciona sem ele. |
 | Dá para apagar um registro do histórico? | Não. A tabela de auditoria só recebe inserções e não existe rota para editar ou apagar. |
 | Uma coordenadoria vê os riscos da outra? | Não. A regra é conferida no servidor: o navegador nem recebe os riscos de outra coordenadoria. |
-| De onde vêm os valores em reais? | Da exposição financeira que a coordenadoria estima e da probabilidade convertida em percentual (5% a 85%). São premissas para comparar opções, não previsão de perda. |
-| As faixas de nível são as oficiais? | São premissas configuradas no sistema (1–2 irrelevante até 20–25 extremo) e precisam ser conferidas com a tabela oficial do MGR. |
+| De onde vêm os valores em reais? | Da exposição financeira que a coordenadoria estima e da probabilidade convertida em percentual (5% a 95%, ou os aprovados pela CSGR em Decisões). São premissas para comparar opções, não previsão de perda. |
+| As faixas de nível são as oficiais? | Sim: seguem a Figura 5 do MGR (1–2 irrelevante, 3–4 baixo, 5–9 médio, 10–16 alto, 20–25 extremo), e um teste automático confere as 25 células. Os percentuais da probabilidade são premissas que a CSGR aprova na tela Decisões. |
 | E os e-mails? | No protótipo os avisos aparecem no sistema e o envio de e-mail é simulado. É o próximo passo. |
+| E quando algo já está acontecendo? | Vai para a tela Problemas: o que fazer agora, quem faz e até quando. A coordenadoria e a Alta Gestão são avisadas na hora; se é o evento de um risco já cadastrado, os dois ficam ligados. Depois de resolvido, vira risco para não voltar. |
+| Quem cuida do próprio MGR? | A ASCF, em articulação com a CSGR: na tela MGR ela propõe ajustes, a CSGR responde com parecer e a ASCF registra a versão em vigor. As regras aplicadas pelo sistema ficam listadas com a página do MGR. |
 | Funciona no celular? | Sim. As telas foram testadas em 390 px de largura, em tema claro e escuro. |
-| Como vocês testaram? | Testes automáticos da API e da interface, mais um roteiro de 33 cenários no navegador com todos os perfis. Está em `docs/testes.md`. |
+| Como vocês testaram? | Testes automáticos da API (198 verificações) e da interface, mais roteiros no navegador com todos os perfis, no computador e no celular. Está em `docs/testes.md` e `docs/log.md`. |
 | Quanto custa para rodar? | Roda em Node com SQLite, sem banco externo nem dependências pagas. O assistente de IA, se ligado, tem o custo da API usada. |
 
 ## O que não prometer
 
 - Envio real de e-mails: ainda é simulado.
-- Faixas e percentuais oficiais: dependem da validação com o MGR.
+- Percentuais da probabilidade: dependem da aprovação da CSGR.
 - Uso por muitas pessoas ao mesmo tempo e grandes volumes: não foram testados.

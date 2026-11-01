@@ -152,6 +152,7 @@ for (const [nome, username, papel, unit, n] of [
   ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi', 11],
   ['Consulta', 'cgge.user', 'cgge', null, 12],
   ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra', 13],
+  ['Conformidade', 'ascf.user', 'ascf', null, 14],
 ])
   await call('adm', 'POST', 'users', {
     nome,
@@ -330,6 +331,11 @@ ok(!html().includes('data-nav="usuarios"'), 'Alta Gestão: não tem mais a tela 
 await browse('Cadastrador Cosegi', 'cad.cosegi', 'senha-forte-2', 'cad.cosegi');
 await browse('Gestor Cosegi', 'ges.cosegi', 'senha-forte-2', 'ges.cosegi');
 await browse('CGGE', 'cgge.user', 'senha-forte-2', 'cgge.user');
+await browse('ASCF', 'ascf.user', 'senha-forte-2', 'ascf.user');
+ok(
+  html().includes('data-nav="mgr"') && !html().includes('data-nav="aprov"'),
+  'ASCF: tem MGR e não tem Pendências',
+);
 await browse('Cadastrador Coinfra', 'cad.coinfra', 'senha-forte-2', 'cad.coinfra');
 // ação de tela: cadastrador registra medição
 await click({ act: 'logout' });
