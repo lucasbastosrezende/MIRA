@@ -26,7 +26,6 @@ export function mountMira(root) {
     BANDS,
     PROB,
     IMPS,
-    PPCT,
     TRAT,
     METRICAS,
     UNIDADES,
@@ -39,7 +38,6 @@ export function mountMira(root) {
     curPhase,
     lastMed,
     metricSt,
-    econ,
     emptyPrr,
     canEdit,
     canMon,
@@ -147,13 +145,50 @@ export function mountMira(root) {
     authErr: '',
     busy: false,
     ctxPeek: false,
+    // Verdadeiro quando há algo digitado num formulário que ainda não foi salvo (some a cada nova montagem da tela).
+    sujo: false,
+    // Pesquisa por data nos históricos: dias "AAAA-MM-DD" e a lista do período que veio do servidor (null = sem filtro).
+    hist: { de: '', ate: '', lista: null },
   };
   // Pessoa com sessão aberta.
   const me = () => S.me;
   // Busca um risco pelo ID nos dados carregados.
   const rk = id => S.risks.find(r => r.id === id);
+  // Decisões da CSGR em vigor (premissas, apetite, priorização), vindas do servidor.
+  const cfg = () => S.config || {};
+  // Percentuais da probabilidade em vigor: os registrados pela CSGR; sem eles, a premissa do sistema.
+  const pctV = () => (cfg().premissas && cfg().premissas.pct) || MIRA.PPCT;
+  // Premissas financeiras aprovadas pela CSGR? Sem aprovação, os valores em reais são minuta.
+  const premissaOk = () => !!(cfg().premissas && cfg().premissas.aprovada);
+  // Números financeiros do risco com os percentuais em vigor.
+  const econ = r => MIRA.econ(r, pctV());
   // Percentual da nota de probabilidade (1 a 5) na premissa da exposição esperada, em texto (ex.: "45%").
-  const pctTxt = n => Math.round(PPCT[n] * 100) + '%';
+  const pctTxt = n => Math.round(pctV()[n] * 100) + '%';
+  // Ordem das situações no fluxo, da mais atrasada para a mais adiantada (usada na priorização).
+  const ORD_STAT = [
+    'rascunho',
+    'avaliado',
+    'devolvido',
+    'ag_gestor',
+    'ag_altagestao',
+    'ocorrido',
+    'em_tratamento',
+    'encerrado',
+  ];
+  // Comparação de dois riscos pelo método de priorização da CSGR (Portaria 41, art. 9º, item 6):
+  // sempre o nível primeiro; depois, se o método pedir, o prazo e a situação no fluxo.
+  function porPrioridade(a, b) {
+    const m = (cfg().priorizacao && cfg().priorizacao.metodo) || 'nivel';
+    let d = nivel(b) - nivel(a);
+    if (d || m === 'nivel') return d;
+    const pz = x => {
+      const t = x.prr && x.prr.prazo && !x.prr.concluidaEm ? daysTo(x.prr.prazo) : null;
+      return t == null ? 1e9 : t;
+    };
+    d = pz(a) - pz(b);
+    if (d || m === 'nivel-prazo') return d;
+    return ORD_STAT.indexOf(a.status) - ORD_STAT.indexOf(b.status);
+  }
   // Riscos que o perfil pode ver.
   const scope = () => S.risks; // o servidor já entrega só o que o perfil pode ver
   // Siglas das coordenadorias que o perfil pode ver. Não há lista fixa: o administrador cria cada uma.
@@ -414,11 +449,22 @@ export function mountMira(root) {
       '</div><p class="hint" style="text-align:center">Impacto (vertical) × probabilidade (horizontal)</p>'
     );
   }
-  // Aplica os filtros da lista de riscos (coordenadoria, faixa, situação e célula do mapa).
+  // Texto sem acento e em minúsculas, para a pesquisa achar "acao" em "ação".
+  const semAcento = t =>
+    String(t == null ? '' : t)
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase();
+  // Texto pesquisável de um risco: código, título, causa, evento, impacto, coordenadoria e quem abriu.
+  const buscaRisco = r =>
+    semAcento([r.id, r.titulo, r.causa, r.evento, r.impacto, r.unit, r.criadoPor].join(' '));
+  // Aplica os filtros da lista de riscos (pesquisa, coordenadoria, faixa, situação e célula do mapa).
   function filtered(list) {
-    const f = UI.filt;
+    const f = UI.filt,
+      q = semAcento((f.q || '').trim());
     return list.filter(
       r =>
+        (!q || buscaRisco(r).includes(q)) &&
         (!f.unit || r.unit === f.unit) &&
         (f.nv === '' || (nivel(r) && band(nivel(r)) === Number(f.nv))) &&
         (!f.st || r.status === f.st) &&
@@ -437,6 +483,9 @@ export function mountMira(root) {
         : '';
     return (
       '<div class="row" style="align-items:center">' +
+      '<input type="search" data-rbusca placeholder="Pesquisar por código, título ou causa" aria-label="Pesquisar riscos" value="' +
+      esc(UI.filt.q || '') +
+      '" style="flex:1 1 220px">' +
       uopt +
       '<select data-filter="nv" aria-label="Nível"><option value="">Todos os níveis</option>' +
       LV.map(
@@ -466,7 +515,7 @@ export function mountMira(root) {
       (UI.filt.cell
         ? '<span class="st info">Célula ' + UI.filt.cell.p + '×' + UI.filt.cell.i + '</span>'
         : '') +
-      (UI.filt.unit || UI.filt.nv !== '' || UI.filt.st || UI.filt.cell
+      (UI.filt.q || UI.filt.unit || UI.filt.nv !== '' || UI.filt.st || UI.filt.cell
         ? '<button class="btn sm" data-act="clearfilt">Limpar filtros</button>'
         : '') +
       '</div>'
@@ -493,11 +542,13 @@ export function mountMira(root) {
     if (!list.length) return '<div class="empty">Nenhum risco com esses filtros.</div>';
     const rows = list
       .slice()
-      .sort((a, b) => nivel(b) - nivel(a))
+      .sort(porPrioridade)
       .map(
         r =>
           '<tr class="click" data-open="' +
           r.id +
+          '" data-rb="' +
+          esc(buscaRisco(r)) +
           '"><td class="mono">' +
           r.id +
           '</td><td><b>' +
@@ -522,7 +573,7 @@ export function mountMira(root) {
     return (
       '<div class="scroll"><table class="tbl"><thead><tr><th>ID</th><th>Risco</th><th>Nível</th><th>Fase</th><th>Situação</th><th>Métrica</th><th>Prazo da ação</th></tr></thead><tbody>' +
       rows +
-      '</tbody></table></div>'
+      '</tbody></table></div><div class="empty" data-rvazio hidden>Nenhum risco com essa pesquisa.</div>'
     );
   }
   // O que depende da pessoa agora: rascunhos e devoluções (cadastrador), validações (gestor), aprovações (Alta Gestão).
@@ -547,13 +598,21 @@ export function mountMira(root) {
         .filter(r => r.status === 'ag_gestor' || r.status === 'devolvido')
         .map(r =>
           r.status === 'devolvido'
-            ? { r, txt: 'PRR devolvido: ajustar com o cadastrador e reenviar', crit: true }
+            ? { r, txt: 'PRR devolvido: ajustar e enviar de novo à Alta Gestão de Riscos', crit: true }
             : { r, txt: 'PRR aguardando sua validação', crit: false },
         );
     if (u.papel === 'altagestao')
       return l
         .filter(r => r.status === 'ag_altagestao')
-        .map(r => ({ r, txt: 'PRR aguardando aprovação da Alta Gestão de Riscos', crit: false }));
+        .map(r =>
+          r.acimaAlcada
+            ? {
+                r,
+                txt: 'PRR acima da alçada do gestor (' + r.acimaAlcada + '): aguardando aprovação',
+                crit: true,
+              }
+            : { r, txt: 'PRR aguardando aprovação da Alta Gestão de Riscos', crit: false },
+        );
     return [];
   }
   /* ===== Painéis: peças comuns ===== */
@@ -1434,7 +1493,7 @@ export function mountMira(root) {
           ' · ' +
           x[0] +
           '</td><td class="num">' +
-          Math.round(PPCT[i + 1] * 100) +
+          Math.round(pctV()[i + 1] * 100) +
           '%</td></tr>',
       ).join('') +
       '</tbody></table></section></div>'
@@ -1446,7 +1505,7 @@ export function mountMira(root) {
     const e = econ(r),
       p = r.prr || emptyPrr(),
       n = nivel(r),
-      nr = (p.probRes || 1) * (p.impRes || 1);
+      nr = p.probRes && p.impRes ? p.probRes * p.impRes : 0;
     const ap = (p.aprov || [])
       .map(
         a =>
@@ -1463,6 +1522,13 @@ export function mountMira(root) {
       .join('\n');
     return [
       '# Justificativa de despesa · gestão de riscos de TIC',
+      // Sem as premissas financeiras aprovadas pela CSGR, o documento é minuta.
+      ...(premissaOk()
+        ? []
+        : [
+            '',
+            '> **MINUTA · premissas financeiras não aprovadas pela CSGR.** Os valores em reais usam percentuais ainda não aprovados.',
+          ]),
       '**Risco ' + r.id + ' · ' + mdc(r.unit) + ' · ' + mdc(r.titulo) + '**',
       '',
       '## Descrição',
@@ -1485,13 +1551,15 @@ export function mountMira(root) {
       '- Forma de tratamento: ' + cap(p.tratamento) + '. ' + mdc(p.acao),
       '- Custo estimado: ' + brl(e.cost) + '.',
       '- Responsável: ' + mdc(p.responsavel || '—') + '. Prazo: ' + fd(p.prazo) + '.',
-      '- Risco residual esperado: nível ' +
-        nr +
-        ' (' +
-        LV[band(nr)] +
-        '). Exposição residual: ' +
-        brl(e.res) +
-        '.',
+      nr
+        ? '- Risco residual esperado: nível ' +
+          nr +
+          ' (' +
+          LV[band(nr)] +
+          '). Exposição residual: ' +
+          brl(e.res) +
+          '.'
+        : '- Risco residual: pendente (probabilidade e impacto residuais não informados); sem redução calculada.',
       '- Redução esperada: ' +
         brl(e.gain) +
         (e.ratio != null
@@ -1577,6 +1645,11 @@ export function mountMira(root) {
     'Probabilidade residual': v => (PROB[v - 1] ? v + ' · ' + PROB[v - 1][0] : v),
     'Nota de impacto': v => (IMPS[v - 1] ? v + ' · ' + IMPS[v - 1][0] : v),
     'Impacto residual': v => (IMPS[v - 1] ? v + ' · ' + IMPS[v - 1][0] : v),
+    // O responsável é guardado pelo código interno da pessoa; na tela aparece o nome (nunca o código).
+    'Responsável (pessoa do sistema)': v => {
+      const p = (S.team || []).concat(S.users || []).find(x => x.id === v);
+      return p ? p.nome : 'pessoa do sistema';
+    },
   };
   // Valor do histórico em texto legível (usa FMTV quando o campo é conhecido).
   const fmtV = (c, v) => (v === '' || v == null ? '' : FMTV[c] ? FMTV[c](v) : String(v));
@@ -2017,7 +2090,7 @@ export function mountMira(root) {
   // Mostra por que o valor diminui (o evento pode não acontecer) sem esconder o valor cheio.
   function expConta(p, e) {
     if (!p || !(e > 0)) return '';
-    const pc = PPCT[p] || 0;
+    const pc = pctV()[p] || 0;
     return (
       '<div class="exp-conta"><span class="eyebrow">Exposição esperada</span><b>' +
       brl(pc * e) +
@@ -2070,9 +2143,33 @@ export function mountMira(root) {
           esc(ia.justificativaImpacto || '') +
           ') <button class="btn sm" data-act="ia-notas">Aplicar</button></div>'
         : '';
+    // Controles de hoje: no risco; em riscos antigos, o que estava no PRR.
+    const ctrl = r.controles || (r.prr && r.prr.controles) || '';
+    // Pergunta do MGR (p. 15): "Qual a probabilidade da <causa> desencadear o <evento>, na <linha do tempo>?"
+    const pergunta =
+      '<p class="info-box" id="av-pergunta" style="margin:0 0 12px">Qual a probabilidade de <b>' +
+      esc(r.causa) +
+      '</b> desencadear <b>' +
+      esc(r.evento) +
+      '</b>, considerando <b id="av-linha-txt">' +
+      esc(r.linhaTempo || 'a linha do tempo definida') +
+      '</b>?</p>';
+    const antes = ed
+      ? '<div class="g2"><div class="field"><label for="f-controles">Controles existentes</label><textarea id="f-controles" rows="2" placeholder="O que já existe hoje para reduzir esse risco">' +
+        esc(ctrl) +
+        '</textarea><div class="hint">O MGR manda considerar os controles de hoje antes de dar as notas. Se não houver, escreva "Nenhum".</div></div>' +
+        '<div class="field"><label for="f-linha">Linha do tempo da probabilidade</label><input id="f-linha" list="dl-linha" value="' +
+        esc(r.linhaTempo || '') +
+        '" placeholder="Ex.: últimos 12 meses" style="width:100%"><datalist id="dl-linha"><option value="últimos 12 meses"></option><option value="últimos 6 meses"></option><option value="próximos 12 meses"></option></datalist><div class="hint">Período considerado ao dar a nota de probabilidade.</div></div></div>'
+      : '<div class="kvgrid">' +
+        roField('Controles existentes', ctrl, true) +
+        roField('Linha do tempo da probabilidade', r.linhaTempo || 'não informada') +
+        '</div>';
     return (
       '<div class="card"><h3>Fase 3 · Avaliação</h3>' +
       sug +
+      antes +
+      pergunta +
       '<div class="row"><div class="grow"><label>Probabilidade</label>' +
       radios('prob', PROB, r.prob) +
       '</div><div class="grow"><label>Impacto</label>' +
@@ -2141,6 +2238,11 @@ export function mountMira(root) {
     // Regra do MGR (p. 21): a CSGR emite parecer favorável ou não, por isso o campo é obrigatório para ela.
     if (canAlta(u, r))
       return (
+        (r.acimaAlcada
+          ? '<div class="warn-box" style="margin-bottom:10px"><b>Acima da alçada do gestor:</b> ' +
+            esc(r.acimaAlcada) +
+            '.</div>'
+          : '') +
         '<div class="field"><label for="ap-motivo">Parecer (obrigatório)</label><textarea id="ap-motivo" rows="3"></textarea></div>' +
         // Na devolução, a Alta Gestão pode indicar uma empresa terceirizada como responsável pela ação.
         '<div class="field"><label for="ap-emp">Empresa terceirizada responsável (opcional, só na devolução)</label>' +
@@ -2164,12 +2266,12 @@ export function mountMira(root) {
     if (!p || !r.prob || !r.imp) return '';
     const e = econ(r),
       n = nivel(r),
-      nr = (p.probRes || 1) * (p.impRes || 1);
+      nr = p.probRes && p.impRes ? p.probRes * p.impRes : 0;
     return (
       '<div class="tiles sum"><div class="tile"><div class="tile-h"><span>Risco atual → residual</span></div><div class="tile-chips">' +
       lvc(n) +
       '<span class="arr" aria-hidden="true">→</span>' +
-      lvc(nr) +
+      (nr ? lvc(nr) : html(rx(Etiqueta, { tom: 'warn', children: 'Residual pendente' }))) +
       '</div><span class="tile-f">' +
       (p.tratamento === 'aceitar' ? 'Risco aceito: sem redução' : 'Depois do tratamento') +
       '</span></div>' +
@@ -2250,7 +2352,7 @@ export function mountMira(root) {
     const x = Object.assign({}, r, { prr: Object.assign({}, r.prr || emptyPrr(), p) }),
       e = econ(x),
       n = nivel(r),
-      nr = (Number(p.probRes) || 1) * (Number(p.impRes) || 1);
+      nr = Number(p.probRes) && Number(p.impRes) ? Number(p.probRes) * Number(p.impRes) : 0;
     const c = Number(p.critico),
       a = Number(p.alerta),
       i = Number(p.ideal),
@@ -2288,12 +2390,32 @@ export function mountMira(root) {
         ? toneTag('ok', 'Limites coerentes')
         : toneTag('warn', 'Ordem dos limites incorreta');
     const row = (l, v) => '<div class="kvl"><span>' + l + '</span><b>' + v + '</b></div>';
+    // O que ainda impede o envio, pela mesma regra do servidor; cada item leva ao campo.
+    const falta = MIRA.prrErrors(p, { semDefinir: !canDefinir(me(), r) });
+    const pronto = falta.length
+      ? '<div class="falta"><span class="eyebrow">Falta para enviar (' +
+        falta.length +
+        ')</span><ul>' +
+        falta
+          .map(
+            m =>
+              '<li><button type="button" class="falta-i" data-ir="' +
+              esc(m) +
+              '" title="Ir para o campo">' +
+              esc(m) +
+              '</button></li>',
+          )
+          .join('') +
+        '</ul></div>'
+      : '<div class="falta">' + toneTag('ok', 'Pronto para enviar ao gestor') + '</div>';
     return (
       '<span class="eyebrow">Resumo do PRR</span><p class="hint" style="margin:2px 0 10px">Atualiza enquanto você preenche.</p>' +
+      pronto +
+      '<div class="sep-line"></div>' +
       '<div class="kvl"><span>Risco atual → residual</span><div class="chips2">' +
       lvc(n) +
       '<span class="arr" aria-hidden="true">→</span>' +
-      lvc(nr) +
+      (nr ? lvc(nr) : html(rx(Etiqueta, { tom: 'warn', children: 'Residual pendente' }))) +
       '</div></div>' +
       row('Exposição esperada', brlc(e.cur) + ' → ' + brlc(e.res)) +
       row(
@@ -2311,6 +2433,9 @@ export function mountMira(root) {
   // Conta do risco residual, explicada: nível de hoje e depois do PRR, e a exposição residual
   // (valor cheio × percentual da probabilidade residual × impacto residual ÷ impacto de hoje).
   function resConta(r, p) {
+    // Sem residual escolhido, a conta não é feita: nada de supor 1 × 1.
+    if (!Number(p.probRes) || !Number(p.impRes))
+      return '<div class="info-box">Escolha a probabilidade e o impacto residuais para ver a conta. Sem eles, não há redução.</div>';
     const pr = Number(p.probRes) || 1,
       ir = Number(p.impRes) || 1,
       n = nivel(r),
@@ -2336,7 +2461,7 @@ export function mountMira(root) {
         linhaNivel +
         '<span class="hint">Com "aceitar", não há redução: a exposição continua a de hoje.</span></div>'
       );
-    const res = (PPCT[pr] || 0) * e * (ir / (r.imp || 1));
+    const res = (pctV()[pr] || 0) * e * (ir / (r.imp || 1));
     return (
       '<div class="exp-conta">' +
       linhaNivel +
@@ -2346,7 +2471,7 @@ export function mountMira(root) {
           '</b><span>' +
           brl(e) +
           ' (valor cheio) × ' +
-          Math.round((PPCT[pr] || 0) * 100) +
+          Math.round((pctV()[pr] || 0) * 100) +
           '% (probabilidade ' +
           pr +
           ')' +
@@ -2496,7 +2621,7 @@ export function mountMira(root) {
     ],
     medicao: [
       'O que é registrar uma medição?',
-      'É anotar o valor atual da métrica. O sistema compara com os limites e muda a cor: ideal, alerta ou crítico. Em alerta ou crítico, o gestor recebe aviso.',
+      'É anotar o valor atual da métrica. O sistema compara com os limites e mostra a situação: ideal, alerta ou crítico. Em alerta ou crítico, o cadastrador, o gestor e a Alta Gestão de Riscos recebem aviso.',
     ],
     reavaliar: [
       'Quando reavaliar o nível?',
@@ -2506,7 +2631,67 @@ export function mountMira(root) {
       'O que fazer quando o evento ocorre?',
       'Marque "O evento ocorreu". O aviso mostra o plano do PRR para esse caso. Depois, retome o tratamento ou reabra o PRR para revisão.',
     ],
+    grafico: [
+      'Como ler o gráfico da métrica?',
+      'Cada ponto é uma medição registrada. As faixas de fundo mostram os limites do PRR: ideal, alerta e crítico. No topo aparece a última medição, com a situação escrita. "Ver como tabela" mostra todas as medições, com a data e quem registrou.',
+    ],
+    sentido: [
+      'O que quer dizer "quanto menor, melhor" ou "quanto maior, melhor"?',
+      'Diz para que lado a métrica melhora. Em horas fora do ar, quanto menor, melhor; em percentual de disponibilidade, quanto maior, melhor. Isso define a ordem dos limites e a situação de cada medição.',
+    ],
+    medicaoRuim: [
+      'O que acontece quando a medição fica em alerta ou crítico?',
+      'O cadastrador, o gestor e a Alta Gestão de Riscos recebem um aviso, e o risco entra em "Exigem ação agora". Confira se a ação do PRR está funcionando e, se a probabilidade ou o impacto mudaram, reavalie o nível.',
+    ],
+    premissas: [
+      'O que são as premissas financeiras?',
+      'São os percentuais que transformam a nota de probabilidade em parte do valor em risco. Ex.: com a nota 3 valendo 45%, um impacto de R$ 100.000 dá exposição esperada de R$ 45.000. A CSGR aprova os percentuais; sem aprovação, a justificativa ao TCE sai como minuta.',
+    ],
+    exposicao: [
+      'O que é exposição esperada?',
+      'É quanto se espera perder, em média, se nada for feito: o valor cheio do impacto vezes o percentual da probabilidade. Ex.: R$ 200.000 com probabilidade 4 (75%) = R$ 150.000.',
+    ],
+    apetite: [
+      'O que é o limite para aceitar o risco (apetite a risco)?',
+      'É o maior nível de risco que se aceita sem tratar; o MGR (p. 19) e a ISO 31000 chamam isso de "apetite a risco". Acima dele, o PRR não pode usar "Aceitar": é preciso evitar, transferir ou mitigar (MGR p. 19–21). Pode ser geral ou próprio de cada coordenadoria; o da coordenadoria vale sobre o geral.',
+    ],
+    alcada: [
+      'O que é a alçada do gestor?',
+      'É o limite até onde o supervisor (gestor) da coordenadoria pode decidir sozinho. O que passa desse limite é submetido à instância superior, a Alta Gestão / CSGR (MGR p. 8). No MIRA, todo PRR continua passando pela Alta Gestão (MGR p. 21); o que passa do limite chega marcado como "acima da alçada do gestor" e vai para o topo da fila.',
+    ],
+    nivelMax: [
+      'O que é o nível máximo da alçada?',
+      'O maior nível de risco (probabilidade × impacto, de 1 a 25) que o gestor valida sem marca. Ex.: com "até 9 · Médio", um PRR de risco nível 12 chega à Alta Gestão marcado. "Sem limite" = nenhum PRR é marcado pelo nível.',
+    ],
+    exposicaoMax: [
+      'O que é a exposição máxima da alçada?',
+      'O maior valor em reais em risco (exposição esperada) que o gestor valida sem marca. Ex.: com "até R$ 500.000", um risco com exposição de R$ 800.000 chega à Alta Gestão marcado. Vazio = sem limite.',
+    ],
+    priorizacao: [
+      'O que é a priorização?',
+      'É a ordem em que os riscos aparecem nas filas, nas listas e no quadro: pelo nível; pelo nível e depois pelo prazo; ou pelo nível, prazo e situação (Portaria 41, art. 9º, item 6).',
+    ],
   };
+  // Botão "?" ao lado de um termo: abre e fecha a explicação (o texto do FAQ) logo abaixo, sem sair da tela.
+  const ajuda = k =>
+    ' <button type="button" class="ajuda-b" data-ajuda="' +
+    k +
+    '" aria-expanded="false" aria-controls="ajuda-' +
+    k +
+    '" title="' +
+    esc(FAQ[k][0]) +
+    '" aria-label="' +
+    esc(FAQ[k][0]) +
+    '">?</button>';
+  // Caixa da explicação de um termo, fechada até a pessoa clicar no "?".
+  const ajudaTxt = k =>
+    '<div class="info-box ajuda-t" id="ajuda-' +
+    k +
+    '" hidden><b>' +
+    FAQ[k][0] +
+    '</b> ' +
+    FAQ[k][1] +
+    '</div>';
   // Bloco de perguntas frequentes com as chaves pedidas, cada uma abre e fecha sozinha.
   const faq = ks =>
     '<div class="side-card faq"><h4>Dúvidas frequentes</h4>' +
@@ -2597,9 +2782,12 @@ export function mountMira(root) {
           Object.keys(TRAT).map(k => [k, cap(k) + ' — ' + TRAT[k]]),
           p.tratamento,
         ) +
-          '<div class="field"><label for="p-controles">Controles existentes</label><textarea id="p-controles" rows="2">' +
-          esc(p.controles) +
-          '</textarea><div class="hint">O que já existe hoje para reduzir esse risco.</div></div><div class="field"><label for="p-acao">Ação proposta</label><textarea id="p-acao" rows="3">' +
+          // Controles existentes vêm da avaliação (fase 3), onde o MGR manda considerá-los antes das notas.
+          '<div class="kvgrid" style="margin-bottom:12px">' +
+          roField('Controles existentes (da avaliação)', r.controles || p.controles, true) +
+          '</div><input type="hidden" id="p-controles" value="' +
+          esc(r.controles || p.controles || '') +
+          '"><div class="field"><label for="p-acao">Ação proposta</label><textarea id="p-acao" rows="3">' +
           esc(p.acao) +
           '</textarea><div class="hint">Mitigar, evitar ou transferir: o que será feito. Aceitar: por que o risco é aceito.</div></div>' +
           // Todo risco diz o que fazer se o evento ocorrer; o aviso de evento repete esse plano.
@@ -2680,13 +2868,19 @@ export function mountMira(root) {
           sel(
             'p-probres',
             'Probabilidade residual',
-            PROB.map((x, i) => [i + 1, i + 1 + ' · ' + x[0] + ' (' + Math.round(PPCT[i + 1] * 100) + '%)']),
+            [
+              ['', 'Escolha…'],
+              ...PROB.map((x, i) => [
+                i + 1,
+                i + 1 + ' · ' + x[0] + ' (' + Math.round(pctV()[i + 1] * 100) + '%)',
+              ]),
+            ],
             p.probRes,
           ) +
           sel(
             'p-impres',
             'Impacto residual',
-            IMPS.map((x, i) => [i + 1, i + 1 + ' · ' + x[0]]),
+            [['', 'Escolha…'], ...IMPS.map((x, i) => [i + 1, i + 1 + ' · ' + x[0]])],
             p.impRes,
           ) +
           '</div><div id="res-conta">' +
@@ -2698,11 +2892,16 @@ export function mountMira(root) {
       '</div>' +
       faq(['metrica', 'parametros', 'residual', 'contingencia', 'criterios', 'responsavel']) +
       '</aside></div>' +
-      '<div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">Enviar para validação do gestor</button></div>';
+      '<div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">' +
+      // O gestor que envia já valida: o PRR vai direto à Alta Gestão (mesma regra do servidor).
+      (u.papel === 'gestor'
+        ? 'Validar e enviar à Alta Gestão de Riscos'
+        : 'Enviar para validação do gestor') +
+      '</button></div>';
     const ro =
       '<div class="kvgrid">' +
       roField('Forma de tratamento', cap(p.tratamento) + ' — ' + TRAT[p.tratamento], true) +
-      roField('Controles existentes', p.controles, true) +
+      roField('Controles existentes', r.controles || p.controles, true) +
       roField('Ação proposta', p.acao, true) +
       roField('Se o evento ocorrer, faça isto', p.contingencia, true) +
       '</div>' +
@@ -2720,8 +2919,8 @@ export function mountMira(root) {
       roField('Crítico', p.critico) +
       roField('Alerta', p.alerta) +
       roField('Ideal', p.ideal) +
-      roField('Probabilidade residual', (p.probRes || 1) + ' · ' + PROB[(p.probRes || 1) - 1][0]) +
-      roField('Impacto residual', (p.impRes || 1) + ' · ' + IMPS[(p.impRes || 1) - 1][0]) +
+      roField('Probabilidade residual', p.probRes ? p.probRes + ' · ' + PROB[p.probRes - 1][0] : 'pendente') +
+      roField('Impacto residual', p.impRes ? p.impRes + ' · ' + IMPS[p.impRes - 1][0] : 'pendente') +
       '</div>';
     const stat = stChip(r);
     const decide =
@@ -2781,12 +2980,24 @@ export function mountMira(root) {
           '</td></tr>',
       )
       .join('');
-    const sel = (id, v) =>
+    // Lista de notas com o nome da escala (ex.: "3 · Provável"), como na avaliação.
+    const sel = (id, v, escala) =>
       '<select id="' +
       id +
       '">' +
       [1, 2, 3, 4, 5]
-        .map(k => '<option value="' + k + '"' + (k === v ? ' selected' : '') + '>' + k + '</option>')
+        .map(
+          k =>
+            '<option value="' +
+            k +
+            '"' +
+            (k === v ? ' selected' : '') +
+            '>' +
+            k +
+            ' · ' +
+            escala[k - 1][0] +
+            '</option>',
+        )
         .join('') +
       '</select>';
     const now = m
@@ -2796,43 +3007,71 @@ export function mountMira(root) {
         esc(p.unidadeMetrica) +
         '</small></b>' +
         (ms === 'sem' ? '' : stTone(ms)) +
+        (ms === 'alerta' || ms === 'critico' ? ajuda('medicaoRuim') : '') +
         '</div>'
       : '';
     return (
-      '<div class="card"><div class="card-h"><div><h3>Fase 5 · Monitoramento da métrica</h3><p>' +
+      '<div class="card"><div class="card-h"><div><h3>Fase 5 · Monitoramento da métrica' +
+      ajuda('metrica') +
+      '</h3><p>' +
       esc(metricaTxt(p.metrica)) +
       ' · ' +
       (p.sentido === 'menor' ? 'quanto menor, melhor' : 'quanto maior, melhor') +
+      ajuda('sentido') +
+      ' · como ler o gráfico' +
+      ajuda('grafico') +
       '</p></div>' +
       now +
       '</div>' +
+      ajudaTxt('metrica') +
+      ajudaTxt('sentido') +
+      ajudaTxt('grafico') +
+      (ms === 'alerta' || ms === 'critico' ? ajudaTxt('medicaoRuim') : '') +
       chartHTML(r) +
       (mon
         ? '<div class="row" style="align-items:flex-end;margin-top:12px"><div><label for="m-valor">Nova medição (' +
           esc(p.unidadeMetrica) +
-          ')</label><input id="m-valor" type="number" step="any" style="width:140px"></div><button class="btn primary" data-act="add-med">Registrar medição</button></div>'
+          ')</label><input id="m-valor" type="number" step="any" style="width:140px"></div><button class="btn primary" data-act="add-med">Registrar medição</button>' +
+          ajuda('medicao') +
+          '</div>' +
+          ajudaTxt('medicao')
         : '') +
       '</div>' +
-      '<div class="card"><h3>Reavaliação do nível</h3><div class="scroll"><table class="tbl"><thead><tr><th>Data</th><th>P × I</th><th>Nível</th><th>Motivo</th></tr></thead><tbody>' +
+      '<div class="card"><h3>Reavaliação do nível' +
+      ajuda('reavaliar') +
+      '</h3>' +
+      ajudaTxt('reavaliar') +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Data</th><th>P × I</th><th>Nível</th><th>Motivo</th></tr></thead><tbody>' +
       lh +
       '</tbody></table></div>' +
       (mon
         ? '<div class="g2" style="margin-top:12px"><div><label for="r-prob">Probabilidade</label>' +
-          sel('r-prob', r.prob) +
+          sel('r-prob', r.prob, PROB) +
           '</div><div><label for="r-imp">Impacto</label>' +
-          sel('r-imp', r.imp) +
+          sel('r-imp', r.imp, IMPS) +
           '</div></div><div class="field" style="margin-top:8px"><label for="r-motivo">Motivo da reavaliação</label><input id="r-motivo" style="width:100%"></div><div class="actions"><button class="btn primary" data-act="reaval">Reavaliar nível</button>' +
           (r.status === 'em_tratamento'
-            ? '<button class="btn danger" data-act="evento">O evento ocorreu</button>'
+            ? '<button class="btn danger" data-act="evento">O evento ocorreu</button>' + ajuda('evento')
             : '') +
-          '</div>'
+          '</div>' +
+          (r.status === 'em_tratamento' ? ajudaTxt('evento') : '')
         : '') +
       (u.papel === 'gestor' && u.unit === r.unit && r.status !== 'encerrado'
         ? '<div class="actions"><button class="btn" data-act="encerrar">Encerrar risco</button></div>'
         : '') +
       '</div>' +
       (mon ? acoesTratamento(r) : '') +
-      faq(['medicao', 'parametros', 'reavaliar', 'evento', 'residual'])
+      faq([
+        'metrica',
+        'medicao',
+        'grafico',
+        'medicaoRuim',
+        'sentido',
+        'parametros',
+        'reavaliar',
+        'evento',
+        'residual',
+      ])
     );
   }
   // Andamento do tratamento, para quem monitora (cadastrador ou gestor da coordenadoria): depois de um evento,
@@ -2947,12 +3186,19 @@ export function mountMira(root) {
     const head = isNew
       ? '<div class="card rhead"><div class="rhead-top"><button class="btn sm" data-nav="riscos">← Riscos</button><span class="unit">' +
         u.unit +
-        '</span></div><h2>Novo risco</h2><p class="muted">Primeiro salve o contexto da coordenadoria; depois descreva o risco no formato do MGR.</p></div>'
+        '</span></div><h2>Novo risco</h2><p class="muted">' +
+        (ctxOk
+          ? 'Descreva o risco no formato do MGR. O contexto da coordenadoria já está salvo; para revê-lo, abra a fase 1.'
+          : 'Primeiro salve o contexto da coordenadoria; depois descreva o risco no formato do MGR.') +
+        '</p></div>'
       : riskHead(u, r);
     const hist = isNew
       ? ''
       : '<div class="card"><h3>Histórico deste risco</h3>' +
-        historyList(S.audit.filter(a => a.riskId === r.id).slice(0, 30)) +
+        histBarra((UI.hist.lista || []).filter(a => a.riskId === r.id).length) +
+        historyList(
+          (UI.hist.lista || S.audit).filter(a => a.riskId === r.id).slice(0, UI.hist.lista ? 2000 : 30),
+        ) +
         '</div>';
     return head + step + body + hist;
   }
@@ -3080,15 +3326,57 @@ export function mountMira(root) {
   }
   // Tela Histórico: toda a trilha de auditoria visível para o perfil.
   function viewHist(u) {
-    const list = S.audit
+    const list = (UI.hist.lista || S.audit)
       .filter(a => u.papel === 'altagestao' || u.papel === 'cgge' || a.unit === u.unit)
-      .slice(0, 80);
+      .slice(0, UI.hist.lista ? 2000 : 80);
     return (
       pageHead('Histórico de alterações', 'Quem alterou, quando e o quê. Nada é apagado.') +
       '<div class="card">' +
+      histBarra(list.length) +
       historyList(list, true) +
       '</div>'
     );
+  }
+  // Barra de pesquisa por data dos históricos (de / até), com quantos registros o período tem.
+  function histBarra(n) {
+    const h = UI.hist,
+      on = !!(h.de || h.ate);
+    return (
+      '<div class="row hist-datas" style="align-items:flex-end;margin-bottom:12px">' +
+      '<div class="field"><label for="hist-de">De</label><input type="date" id="hist-de" data-hist="de" value="' +
+      esc(h.de) +
+      '"></div><div class="field"><label for="hist-ate">Até</label><input type="date" id="hist-ate" data-hist="ate" value="' +
+      esc(h.ate) +
+      '"></div>' +
+      (on
+        ? '<button class="btn sm" data-act="hist-limpa">Limpar datas</button><span class="muted small" role="status">' +
+          (h.lista ? n + ' registro(s) no período' : 'Buscando…') +
+          '</span>'
+        : '<span class="muted small">Escolha um dia ou um período para pesquisar.</span>') +
+      '</div>'
+    );
+  }
+  // Busca no servidor o histórico do período escolhido (o estado traz só os registros mais recentes).
+  async function buscaHist() {
+    const h = UI.hist;
+    if (!h.de && !h.ate) {
+      h.lista = null;
+      render(true);
+      return;
+    }
+    // O dia é o do relógio de quem usa: início e fim do dia local viram instantes ISO para o servidor.
+    const ini = h.de ? pd(h.de).toISOString() : '',
+      fim = h.ate ? new Date(pd(h.ate).getTime() + DAY - 1).toISOString() : '';
+    h.lista = null;
+    render(true);
+    try {
+      const r = await api('GET', 'audit?ini=' + encodeURIComponent(ini) + '&fim=' + encodeURIComponent(fim));
+      h.lista = r.audit || [];
+    } catch (e) {
+      h.lista = [];
+      toast(e.message);
+    }
+    render(true);
   }
   /* ===== Quadro: etapas do processo e quem resolve cada risco ===== */
   // Colunas do quadro, na ordem do processo: [chave, nome, situações do risco que entram nela].
@@ -3208,7 +3496,7 @@ export function mountMira(root) {
         .join('') +
       '</select>';
     const cols = ETAPAS.map(e => {
-      const xs = L.filter(r => e[2].includes(r.status)).sort((a, b) => nivel(b) - nivel(a));
+      const xs = L.filter(r => e[2].includes(r.status)).sort(porPrioridade);
       return (
         '<section class="q-col" aria-label="' +
         e[1] +
@@ -3258,8 +3546,10 @@ export function mountMira(root) {
         n = x ? nivel(x) : 0;
       return n ? band(n) : -1;
     };
-    const row = (tn, kind, msg, meta, id, isNew) =>
+    // extra: ação ao lado do aviso ("Marcar como lido", "Estou ciente"), fora do botão que abre o risco.
+    const row = (tn, kind, msg, meta, id, isNew, extra) =>
       '<li' +
+      (extra ? ' class="com-acao"' : '') +
       (bandOf(id) >= 0 ? ' style="border-left:4px solid var(--m' + bandOf(id) + ');padding-left:4px"' : '') +
       '><button class="qi" data-open="' +
       id +
@@ -3277,11 +3567,35 @@ export function mountMira(root) {
       esc(msg) +
       '</span>' +
       (meta ? '<span class="qi-t">' + meta + '</span>' : '') +
-      '</span><span class="qi-go" aria-hidden="true">›</span></button></li>';
+      '</span><span class="qi-go" aria-hidden="true">›</span></button>' +
+      (extra ? '<span class="acao-al">' + extra + '</span>' : '') +
+      '</li>';
+    // Quem já está ciente de um alerta de ação (o alerta não some: fica até a situação ser resolvida).
+    const cientes = d => ((rk(d.riskId) || {}).ciencias || []).filter(c => c.chave === d.k);
     const act = dv
       .slice()
       .sort((a, b) => (b.crit ? 1 : 0) - (a.crit ? 1 : 0) || bandOf(b.riskId) - bandOf(a.riskId))
-      .map(d => row(d.crit ? 'crit' : 'warn', KIND[d.tipo] || d.tipo, d.msg, '', d.riskId, false))
+      .map(d => {
+        const cs = cientes(d),
+          eu = cs.some(c => c.uid === u.id);
+        return row(
+          d.crit ? 'crit' : 'warn',
+          KIND[d.tipo] || d.tipo,
+          d.msg,
+          cs.length ? 'Ciente: ' + cs.map(c => esc(c.por) + ' (' + fdt(c.ts) + ')').join(', ') : '',
+          d.riskId,
+          false,
+          eu
+            ? toneTag('ok', 'Você está ciente')
+            : u.papel === 'admin'
+              ? ''
+              : '<button class="btn sm" data-act="ciente" data-chave="' +
+                esc(d.k) +
+                '" data-rid="' +
+                esc(d.riskId) +
+                '">Estou ciente</button>',
+        );
+      })
       .join('');
     // O tom segue a gravidade do aviso: métrica crítica e evento ocorrido são críticos; devolução, alerta e nível que subiu pedem atenção.
     const toneOf = a =>
@@ -3305,7 +3619,21 @@ export function mountMira(root) {
           bandOf(b.riskId) - bandOf(a.riskId) ||
           String(b.ts).localeCompare(a.ts),
       )
-      .map(a => row(toneOf(a), KIND[a.tipo] || a.tipo, a.msg, fdt(a.ts), a.riskId, !a.lido[u.id]))
+      .map(a =>
+        row(
+          toneOf(a),
+          KIND[a.tipo] || a.tipo,
+          a.msg,
+          fdt(a.ts),
+          a.riskId,
+          !a.lido[u.id],
+          !a.lido[u.id] && a.id
+            ? '<button class="btn sm" data-act="lido-um" data-id="' +
+                esc(a.id) +
+                '">Marcar como lido</button>'
+            : '',
+        ),
+      )
       .join('');
     const sec = (t, sub, n, body, empty) =>
       '<div class="card">' +
@@ -3324,7 +3652,7 @@ export function mountMira(root) {
       ) +
       sec(
         'Exigem ação agora',
-        'Riscos extremos sem tratamento aprovado, prazos próximos ou vencidos e métricas em alerta ou críticas.',
+        'Riscos extremos sem tratamento aprovado, prazos próximos ou vencidos e métricas em alerta ou críticas. "Estou ciente" registra a ciência no histórico e no relatório; o alerta continua aqui até a situação ser resolvida.',
         dv.length,
         act,
         'Nenhum prazo ou métrica exige ação agora.',
@@ -3413,6 +3741,8 @@ export function mountMira(root) {
       ocorr: R.filter(r => noPer(quando(r, 'ocorridoEm', 'Registrou que o evento ocorreu'), P)),
       encer: R.filter(r => noPer(quando(r, 'encerradoEm', 'Encerrou o risco'), P)),
       inv: aprov.reduce((s, x) => s + (Number(x.r.prr.custo) || 0), 0),
+      // "Estou ciente" registrado nos alertas que exigem ação.
+      ciencias: R.flatMap(r => (r.ciencias || []).filter(c => noPer(c.ts, P)).map(c => ({ r, c }))),
     };
   }
   // Seletor do período na tela Relatório: tipo (semanal a anual) e setas para os períodos anteriores.
@@ -3481,7 +3811,7 @@ export function mountMira(root) {
       : '- nenhuma coordenadoria criada';
     const altos =
       L.filter(r => altoOuExtremo(r))
-        .sort((a, b) => nivel(b) - nivel(a))
+        .sort(porPrioridade)
         .map(
           r =>
             '- **' +
@@ -3529,6 +3859,7 @@ export function mountMira(root) {
       '- Investimento aprovado no período: ' + brl(F.inv),
       '- Medições registradas: ' + F.meds.length + ' (' + nAl + ' em alerta, ' + nCr + ' críticas)',
       '- Eventos que ocorreram: ' + F.ocorr.length + ' · riscos encerrados: ' + F.encer.length,
+      '- Ciência registrada em alertas que exigem ação: ' + F.ciencias.length,
       '',
       '## 2. Por coordenadoria',
       un,
@@ -3547,6 +3878,23 @@ export function mountMira(root) {
       '',
       '## 6. Métricas em alerta ou críticas no período',
       mt,
+      '',
+      '## 7. Ciência dos alertas que exigem ação, no período',
+      F.ciencias
+        .map(
+          x =>
+            '- **' +
+            x.r.id +
+            '** ' +
+            mdc(x.c.msg) +
+            ' · ciente: ' +
+            mdc(x.c.por) +
+            ' (' +
+            (PAPEL[x.c.papel] || x.c.papel) +
+            ') em ' +
+            fdt(x.c.ts),
+        )
+        .join('\n') || '- nenhuma',
       '',
       'Os números do período vêm das datas registradas em cada risco (cadastro, decisões do PRR, medições, evento e encerramento). A situação atual é a de hoje, não a do fim do período. Todas as alterações estão no histórico do MIRA.',
     ].join('\n');
@@ -4022,6 +4370,205 @@ export function mountMira(root) {
   // Marca do MIRA.
   const LOGO =
     '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="16" cy="16" r="10"/><circle class="mira-ponto" cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/><path d="M16 2v7M16 23v7M2 16h7M23 16h7"/></svg>';
+  /* ===== Decisões da CSGR (Etapa 2) ===== */
+  // Opções de nível de 1 a 25 (só os produtos possíveis da matriz 5 × 5), com a faixa; a primeira é "vazio".
+  const opcoesNivel = (v, vazio) =>
+    '<option value="">' +
+    vazio +
+    '</option>' +
+    [...new Set([1, 2, 3, 4, 5].flatMap(a => [1, 2, 3, 4, 5].map(b => a * b)))]
+      .sort((a, b) => a - b)
+      .map(
+        n =>
+          '<option value="' +
+          n +
+          '"' +
+          (v === n ? ' selected' : '') +
+          '>Até ' +
+          n +
+          ' · ' +
+          LV[band(n)] +
+          '</option>',
+      )
+      .join('');
+  // Quem registrou a decisão e quando, ou "ainda não decidida".
+  const quemDecidiu = d =>
+    d && d.por ? 'Registrada por ' + esc(d.por) + ' em ' + fdt(d.em) + '.' : 'Ainda não decidida pela CSGR.';
+  // Tela Decisões: premissas financeiras, apetite a risco e priorização. A Alta Gestão registra; os demais consultam.
+  // Nada aqui é inventado pelo sistema: sem decisão, vale o comportamento de antes e a tela diz isso.
+  function viewDecisoes(u) {
+    const c = cfg(),
+      ed = u.papel === 'altagestao',
+      dis = ed ? '' : ' disabled',
+      pr = c.premissas || {},
+      ap = c.apetite || {},
+      po = c.priorizacao || {};
+    const pct = [1, 2, 3, 4, 5]
+      .map(
+        n =>
+          '<div class="field"><label for="cfg-pct-' +
+          n +
+          '">' +
+          n +
+          ' · ' +
+          PROB[n - 1][0] +
+          ' (%)</label><input id="cfg-pct-' +
+          n +
+          '" type="number" min="0" max="100" step="0.1" value="' +
+          Math.round(pctV()[n] * 1000) / 10 +
+          '" style="width:100%"' +
+          dis +
+          '></div>',
+      )
+      .join('');
+    const niveis = [...new Set([1, 2, 3, 4, 5].flatMap(a => [1, 2, 3, 4, 5].map(b => a * b)))].sort(
+      (a, b) => a - b,
+    );
+    return (
+      pageHead(
+        'Decisões da CSGR',
+        'O que a CSGR decide e o sistema aplica. Cada alteração fica no histórico.',
+      ) +
+      '<div class="prr-grid"><div class="decisoes-col"><div class="card">' +
+      cardH(
+        'Premissas financeiras' + ajuda('premissas'),
+        'Percentual de cada nota de probabilidade na exposição esperada. ' + quemDecidiu(pr),
+        premissaOk()
+          ? html(rx(Etiqueta, { tom: 'ok', children: 'Aprovadas' }))
+          : html(rx(Etiqueta, { tom: 'warn', children: 'Minuta' })),
+      ) +
+      ajudaTxt('premissas') +
+      '<div class="g3">' +
+      pct +
+      '</div><p class="hint">Sugestão do sistema: meio de cada faixa da escala baseada na ISO 31000. A nota 5 não pode ficar abaixo de 90%. Sem aprovação, a justificativa ao TCE sai como minuta.</p>' +
+      (ed
+        ? '<label class="check"><input type="checkbox" id="cfg-aprovada"' +
+          (pr.aprovada ? ' checked' : '') +
+          '> A CSGR aprova estas premissas</label><div class="actions"><button class="btn primary" data-act="cfg-premissas">Registrar premissas</button></div>'
+        : '') +
+      '</div><div class="card">' +
+      cardH(
+        'Limite para aceitar o risco (apetite a risco)' + ajuda('apetite'),
+        'Maior nível que pode ser aceito sem tratamento (MGR p. 19–21). ' + quemDecidiu(ap),
+      ) +
+      ajudaTxt('apetite') +
+      '<div class="field"><label for="cfg-apetite">Nível máximo para "Aceitar"</label><select id="cfg-apetite"' +
+      dis +
+      '><option value="">Não definido (Aceitar vale para qualquer nível)</option>' +
+      niveis
+        .map(
+          n =>
+            '<option value="' +
+            n +
+            '"' +
+            (ap.nivelMax === n ? ' selected' : '') +
+            '>Até ' +
+            n +
+            ' · ' +
+            LV[band(n)] +
+            '</option>',
+        )
+        .join('') +
+      '</select><div class="hint">Com o limite definido, um PRR com "Aceitar" acima desse nível não é enviado.</div></div>' +
+      // Apetite de cada coordenadoria: vale sobre o geral; vazio usa o geral.
+      (units().length
+        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Coordenadoria</th><th>Limite próprio</th></tr></thead><tbody>' +
+          units()
+            .map(
+              un =>
+                '<tr><td>' +
+                esc(siglaUp(un)) +
+                '</td><td><select data-apetite-un="' +
+                esc(un) +
+                '" aria-label="Limite para aceitar o risco de ' +
+                esc(siglaUp(un)) +
+                '"' +
+                dis +
+                '>' +
+                opcoesNivel((ap.porUnidade || {})[un], 'Usa o geral') +
+                '</select></td></tr>',
+            )
+            .join('') +
+          '</tbody></table></div>'
+        : '') +
+      (ed
+        ? '<div class="actions"><button class="btn primary" data-act="cfg-apetite">Registrar limite</button></div>'
+        : '') +
+      '</div><div class="card">' +
+      cardH(
+        'Alçada do gestor' + ajuda('alcada'),
+        'Acima destes limites, o PRR chega à CSGR marcado como fora da alçada do gestor (MGR p. 8). ' +
+          quemDecidiu(c.alcada),
+      ) +
+      ajudaTxt('alcada') +
+      ajudaTxt('nivelMax') +
+      ajudaTxt('exposicaoMax') +
+      (units().length
+        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Coordenadoria</th><th>Nível máximo' +
+          ajuda('nivelMax') +
+          '</th><th>Exposição máxima (R$)' +
+          ajuda('exposicaoMax') +
+          '</th></tr></thead><tbody>' +
+          units()
+            .map(un => {
+              const a = ((c.alcada || {}).porUnidade || {})[un] || {};
+              return (
+                '<tr><td>' +
+                esc(siglaUp(un)) +
+                '</td><td><select data-alcada-nivel="' +
+                esc(un) +
+                '" aria-label="Nível máximo da alçada de ' +
+                esc(siglaUp(un)) +
+                '"' +
+                dis +
+                '>' +
+                opcoesNivel(a.nivelMax, 'Sem limite') +
+                '</select></td><td><input data-alcada-exp="' +
+                esc(un) +
+                '" inputmode="decimal" data-brl placeholder="Sem limite" value="' +
+                esc(a.exposicaoMax != null ? brlIn(a.exposicaoMax) : '') +
+                '" aria-label="Exposição máxima da alçada de ' +
+                esc(siglaUp(un)) +
+                '"' +
+                dis +
+                '></td></tr>'
+              );
+            })
+            .join('') +
+          '</tbody></table></div>'
+        : '<p class="muted">Nenhuma coordenadoria criada.</p>') +
+      (ed
+        ? '<div class="actions"><button class="btn primary" data-act="cfg-alcada">Registrar alçada</button></div>'
+        : '') +
+      '</div><div class="card">' +
+      cardH(
+        'Priorização' + ajuda('priorizacao'),
+        'Ordem das filas e listas (Portaria 41, art. 9º, item 6). ' + quemDecidiu(po),
+      ) +
+      ajudaTxt('priorizacao') +
+      '<div class="temas" role="radiogroup" aria-label="Método de priorização">' +
+      MIRA.PRIORIZACAO.map(
+        x =>
+          '<label class="tema"><span><input type="radio" name="cfg-prioriza" value="' +
+          x[0] +
+          '"' +
+          ((po.metodo || 'nivel') === x[0] ? ' checked' : '') +
+          dis +
+          '> <b>' +
+          x[1] +
+          '</b></span><span class="small muted">' +
+          x[2] +
+          '</span></label>',
+      ).join('') +
+      '</div>' +
+      (ed
+        ? '<div class="actions"><button class="btn primary" data-act="cfg-prioriza">Registrar priorização</button></div>'
+        : '') +
+      '</div></div><aside class="prr-side">' +
+      faq(['premissas', 'exposicao', 'apetite', 'alcada', 'nivelMax', 'exposicaoMax', 'priorizacao']) +
+      '</aside></div>'
+    );
+  }
   /* ===== Temas e mascote ===== */
   // Temas da tela. O padrão é o da SETIC (azul, amarelo e verde), que segue o claro ou escuro do computador.
   // [chave, nome, descrição, amostra de cores]. A escolha fica só neste navegador (preferência de quem usa).
@@ -4109,41 +4656,50 @@ export function mountMira(root) {
       de.style.setProperty('--mira-dy', (-3 * dist).toFixed(2) + 'px');
     });
   };
-  // Easter egg: clicar na mira passa para o próximo tema; segurar a mira (0,7 s) troca a cor dela.
+  // Easter egg, só segurando a mira (um clique simples não muda nada):
+  // - segurar e soltar depois de 0,6 s: passa para o próximo tema (o mesmo que a tela de Configurações troca);
+  // - continuar segurando até 2 s: troca a cor da mira (e o tema fica como estava).
+  const MIRA_TEMA_MS = 600,
+    MIRA_COR_MS = 2000;
   let miraTimer = 0,
-    miraSegurou = false;
+    miraIni = 0,
+    miraCor = false;
   const onMiraDown = e => {
     const m = e.target.closest && e.target.closest('[data-mira]');
     if (!m) return;
-    miraSegurou = false;
+    miraIni = Date.now();
+    miraCor = false;
     m.classList.add('segurando');
     miraTimer = setTimeout(() => {
-      miraSegurou = true;
+      miraCor = true;
       const atual = pref.get('mira-cor', MIRA_CORES[0]),
         prox = MIRA_CORES[(MIRA_CORES.indexOf(atual) + 1) % MIRA_CORES.length];
       pref.set('mira-cor', prox);
       document.documentElement.style.setProperty('--mira', prox);
       toast('A mira mudou de cor.');
-    }, 700);
+    }, MIRA_COR_MS);
   };
-  const onMiraUp = () => {
+  // Fim do gesto sem efeito (o ponteiro saiu ou o sistema cancelou): nada muda.
+  const onMiraCancel = () => {
     clearTimeout(miraTimer);
+    miraIni = 0;
     const m = document.querySelector('.mira-btn.segurando');
     if (m) m.classList.remove('segurando');
   };
-  // Clique na mira: próximo tema (o mesmo que a tela de Configurações troca).
-  function miraClique() {
-    if (miraSegurou) {
-      miraSegurou = false;
-      return;
-    }
+  // Soltou a mira: se segurou o bastante e a cor não mudou, passa para o próximo tema.
+  const onMiraUp = () => {
+    const segurou = miraIni ? Date.now() - miraIni : 0;
+    onMiraCancel();
+    if (segurou < MIRA_TEMA_MS || miraCor) return;
     const atual = pref.get('tema', 'setic'),
       i = TEMAS.findIndex(x => x[0] === atual),
       prox = TEMAS[(i + 1) % TEMAS.length];
     trocaTema(prox[0]);
     toast('Tema: ' + prox[1] + '.');
     if (UI.view === 'config') render(true);
-  }
+  };
+  // Clique na mira: não faz nada (o tema muda só segurando); existe para o clique não seguir para outra ação.
+  function miraClique() {}
   // Tela Configurações (clique no perfil): escolha do tema, com amostra das cores, e o tema editável.
   function viewConfig(u) {
     const atual = pref.get('tema', 'setic');
@@ -4221,6 +4777,62 @@ export function mountMira(root) {
       '<button class="btn primary" type="submit" style="width:100%">Entrar</button></form></div></section></div>'
     );
   }
+  // Blocos que a pessoa encolheu, guardados no navegador dela (tela + título do bloco).
+  const encolhidos = () => {
+    try {
+      return new Set(JSON.parse(pref.get('encolhidos', '[]')));
+    } catch (e) {
+      return new Set();
+    }
+  };
+  // Põe o botão "Encolher / Mostrar" em cada bloco com título e reaplica o que estava encolhido.
+  // Encolher só esconde o conteúdo: o que foi digitado continua no lugar.
+  function encolhiveis() {
+    if (!root.querySelectorAll || !document.createElement) return;
+    const salvo = encolhidos();
+    root.querySelectorAll('main .card').forEach(c => {
+      let h = c.firstElementChild;
+      if (!h) return;
+      // Bloco com só um título (h3) no topo: o título passa para o cabeçalho padrão (.card-h).
+      if (h.tagName === 'H3') {
+        const w = document.createElement('div');
+        w.className = 'card-h';
+        c.insertBefore(w, h);
+        w.appendChild(h);
+        h = w;
+      }
+      if (!h.classList || !h.classList.contains('card-h')) return;
+      const tit = h.querySelector('h3');
+      if (!tit) return;
+      const chave = UI.view + ':' + tit.textContent.trim().slice(0, 80),
+        fechado = salvo.has(chave);
+      c.classList.toggle('encolhido', fechado);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn sm encolhe';
+      b.dataset.encolhe = chave;
+      h.appendChild(b);
+      rotuloEncolhe(b, fechado);
+    });
+  }
+  // Texto e estado do botão de encolher (texto e seta, nunca só a seta).
+  function rotuloEncolhe(b, fechado) {
+    b.setAttribute('aria-expanded', String(!fechado));
+    b.textContent = fechado ? 'Mostrar ▾' : 'Encolher ▴';
+    b.title = fechado ? 'Mostrar o conteúdo deste bloco' : 'Esconder o conteúdo deste bloco';
+  }
+  // Encolhe ou mostra um bloco e guarda a escolha no navegador.
+  function trocaEncolhe(b) {
+    const c = b.closest('.card');
+    if (!c) return;
+    const fechado = !c.classList.contains('encolhido'),
+      salvo = encolhidos();
+    c.classList.toggle('encolhido', fechado);
+    if (fechado) salvo.add(b.dataset.encolhe);
+    else salvo.delete(b.dataset.encolhe);
+    pref.set('encolhidos', JSON.stringify([...salvo]));
+    rotuloEncolhe(b, fechado);
+  }
   // Monta a tela inteira a partir de S e UI. keep = manter a rolagem.
   // Toda alteração de estado termina aqui; não há atualização parcial além dos resumos ao vivo.
   function render(keep) {
@@ -4258,6 +4870,8 @@ export function mountMira(root) {
         nav.push(['aprov', 'Pendências', pendingFor(u).length]);
       nav.push(['historico', 'Histórico'], ['alertas', 'Alertas', unreadCount(u)]);
       if (u.papel !== 'cadastrador' && u.papel !== 'terceirizado') nav.push(['relatorio', 'Relatório']);
+      // Decisões da CSGR: a Alta Gestão registra; o CGGE consulta.
+      if (u.papel === 'altagestao' || u.papel === 'cgge') nav.push(['decisoes', 'Decisões']);
     }
     // O risco aberto e o contexto da coordenadoria fazem parte de Riscos no menu.
     const cur = UI.view === 'risco' || UI.view === 'contexto' ? 'riscos' : UI.view;
@@ -4275,6 +4889,7 @@ export function mountMira(root) {
       else if (UI.view === 'usuarios') v = viewUsers(u);
       else if (UI.view === 'unidades') v = viewUnits(u);
       else if (UI.view === 'config') v = viewConfig(u);
+      else if (UI.view === 'decisoes') v = viewDecisoes(u);
       else v = viewRel(u);
     } catch (e) {
       v =
@@ -4282,6 +4897,8 @@ export function mountMira(root) {
         esc(e.message) +
         '</p></div>';
     }
+    // A tela nova vem do que está salvo: nada digitado fica pendente.
+    UI.sujo = false;
     root.innerHTML =
       '<header class="top"><div class="bar"><div class="logo"><button type="button" class="mira-btn" data-mira aria-label="Mira, o mascote do MIRA">' +
       LOGO +
@@ -4313,6 +4930,7 @@ export function mountMira(root) {
       v +
       '</main></div>';
     if (UI.view === 'risco' && UI.tab === 2) refreshIdent(true);
+    encolhiveis();
     window.scrollTo(0, keep ? sy : 0);
   }
 
@@ -4494,7 +5112,8 @@ export function mountMira(root) {
     ['Impacto (nota)', 'num', 0, r => r.imp],
     ['Nível de risco', 'num', 0, r => nivel(r) || ''],
     ['Faixa', 'txt', 12, r => (nivel(r) ? LV[band(nivel(r))] : '')],
-    ['Controles existentes', 'txt', 50, r => r.prr && r.prr.controles],
+    ['Linha do tempo da probabilidade', 'txt', 24, r => r.linhaTempo],
+    ['Controles existentes', 'txt', 50, r => r.controles || (r.prr && r.prr.controles)],
     ['Ação proposta', 'txt', 50, r => r.prr && r.prr.acao],
     ['Se o evento ocorrer, faça isto', 'txt', 50, r => r.prr && r.prr.contingencia],
     ['Viabilidade e custo da solução', 'txt', 40, r => r.prr && r.prr.viabilidade],
@@ -4523,7 +5142,7 @@ export function mountMira(root) {
   const expRows = () =>
     scope()
       .slice()
-      .sort((a, b) => nivel(b) - nivel(a))
+      .sort(porPrioridade)
       .map(r => EXPORT.map(c => c[3](r)));
   // Botão "Baixar" que abre as opções de formato. Cada opção é uma ação (data-act) tratada em doAct.
   // extra: atributos acrescentados a cada opção (por exemplo, data-id da pessoa); label: texto do botão.
@@ -4784,6 +5403,9 @@ export function mountMira(root) {
       .replace(/\|/g, '/');
   // Célula do CSV entre aspas, com aspas internas duplicadas.
   const csvq = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  // Segurança: texto que começa com =, +, -, @, tabulação ou retorno vira fórmula no Excel. Nas colunas de texto
+  // ele ganha um apóstrofo na frente; números de verdade não passam por aqui e continuam abrindo como número.
+  const semFormula = (v, k) => (k === 'txt' && /^[=+\-@\t\r]/.test(String(v)) ? "'" + v : v);
   // Excel em português lê ";" como separador e vírgula como decimal; o BOM garante os acentos.
   const csvv = (v, k) =>
     v == null || v === '' || v === false
@@ -4798,7 +5420,7 @@ export function mountMira(root) {
     '\ufeff' +
     cols.map(c => csvq(c[0])).join(';') +
     '\r\n' +
-    rows.map(r => r.map((v, i) => csvq(csvv(v, cols[i][1]))).join(';')).join('\r\n');
+    rows.map(r => r.map((v, i) => csvq(semFormula(csvv(v, cols[i][1]), cols[i][1]))).join(';')).join('\r\n');
   // CSV dos riscos visíveis, separado por ";".
   const csvAll = () => csvOf(EXPORT, expRows());
   // Planilha Excel com a aba Riscos e a aba Por coordenadoria (app/planilha.js).
@@ -4861,6 +5483,48 @@ export function mountMira(root) {
       api('POST', 'risks/' + r.id + '/action', Object.assign({ action }, extra || {}));
     switch (a) {
       // Navegação, filtros e sessão
+      // Decisões da CSGR: premissas, apetite e priorização.
+      case 'cfg-premissas': {
+        const pct = {};
+        for (const n of [1, 2, 3, 4, 5]) pct[n] = Number(val('cfg-pct-' + n));
+        await api('POST', 'config/premissas', {
+          pct,
+          aprovada: !!(document.getElementById('cfg-aprovada') || {}).checked,
+        });
+        await refresh(true);
+        toast('Premissas financeiras registradas.');
+        break;
+      }
+      case 'cfg-apetite': {
+        const porUnidade = {};
+        document
+          .querySelectorAll('[data-apetite-un]')
+          .forEach(e => (porUnidade[e.dataset.apetiteUn] = e.value));
+        await api('POST', 'config/apetite', { nivelMax: val('cfg-apetite'), porUnidade });
+        await refresh(true);
+        toast('Limite para aceitar o risco registrado.');
+        break;
+      }
+      case 'cfg-alcada': {
+        const porUnidade = {};
+        document.querySelectorAll('[data-alcada-nivel]').forEach(e => {
+          const un = e.dataset.alcadaNivel,
+            ex = document.querySelector('[data-alcada-exp="' + un + '"]'),
+            t = ex ? ex.value.trim() : '';
+          porUnidade[un] = { nivelMax: e.value, exposicaoMax: t ? parseBRL(t) : '' };
+        });
+        await api('POST', 'config/alcada', { porUnidade });
+        await refresh(true);
+        toast('Alçada registrada.');
+        break;
+      }
+      case 'cfg-prioriza':
+        await api('POST', 'config/priorizacao', {
+          metodo: (document.querySelector('input[name="cfg-prioriza"]:checked') || {}).value,
+        });
+        await refresh(true);
+        toast('Método de priorização registrado.');
+        break;
       case 'config':
         UI.view = 'config';
         UI.rid = null;
@@ -4869,11 +5533,16 @@ export function mountMira(root) {
       case 'novo':
         UI.view = 'risco';
         UI.rid = 'new';
-        // O novo risco começa pelo contexto da coordenadoria (fase 1).
-        UI.tab = 1;
+        // O novo risco começa pelo contexto da coordenadoria (fase 1); com o contexto já salvo, abre direto
+        // na identificação (fase atual), e o contexto continua à vista no resumo e na aba 1.
+        UI.tab = (S.ctx[me().unit] || {}).escopo ? 2 : 1;
         UI.draft = null;
         UI.warnAck = false;
         render();
+        break;
+      case 'hist-limpa':
+        UI.hist = { de: '', ate: '', lista: null };
+        render(true);
         break;
       case 'clearfilt':
         UI.filt = { unit: '', nv: '', st: '', cell: null };
@@ -4958,7 +5627,13 @@ export function mountMira(root) {
           toast('Valor da exposição não entendido. Use, por exemplo, 4.000.000.');
           break;
         }
-        await api('POST', 'risks/' + r.id + '/aval', { prob: p, imp: i, exposicao });
+        await api('POST', 'risks/' + r.id + '/aval', {
+          prob: p,
+          imp: i,
+          exposicao,
+          controles: val('f-controles').trim(),
+          linhaTempo: val('f-linha').trim(),
+        });
         await refresh(true);
         toast('Avaliação salva: nível ' + p * i + '.');
         break;
@@ -4986,7 +5661,11 @@ export function mountMira(root) {
           break;
         }
         await refresh(true);
-        toast('PRR enviado ao gestor da ' + r.unit + '.');
+        toast(
+          u.papel === 'gestor'
+            ? 'PRR validado e enviado à Alta Gestão de Riscos.'
+            : 'PRR enviado ao gestor da ' + r.unit + '.',
+        );
         break;
       }
       // Decisões sobre o PRR: gestor valida, Alta Gestão aprova, ambos podem devolver com motivo
@@ -5091,6 +5770,20 @@ export function mountMira(root) {
         await api('POST', 'alerts/read', {});
         await refresh(true);
         break;
+      // Um aviso só.
+      case 'lido-um':
+        await api('POST', 'alerts/read', { id: el.dataset.id });
+        await refresh(true);
+        break;
+      // Ciência de um alerta que exige ação: fica registrada, e o alerta continua na lista.
+      case 'ciente': {
+        const d = derived(u).find(x => x.k === el.dataset.chave);
+        if (!d) break;
+        await api('POST', 'risks/' + d.riskId + '/action', { action: 'ciente', chave: d.k, msg: d.msg });
+        await refresh(true);
+        toast('Ciência registrada. O alerta continua aqui até a situação ser resolvida.');
+        break;
+      }
       // Textos para copiar e arquivos para baixar
       case 'copytce':
         copyText('tcetext', tceMd(rk(UI.tce)));
@@ -5278,12 +5971,14 @@ export function mountMira(root) {
     [/recursos/i, '#p-recur'],
     [/responsável/i, '#p-resp-busca,#p-resp'],
     [/prazo/i, '#p-prazo'],
-    [/métrica/i, '#p-metrica-sel'],
     [/unidade/i, '#p-unid-sel'],
+    [/métrica/i, '#p-metrica-sel'],
     [/parâmetros|ideal|crítico/i, '#p-crit'],
     [/residua/i, '#p-probres'],
     [/parecer|motivo|observação/i, '#ap-motivo,textarea[id$="motivo"]'],
     [/probabilidade e impacto|probabilidade/i, 'input[name="prob"]'],
+    [/controles/i, '#f-controles'],
+    [/linha do tempo/i, '#f-linha'],
     [/causa/i, '#f-causa'],
     [/evento/i, '#f-evento'],
     [/impacto/i, '#f-impacto'],
@@ -5375,6 +6070,39 @@ export function mountMira(root) {
       render();
     }
   }
+  // Campos que não são conteúdo a salvar: filtros, pesquisas, escolha de coordenadoria e preferências de tema.
+  const naoSuja = t =>
+    !t.closest ||
+    !t.closest('main') ||
+    t.dataset.filter !== undefined ||
+    t.dataset.qfilt !== undefined ||
+    t.dataset.ctxunit !== undefined ||
+    t.dataset.filtra !== undefined ||
+    t.dataset.ubusca !== undefined ||
+    t.dataset.rbusca !== undefined ||
+    t.dataset.hist !== undefined ||
+    t.dataset.marco !== undefined ||
+    t.name === 'tema' ||
+    (!!t.id && t.id.indexOf('cfg-') === 0);
+  // Marca a tela como tendo algo digitado e não salvo.
+  const marcaSujo = e => {
+    if (!naoSuja(e.target)) UI.sujo = true;
+  };
+  // Pergunta antes de sair de uma tela com algo digitado e não salvo. Verdadeiro = pode sair.
+  function podeSair() {
+    if (!UI.sujo || typeof window.confirm !== 'function') return true;
+    const ok = window.confirm(
+      'Você digitou algo que ainda não foi salvo. Se sair agora, isso se perde.\n\nSair mesmo assim?',
+    );
+    if (ok) UI.sujo = false;
+    return ok;
+  }
+  // Fechar ou recarregar a página com algo não salvo: o navegador pergunta antes.
+  const onSaida = e => {
+    if (!UI.sujo) return;
+    e.preventDefault();
+    e.returnValue = '';
+  };
   // Cliques da tela inteira, por delegação no elemento raiz (data-act, data-open, data-nav...).
   const onClick = e => {
     // Clique na mira do topo (o elemento precisa ter o atributo data-mira de fato).
@@ -5398,14 +6126,45 @@ export function mountMira(root) {
       if (r && sp && si) {
         sp.value = String(lim(r.prob + dp));
         si.value = String(lim(r.imp + di));
+        UI.sujo = true;
         prrLive();
       }
+      return;
+    }
+    // Botão "?" de um termo: abre ou fecha a explicação (não remonta a tela).
+    const aj = e.target.closest('[data-ajuda]');
+    if (aj && aj.dataset.ajuda) {
+      const box = document.getElementById('ajuda-' + aj.dataset.ajuda);
+      if (box) {
+        box.hidden = !box.hidden;
+        aj.setAttribute('aria-expanded', String(!box.hidden));
+      }
+      return;
+    }
+    // Botão de encolher ou mostrar um bloco (não remonta a tela).
+    const enc = e.target.closest('[data-encolhe]');
+    if (enc && enc.dataset.encolhe) {
+      trocaEncolhe(enc);
+      return;
+    }
+    // Item de "O que falta para enviar" no resumo do PRR: leva ao campo.
+    const ir = e.target.closest('[data-ir]');
+    if (ir && ir.dataset.ir) {
+      irAoErro([ir.dataset.ir]);
       return;
     }
     const t = e.target.closest(
       '[data-act],[data-open],[data-nav],[data-tab],[data-panel],[data-cell],[data-tce],[data-stfilt]',
     );
     if (!t) return;
+    // Sair da tela (outro risco, outra aba, outro menu, sair do sistema) com algo digitado e não salvo pede confirmação.
+    const sai =
+      t.dataset.open ||
+      t.dataset.nav ||
+      t.dataset.tab ||
+      t.dataset.panel ||
+      ['novo', 'config', 'logout'].includes(t.dataset.act);
+    if (sai && !podeSair()) return;
     if (t.dataset.open) {
       e.preventDefault();
       openRisk(t.dataset.open);
@@ -5494,6 +6253,11 @@ export function mountMira(root) {
       render(true);
       return;
     }
+    if (t.dataset.hist) {
+      UI.hist[t.dataset.hist] = t.value;
+      buscaHist();
+      return;
+    }
     if (t.dataset.qfilt !== undefined) {
       UI.qfilt = t.value;
       render(true);
@@ -5568,6 +6332,10 @@ export function mountMira(root) {
   }
   // Digitação: atualiza a identificação ou o resumo do PRR ao vivo e filtra a lista de pessoas.
   const onInput = e => {
+    if (e.target.id === 'f-linha') {
+      const o = document.getElementById('av-linha-txt');
+      if (o) o.textContent = e.target.value.trim() || 'a linha do tempo definida';
+    }
     // Pesquisa nas listas de pessoas: esconde, a cada letra, as opções que não têm o texto digitado.
     if (e.target.dataset.filtra) {
       const q = e.target.value.trim().toLowerCase(),
@@ -5580,6 +6348,18 @@ export function mountMira(root) {
       const h = document.getElementById(e.target.id + '-v');
       if (h) h.textContent = brlLido(e.target.value);
       if (e.target.id === 'f-exp') updAv();
+    }
+    // Pesquisa na lista de riscos: esconde as linhas sem o texto, sem remontar a tela (o cursor fica no campo).
+    if (e.target.dataset.rbusca !== undefined) {
+      UI.filt.q = e.target.value;
+      const q = semAcento(e.target.value.trim());
+      let n = 0;
+      root.querySelectorAll('tr[data-rb]').forEach(tr => {
+        tr.hidden = !!q && !tr.dataset.rb.includes(q);
+        if (!tr.hidden) n++;
+      });
+      root.querySelectorAll('[data-rvazio]').forEach(d => (d.hidden = n > 0));
+      return;
     }
     if (e.target.dataset.ubusca !== undefined) {
       const q = e.target.value.trim().toLowerCase();
@@ -5677,6 +6457,9 @@ export function mountMira(root) {
   root.addEventListener('click', onClick);
   root.addEventListener('change', onChange);
   root.addEventListener('input', onInput);
+  root.addEventListener('input', marcaSujo);
+  root.addEventListener('change', marcaSujo);
+  if (window.addEventListener) window.addEventListener('beforeunload', onSaida);
   root.addEventListener('submit', onSubmit);
   root.addEventListener('pointerover', onTip);
   root.addEventListener('pointerleave', hideTip);
@@ -5684,7 +6467,7 @@ export function mountMira(root) {
   root.addEventListener('focusout', hideTip);
   root.addEventListener('pointerdown', onMiraDown);
   root.addEventListener('pointerup', onMiraUp);
-  root.addEventListener('pointercancel', onMiraUp);
+  root.addEventListener('pointercancel', onMiraCancel);
   if (document.addEventListener) document.addEventListener('pointermove', onMove);
   /* ===== Início ===== */
   (async () => {
@@ -5709,6 +6492,9 @@ export function mountMira(root) {
     root.removeEventListener('click', onClick);
     root.removeEventListener('change', onChange);
     root.removeEventListener('input', onInput);
+    root.removeEventListener('input', marcaSujo);
+    root.removeEventListener('change', marcaSujo);
+    if (window.removeEventListener) window.removeEventListener('beforeunload', onSaida);
     root.removeEventListener('submit', onSubmit);
     root.removeEventListener('pointerover', onTip);
     root.removeEventListener('pointerleave', hideTip);
@@ -5716,7 +6502,7 @@ export function mountMira(root) {
     root.removeEventListener('focusout', hideTip);
     root.removeEventListener('pointerdown', onMiraDown);
     root.removeEventListener('pointerup', onMiraUp);
-    root.removeEventListener('pointercancel', onMiraUp);
+    root.removeEventListener('pointercancel', onMiraCancel);
     if (document.removeEventListener) document.removeEventListener('pointermove', onMove);
     root.innerHTML = '';
   };

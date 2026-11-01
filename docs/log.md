@@ -14,9 +14,11 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 121 verificações, todas passando |
-| Interface (smoke) | todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
+| API | 153 verificações, todas passando |
+| Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
+| Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
+| Navegador (roteiro de UX) | 9 de 9 cenários das melhorias de uso, fora do repositório (ver item 21) |
 | Visual | capturas no computador e a 390 px, temas claro e escuro, sem rolagem lateral e sem erro na página |
 
 ## Problemas encontrados e como foram resolvidos
@@ -74,6 +76,151 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 ### 11. Números da matriz pequenos
 - **Achado:** captura da matriz com o visual novo.
 - **Resolvido:** os números das células vazias passaram de 10 para 16 px e os das células com risco para 22 px, em negrito.
+
+### 12. Regras do MGR que faltavam na avaliação
+- **Achado:** plano, regras O7 e O8 (MGR p. 14–15).
+- **Resolvido:** a avaliação exige "Controles existentes" (antes das notas) e "Linha do tempo da probabilidade"; a tela mostra a pergunta do MGR com a linha do tempo, e o PRR mostra os mesmos controles.
+- **Conferido:** testes da API (avaliação sem controles ou sem linha do tempo é recusada) e o roteiro de navegador preenchendo os dois campos.
+
+### 13. Correções de segurança
+- **Achado:** plano, itens 23, 24 e 25.
+- **Resolvido:**
+  - o bloqueio de login não aceita mais o X-Forwarded-For sem proxy confiável (`MIRA_TRUST_PROXY=1`) e tem um limite só por usuário;
+  - o CSV põe apóstrofo em texto que começa com `=`, `+`, `-` ou `@`;
+  - o cookie sai com `Secure` quando `MIRA_HTTPS=1`.
+- **Conferido:**
+  - teste da API com 6 tentativas trocando o X-Forwarded-For (terminam bloqueadas);
+  - teste do cookie Secure;
+  - no navegador, um risco com título `=1+1 teste` saiu no CSV como `'=1+1 teste`.
+
+### 14. Coluna nova fora de ordem no CSV
+- **Achado:** o roteiro de navegador (T26) acusou a "Linha do tempo" entre "Controles existentes" e "Ação proposta", que no Apêndice D ficam lado a lado.
+- **Resolvido:** a coluna foi para antes dos controles.
+
+### 15. Residual 1 × 1 inventava redução
+- **Achado:** plano, item 12. Com o residual vazio, a conta usava probabilidade 0 e mostrava redução total (ex.: R$ 840 mil num risco 5 × 5 de R$ 1 mi); o servidor ainda gravava vazio como 1 × 1, e as listas do residual não tinham opção vazia.
+- **Resolvido:**
+  - sem residual informado não há redução;
+  - o servidor guarda vazio como vazio;
+  - o envio exige probabilidade e impacto residuais;
+  - as listas ganharam "Escolha…";
+  - a tela e a justificativa ao TCE mostram "residual pendente".
+- **Conferido:** testes da API (PRR sem residual não gera redução e não é enviado) e o roteiro de navegador (49 de 49).
+
+### 16. Etapa 2: decisões da CSGR (branch `feature/etapa-2-decisoes-csgr`)
+- **Feito:** tela Decisões e tabela `config` para premissas financeiras, apetite a risco e priorização, com auditoria; a justificativa ao TCE sai como minuta sem premissas aprovadas; "Aceitar" acima do apetite não é enviado; as listas seguem a priorização escolhida.
+- **Conferido:**
+  - testes da API: só a CSGR registra, a nota 5 abaixo de 90% é recusada, a decisão vai para a auditoria, "Aceitar" acima do apetite é barrado e volta a valer sem apetite;
+  - o smoke abre a tela como Alta Gestão e CGGE;
+  - o roteiro de navegador passou (49 de 49);
+  - registrar as três decisões pela tela funcionou, sem rolagem lateral a 390 px.
+
+### 17. Apetite por coordenadoria e alçada do gestor
+- **Feito:** o apetite da coordenadoria vale sobre o geral; a alçada (nível e exposição) marca o PRR que o gestor encaminha acima dela, e a CSGR o vê marcado e no topo da fila.
+- **Conferido:**
+  - testes da API: coordenadoria inexistente recusada, apetite da coordenadoria sobre o geral, PRR acima da alçada marcado;
+  - no navegador, registrar apetite e alçada pela tela e ver na fila da CSGR "PRR acima da alçada do gestor (nível 12 acima de 5)".
+
+### 18. Banco da 3100 sem a coluna e a tabela novas
+- **Achado:** parar o servidor da 3100 para rodar a migração foi bloqueado pela permissão automática.
+- **Resolvido:** a mesma alteração da migração (`ALTER TABLE users ADD COLUMN pode_definir` e a tabela `config`) foi aplicada direto no banco de demonstração, sem parar o servidor e sem tocar nos dados (4 pessoas e 1 risco continuaram iguais).
+
+### 19. Script de conferência do fluxo desatualizado
+- **Achado:** o fluxo cadastrador → gestor parou em "avaliado". O cadastrador de teste tem a permissão de definir responsável e prazo, e o script não preenchia esses campos; o sistema estava certo.
+- **Resolvido:** o script cobre os dois casos (com e sem permissão) e preenche controles, linha do tempo e residual, que passaram a ser obrigatórios.
+
+### 20. Roteiro extra das partes novas (31/10/2026)
+O roteiro principal não cobria as partes novas. Um roteiro extra, também fora do repositório, conferiu no navegador:
+
+| # | Cenário | Resultado |
+|---|---|---|
+| X01 | CGGE abre Decisões só para leitura | ok |
+| X02 | Justificativa ao TCE sai como MINUTA sem premissas aprovadas e perde a marca depois de aprovar | ok |
+| X03 | Pergunta do MGR com a linha do tempo, atualizada enquanto se digita | ok |
+| X04 | Segundo clique com o mesmo erro leva ao campo que falta (foco e destaque) | ok |
+| X05 | Pesquisa de responsável filtra a lista; métrica "Outra" abre campo e grava o texto | ok |
+| X06 | Residual vazio aparece como pendente e o envio é barrado | ok |
+| X07 | Reavaliação com o nome da escala junto do número | ok |
+| X08 | FAQ abre e explica o risco residual | ok |
+| X09 | Empresa terceirizada: cadastro sem pedido, entra, vê só a Cosegi, sem editar nem Pendências | ok |
+| X10 | Gestor escolhe a empresa terceirizada como responsável | ok |
+| X11 | Tema Editável aplica a cor principal escolhida | ok |
+| X12 | Decisões, Configurações, Pendências e Alertas a 390 px no tema escuro, sem rolagem lateral | ok |
+| X13 | Nenhum erro de JavaScript no roteiro | ok |
+
+Na primeira rodada, 9 falharam por problemas do próprio roteiro, não do sistema:
+- o login não saía da sessão anterior;
+- o login esperava os painéis, que o administrador não tem;
+- não havia risco em tratamento no banco de teste.
+
+Corrigido o roteiro, os 13 passaram.
+
+### 21. Experiência de uso (branch `feature/ux-fluxos`, 31/10/2026)
+O visual ficou congelado a pedido do usuário; só mudou o que facilita o uso. Um passeio por todas as telas de cada perfil (computador e 390 px) achou:
+
+| Achado | Resolvido |
+|---|---|
+| O PRR é longo e era perdido sem aviso ao trocar de aba, de menu ou de risco antes de salvar | A tela marca quando há algo digitado e pergunta antes de sair; fechar ou recarregar também pergunta |
+| O "o que falta" só aparecia depois de clicar em Enviar | O resumo do PRR lista o que falta enquanto se preenche, cada item leva ao campo |
+| O erro "Informe a unidade da métrica" levava ao campo da métrica, não ao da unidade | A regra da unidade passou a vir antes da regra da métrica |
+| Todo risco novo voltava à fase 1, mesmo com o contexto já salvo | Com contexto salvo, abre direto na identificação; sem contexto, continua começando por ele |
+| A lista de riscos não tinha pesquisa | Pesquisa por código, título, causa, evento, impacto ou quem abriu, sem acento e sem tirar o cursor do campo |
+| No celular, Pendências e Alertas ficavam fora da tela, no fim do menu | O menu quebra em linhas |
+| No celular, "2 nível 12" não cabia na célula da matriz | A célula mostra só a contagem; o nível fica na dica |
+
+Roteiro de UX (fora do repositório), 9 cenários:
+
+| # | Cenário | Resultado |
+|---|---|---|
+| U01 | Novo risco abre na identificação quando o contexto já está salvo | ok |
+| U02 | Sair com algo digitado pergunta; "Cancelar" mantém o texto | ok |
+| U03 | Sem nada digitado, a navegação não pergunta | ok |
+| U04 | Trocar de aba no PRR com texto pergunta; depois de salvar, não pergunta | ok |
+| U05 | Recarregar a página com algo não salvo: o navegador pergunta | ok |
+| U06 | Resumo do PRR lista o que falta, leva ao campo e diminui ao preencher | ok |
+| U07 | Tudo preenchido: "Pronto para enviar ao gestor" | ok |
+| U08 | Pesquisa sem acento, aviso de nada encontrado, mantida ao mudar outro filtro | ok |
+| U09 | Celular: menu inteiro à vista, matriz só com a contagem, sem rolagem lateral | ok |
+
+No roteiro principal, o cenário T08 esperava que todo risco novo começasse pelo contexto. Ele foi ajustado à regra nova; como o risco desse cenário é a base dos seguintes, a primeira rodada caiu em cascata (24 de 49) antes do ajuste. Depois do ajuste, 49 de 49.
+
+No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de justificativa ao TCE só aparece para riscos avaliados, e o cenário dependia de riscos deixados por rodadas anteriores. O cenário passou a criar o seu risco, já com um PRR, porque o botão fica desativado de propósito enquanto o risco não tem PRR; na rodada seguinte, 13 de 13.
+
+### 22. PRR devolvido pela Alta Gestão e reenviado pelo supervisor não voltava a ela
+- **Achado:** teste manual do usuário. A Alta Gestão devolveu o PRR, o supervisor (gestor) ajustou e reenviou, e o PRR não apareceu de novo para a Alta Gestão. O envio do gestor levava o PRR para "aguardando gestor", ou seja, para a fila dele mesmo; o botão dizia "Enviar para validação do gestor".
+- **Resolvido:** quando quem envia é o gestor da coordenadoria, o envio já é a validação dele: o PRR vai direto à Alta Gestão, com a mesma marca de alçada e o mesmo aviso da validação comum (`encaminhaAlta` em `lib/service.js`, usada pelas duas ações). Para o gestor, o botão diz "Validar e enviar à Alta Gestão de Riscos" e a pendência do devolvido diz "ajustar e enviar de novo à Alta Gestão de Riscos". O envio do cadastrador continua indo ao gestor.
+- **Conferido:** teste de API (o gestor reenvia, a situação vira "aguardando Alta Gestão", a Alta Gestão vê o risco e recebe um segundo aviso) e o caminho no navegador: Alta Gestão devolve → supervisor reenvia pela tela → o PRR sai da fila do supervisor e aparece na fila e nos alertas da Alta Gestão.
+
+### 23. Encolher blocos e pesquisa por data nos históricos
+- **Pedido:** opção para reduzir o texto na tela, encolhendo blocos, e pesquisa por data nos históricos.
+- **Feito:** botão "Encolher / Mostrar" em todo bloco com título, lembrado no navegador; filtro "De / Até" na tela Histórico e no histórico de cada risco. O estado entrega só os 500 registros mais recentes, por isso o período é buscado no servidor (`GET /api/audit?ini=&fim=`), com as mesmas regras de quem vê o quê e no máximo 2.000 registros.
+- **Conferido:** 4 testes de API (o período traz o que aconteceu, outra coordenadoria não aparece, período vazio, datas invertidas recusadas) e 7 cenários no navegador (encolher, lembrar depois de recarregar, mostrar de novo, encolher o PRR sem perder o texto, pesquisa por dia, período vazio e "Limpar datas", histórico do risco, celular sem rolagem lateral). Um dos cenários falhou na primeira rodada por erro do próprio roteiro (procurava uma classe que o bloco não usa).
+
+### 24. Atalho da mira só segurando
+- **Pedido:** a troca de tema pela mira passa a ser segurando.
+- **Feito:** clique simples não muda nada; segurar e soltar depois de 0,6 s troca o tema; segurar até 2 s troca só a cor da mira. No celular, segurar não abre o menu de toque.
+- **Conferido:** no navegador, os quatro casos (clique, 0,9 s, 2,3 s, toque curto).
+
+### 25. Explicação dos termos da tela Decisões
+- **Pedido:** um FAQ ao lado, com um botão "?" que abre e fecha, para explicar termos como "alçada do gestor".
+- **Feito:** botão "?" ao lado de premissas financeiras, apetite a risco, alçada do gestor, nível máximo, exposição máxima e priorização; o texto abre logo abaixo e fecha no mesmo botão. Ao lado (abaixo, no celular), o bloco "Dúvidas frequentes" com esses termos e a exposição esperada.
+- **Conferido:** no navegador, no computador (claro) e a 390 px (escuro): 6 botões, abrir e fechar, `aria-expanded`, 7 perguntas no bloco ao lado. A primeira captura a 390 px mostrou rolagem lateral de 155 px: o bloco das premissas não encolhia dentro da coluna nova. A coluna passou a encolher e a rolagem sumiu. Roteiro extra: 13 de 13.
+
+### 26. "Estou ciente" e leitura de um aviso por vez
+- **Pedido:** poder marcar avisos como lidos um por um, e nos que exigem ação imediata um "estou ciente" que vá para o relatório sem tirar a ação da lista.
+- **Feito:** botão "Marcar como lido" em cada aviso não lido (o servidor passou a mandar o identificador do aviso, e `alerts/read` aceita um `id`). Nos itens de "Exigem ação agora", "Estou ciente" grava a ciência no risco (quem, perfil, quando e o texto do alerta), registra "Registrou ciência do alerta" no histórico e entra no relatório por período (linha na seção 1 e seção 7). O item continua na lista e mostra "Ciente: …".
+- **Conferido:** 7 testes de API (ciência registrada sem mudar a situação do risco, repetida não duplica, alerta de outro risco recusado, outra coordenadoria barrada, histórico, avisos com identificador, só um aviso lido) e no navegador: o item continua depois do clique, a marca "Você está ciente", 5 → 4 avisos não lidos, histórico e relatório com a ciência. Na primeira captura a 390 px, o texto do aviso ficou espremido ao lado do botão; o botão passou para a linha de baixo.
+
+### 27. Dúvidas no monitoramento da métrica
+- **Pedido:** FAQ no monitoramento da métrica.
+- **Feito:** botão "?" ao lado de cada termo da aba de monitoramento (métrica, "quanto menor/maior, melhor", como ler o gráfico, registrar medição, medição em alerta ou crítico, reavaliação e "O evento ocorreu"), com a explicação logo abaixo; o bloco de dúvidas do fim da aba passou de 5 para 9 perguntas. A resposta sobre medição dizia que só o gestor recebe aviso; foi corrigida (cadastrador, gestor e Alta Gestão recebem, como faz o servidor).
+- **Conferido:** no navegador, no computador (claro) e a 390 px (escuro): os 6 botões abrem a explicação, 9 perguntas no bloco, sem rolagem lateral e sem erro.
+
+### 28. "Apetite a risco" com nome simples
+- **Pedido:** outro nome para "apetite a risco".
+- **Decisão do usuário:** nome simples com o termo oficial entre parênteses, "Limite para aceitar o risco (apetite a risco)", porque é o termo do MGR (p. 19) e da ISO 31000 que a CSGR e o TCE leem.
+- **Feito:** título, coluna, botão, aviso, explicação do "?" e a mensagem do servidor quando um PRR com "Aceitar" passa do limite. No histórico, as decisões da CSGR saíam com a chave interna ("…: apetite") e valores em JSON; agora saem com o nome e os valores por extenso. Registros antigos do histórico não são reescritos.
+- **Conferido:** teste de API ajustado ao nome novo e um teste novo de valores sem JSON (153 verificações). No navegador: título, botão "Registrar limite", aviso e as três decisões legíveis no histórico.
 
 ## Visual
 
