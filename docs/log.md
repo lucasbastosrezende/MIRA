@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 177 verificações, todas passando |
+| API | 178 verificações, todas passando |
 | Interface (smoke) | 59 verificações, todas passando, incluindo a tela Problemas em cada perfil, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
@@ -235,6 +235,11 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Feito:** tela Problemas (ver `docs/sistema.md`, seção "Problemas"), tabela `problemas`, rotas `POST /api/problemas` e `POST /api/problemas/<número>/action` (andamento, plano, resolver, reabrir, ciente). O risco em tratamento ligado ao problema passa para "Evento ocorreu". O aviso "isso é um problema" do risco novo leva o texto para o registro. Depois de resolvido, o problema vira risco novo para não voltar a acontecer. Relatório com a seção 8.
 - **Conferido:** 21 verificações novas na API (permissões, campos obrigatórios, data no futuro, responsável de fora, ligação com o risco, outra coordenadoria, orientação, ciência sem repetir, resolver, reabrir, risco a partir do problema). No navegador, com banco limpo: registro pela tela, alerta e "Estou ciente", orientação da Alta Gestão, resolver, risco a partir do problema, texto que vira problema, risco em tratamento cujo evento ocorreu, relatório e histórico; a 390 px nos temas claro e escuro, sem rolagem lateral e sem erro na página.
 
+### 31. Tabela nova sem reiniciar o servidor
+- **Achado:** o servidor guarda o banco aberto na memória. Com o código novo recarregado sem reinício (Next em modo de desenvolvimento), as tabelas e colunas novas (`config`, `users.pode_definir`, `problemas`) só eram criadas depois de reiniciar, e até lá as telas quebravam.
+- **Feito:** `lib/db.js` marca a versão do esquema (`ESQUEMA`). Se o código traz uma versão mais nova, a conexão já aberta recebe o que falta; as criações já podiam rodar de novo sem efeito.
+- **Conferido:** teste de API que tira a tabela de um banco já aberto e confere que ela volta. Na 3100, sem reiniciar, o banco ganhou `problemas`, `config` e `pode_definir`, só com uma chamada sem login.
+
 ## Visual
 
 - Cores, fontes (Sora nos títulos, IBM Plex Sans no texto), cantos e pesos seguem o canvas aprovado pelo usuário ("MIRA · cores e tipografia").
@@ -243,6 +248,5 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 
 ## Pendências
 
-- Reiniciar a 3100 para a coluna `users.pode_definir` (item 10).
 - Criar a conta de demonstração `empresateste` na 3100 depois que o usuário confirmar que o fluxo funciona.
 - Passar outras peças repetidas para componentes React aos poucos (cartão, indicador, célula da matriz).

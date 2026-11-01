@@ -940,6 +940,15 @@ const R1 = 'R-0001' + FIM_ID;
   ok(r.s === 200 && r.problema.id === 'P-0002' + FIM_ID && !r.problema.riscoId, 'problema sem risco ligado');
   r = await call('cad', 'POST', 'alerts/read', {});
   ok(r.s === 200, 'marca avisos como lidos');
+  // Servidor no ar que recebe código com esquema novo (o Next recarrega o código e mantém a conexão aberta):
+  // a mesma conexão ganha a tabela que falta, sem reiniciar.
+  open().exec('ALTER TABLE problemas RENAME TO problemas_antes');
+  globalThis.__miraEsquema = 0;
+  ok(
+    open().prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type='table' AND name='problemas'").get().n ===
+      1,
+    'esquema novo cria a tabela que falta no banco já aberto',
+  );
   r = await call('x', 'GET', 'state');
   ok(r.s === 401, 'sem sessão não acessa estado');
   const noHdr = await handle(new Request('http://x/api/state', { method: 'POST' }), ['risks']);
