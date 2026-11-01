@@ -823,6 +823,121 @@ const R1 = 'R-0001' + FIM_ID;
     r.s === 200 && r.risk.status === 'ag_altagestao' && /nível 10 acima de 5/.test(r.risk.acimaAlcada || ''),
     'PRR acima da alçada chega marcado à CSGR',
   );
+  // Problemas: o que já está acontecendo, com o plano de agora, ligado ao risco que ocorreu
+  r = await call('altagestao', 'POST', 'risks/' + rap + '/action', {
+    action: 'altagestao-ok',
+    motivo: 'Parecer favorável.',
+  });
+  ok(r.s === 200 && r.risk.status === 'em_tratamento', 'risco do apetite aprovado para o teste de problema');
+  const hojeBR = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+  const prob = {
+    titulo: 'Protocolo fora do ar',
+    descricao: 'O serviço de protocolo parou por falta de energia no prédio.',
+    afeta: 'atendimento ao cidadão',
+    desde: hojeBR,
+    acao: 'Ligar o gerador e avisar o atendimento.',
+    responsavelId: cadCosegi.id,
+    prazo: '2099-12-31',
+  };
+  r = await call('cgge', 'POST', 'problemas', prob);
+  ok(r.s === 403 && count('problemas') === 0, 'CGGE não registra problema');
+  r = await call('cad', 'POST', 'problemas', { ...prob, acao: '' });
+  ok(
+    r.s === 422 && /agora/.test(r.error) && count('problemas') === 0,
+    'problema sem o que fazer agora é recusado',
+  );
+  r = await call('cad', 'POST', 'problemas', { ...prob, desde: '2099-01-01' });
+  ok(r.s === 422 && /futuro/.test(r.error), 'problema que começa no futuro é recusado');
+  r = await call('cad', 'POST', 'problemas', { ...prob, responsavelId: 'x' });
+  ok(r.s === 422 && /responsável/.test(r.error), 'responsável fora da coordenadoria é recusado');
+  r = await call('cad', 'POST', 'problemas', { ...prob, riscoId: rap });
+  const P1 = r.problema && r.problema.id;
+  ok(
+    r.s === 200 && P1 === 'P-0001' + FIM_ID && r.problema.status === 'aberto' && r.problema.riscoId === rap,
+    'cadastrador registra o problema P-0001-MM-AAAA ligado ao risco',
+  );
+  st = await call('altagestao', 'GET', 'state');
+  ok(
+    st.risks.find(x => x.id === rap).status === 'ocorrido' &&
+      st.risks.find(x => x.id === rap).problemas.includes(P1) &&
+      st.alerts.some(a => a.tipo === 'problema' && a.riskId === P1) &&
+      st.problemas.some(x => x.id === P1),
+    'risco em tratamento passa a "evento ocorreu" e a Alta Gestão vê o problema e o aviso',
+  );
+  ok(
+    st.audit.some(a => a.riskId === P1 && a.action === 'Registrou o problema') &&
+      st.audit.some(a => a.riskId === rap && a.action === 'Registrou que o evento ocorreu'),
+    'problema e evento do risco vão para o histórico',
+  );
+  r = await call('cad2', 'GET', 'state');
+  ok(!r.problemas.some(x => x.id === P1), 'outra coordenadoria não vê o problema');
+  r = await call('cad2', 'POST', 'problemas/' + P1 + '/action', { action: 'andamento', texto: 'tentativa' });
+  ok(r.s === 404, 'outra coordenadoria não mexe no problema');
+  r = await call('altagestao', 'POST', 'problemas/' + P1 + '/action', {
+    action: 'andamento',
+    texto: 'Priorizar o atendimento presencial.',
+  });
+  ok(r.s === 200 && r.problema.andamento.length === 1, 'Alta Gestão orienta sobre o problema');
+  r = await call('altagestao', 'POST', 'problemas/' + P1 + '/action', {
+    action: 'resolver',
+    solucao: 'x'.repeat(9),
+  });
+  ok(r.s === 403, 'Alta Gestão não resolve o problema da coordenadoria');
+  r = await call('ges', 'POST', 'problemas/' + P1 + '/action', {
+    action: 'plano',
+    acao: prob.acao,
+    responsavelId: cadCosegi.id,
+    prazo: '2099-11-30',
+  });
+  ok(r.s === 200 && r.problema.plano.prazo === '2099-11-30', 'gestor muda o prazo do plano');
+  r = await call('ges', 'POST', 'problemas/' + P1 + '/action', {
+    action: 'ciente',
+    chave: 'prob-' + P1,
+    msg: 'Problema acontecendo agora',
+  });
+  await call('ges', 'POST', 'problemas/' + P1 + '/action', {
+    action: 'ciente',
+    chave: 'prob-' + P1,
+    msg: 'Problema acontecendo agora',
+  });
+  ok(r.s === 200 && r.problema.ciencias.length === 1, '"Estou ciente" no problema, sem repetir');
+  r = await call('cad', 'POST', 'problemas/' + P1 + '/action', { action: 'resolver', solucao: '' });
+  ok(r.s === 422, 'resolver exige dizer o que resolveu');
+  r = await call('cad', 'POST', 'problemas/' + P1 + '/action', {
+    action: 'resolver',
+    solucao: 'Energia restabelecida e gerador revisado.',
+  });
+  ok(
+    r.s === 200 && r.problema.status === 'resolvido' && r.problema.resolvidoEm,
+    'cadastrador resolve o problema',
+  );
+  r = await call('cad', 'POST', 'problemas/' + P1 + '/action', { action: 'reabrir' });
+  ok(r.s === 422, 'reabrir exige motivo');
+  r = await call('cad', 'POST', 'risks', {
+    titulo: 'Queda de energia no prédio do protocolo',
+    causa: 'falta de gerador revisado no prédio',
+    evento: 'nova parada do serviço de protocolo',
+    impacto: 'atraso no atendimento',
+    objetivo: 'manter o atendimento ao cidadão',
+    origemProblema: P1,
+  });
+  ok(r.s === 200 && r.risk.origemProblema === P1, 'risco novo cadastrado a partir do problema');
+  st = await call('cad', 'GET', 'state');
+  ok(
+    st.problemas.find(x => x.id === P1).riscosNovos.includes(r.risk.id),
+    'o problema guarda o risco cadastrado para que não volte a acontecer',
+  );
+  r = await call('cad2', 'POST', 'risks', {
+    titulo: 'Risco de outra coordenadoria',
+    causa: 'causa qualquer bem descrita',
+    evento: 'evento qualquer',
+    impacto: 'impacto qualquer',
+    objetivo: 'objetivo qualquer',
+    origemProblema: P1,
+  });
+  ok(r.s !== 200, 'outra coordenadoria não liga risco ao problema');
+  r = await call('cad', 'POST', 'problemas', { ...prob, titulo: 'Segundo problema' });
+  ok(r.s === 200 && r.problema.id === 'P-0002' + FIM_ID && !r.problema.riscoId, 'problema sem risco ligado');
   r = await call('cad', 'POST', 'alerts/read', {});
   ok(r.s === 200, 'marca avisos como lidos');
   r = await call('x', 'GET', 'state');

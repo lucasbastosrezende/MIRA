@@ -14,11 +14,12 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 153 verificações, todas passando |
-| Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
+| API | 177 verificações, todas passando |
+| Interface (smoke) | 59 verificações, todas passando, incluindo a tela Problemas em cada perfil, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
 | Navegador (roteiro de UX) | 9 de 9 cenários das melhorias de uso, fora do repositório (ver item 21) |
+| Navegador (problemas) | 27 de 27 conferências da tela Problemas, fora do repositório (ver item 30) |
 | Visual | capturas no computador e a 390 px, temas claro e escuro, sem rolagem lateral e sem erro na página |
 
 ## Problemas encontrados e como foram resolvidos
@@ -227,6 +228,12 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Decisão do usuário:** `R-0001-10-2026`, com hífen, e os 4 dígitos recomeçando a cada mês.
 - **Feito:** o mês e o ano são os do cadastro, no horário de Brasília (`MIRA_TZ` muda o fuso). Os riscos já cadastrados mantêm o número antigo (`R-001`), porque o histórico nunca é reescrito; as rotas e as chaves do "Estou ciente" aceitam os dois formatos. A pesquisa da lista acha o número escrito com hífen, barra ou ponto. Nas tabelas, o número fica numa linha só (no celular quebrava nos hífens).
 - **Conferido:** testes de API do primeiro e do segundo risco do mês e de um risco de número antigo, que continua editável e não entra na contagem.
+
+### 30. Problemas: o que já está acontecendo
+- **Pedido:** um plano para os problemas que estão acontecendo agora.
+- **Decisão do usuário:** registrar o problema com o plano e também ligá-lo ao risco que já ocorreu.
+- **Feito:** tela Problemas (ver `docs/sistema.md`, seção "Problemas"), tabela `problemas`, rotas `POST /api/problemas` e `POST /api/problemas/<número>/action` (andamento, plano, resolver, reabrir, ciente). O risco em tratamento ligado ao problema passa para "Evento ocorreu". O aviso "isso é um problema" do risco novo leva o texto para o registro. Depois de resolvido, o problema vira risco novo para não voltar a acontecer. Relatório com a seção 8.
+- **Conferido:** 21 verificações novas na API (permissões, campos obrigatórios, data no futuro, responsável de fora, ligação com o risco, outra coordenadoria, orientação, ciência sem repetir, resolver, reabrir, risco a partir do problema). No navegador, com banco limpo: registro pela tela, alerta e "Estou ciente", orientação da Alta Gestão, resolver, risco a partir do problema, texto que vira problema, risco em tratamento cujo evento ocorreu, relatório e histórico; a 390 px nos temas claro e escuro, sem rolagem lateral e sem erro na página.
 
 ## Visual
 

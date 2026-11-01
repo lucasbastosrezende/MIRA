@@ -245,6 +245,18 @@ await mkRisk(
   'gestor',
 );
 await mkRisk('cad2', F('Risco E', 'link de internet sem contingência definida'), 4, 4, 900000, 'ativo');
+// Problema acontecendo agora (não é risco), com o plano de agora: precisa abrir na lista, no detalhe e nos alertas.
+const respProb = (await call('cad', 'GET', 'state')).team.find(t => t.nome === 'cad.cosegi').id;
+const probR = await call('cad', 'POST', 'problemas', {
+  titulo: 'Protocolo fora do ar',
+  descricao: 'O serviço de protocolo parou por falta de energia.',
+  afeta: 'atendimento ao cidadão',
+  desde: '2020-01-01',
+  acao: 'Ligar o gerador e avisar o atendimento.',
+  responsavelId: respProb,
+  prazo: '2099-12-31',
+});
+ok(probR.s === 200, 'problema registrado para a navegação');
 // navegação por perfil
 // Entra com um perfil e abre todas as telas do menu, os dois painéis e as 5 fases de cada risco.
 async function browse(label, user, pw, nameChk) {
@@ -298,6 +310,17 @@ async function browse(label, user, pw, nameChk) {
   ok(
     ids.length > 0 || label.startsWith('CGGE') === false,
     label + ': abriu ' + ids.length + ' riscos em todas as fases',
+  );
+  if (label === 'Administrador') return;
+  await click({ nav: 'problemas' });
+  const pids = [...html().matchAll(/data-open="(P-[\d-]+)"/g)].map(m => m[1]);
+  for (const id of new Set(pids)) {
+    await click({ open: id });
+    if (bad() || !html().includes('Plano de agora')) ok(false, label + ': problema ' + id + ' quebrou');
+  }
+  ok(
+    label === 'Cadastrador Coinfra' ? pids.length === 0 : pids.length > 0,
+    label + ': lista de problemas mostra só o que o perfil pode ver',
   );
 }
 await browse('Administrador', 'admin.teste', 'senha-forte-0', 'admin.teste');

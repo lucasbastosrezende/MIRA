@@ -128,7 +128,17 @@ export function mountMira(root) {
   // Falso depois que a interface é desmontada; impede renderizar numa tela que já saiu.
   let alive = true;
   // Dados vindos do servidor (GET /api/state). O servidor já filtra pelo perfil: o navegador só recebe o que pode ver.
-  let S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [], units: [] };
+  let S = {
+    me: null,
+    risks: [],
+    problemas: [],
+    audit: [],
+    alerts: [],
+    ctx: {},
+    team: [],
+    users: [],
+    units: [],
+  };
   // Estado da tela: o que está aberto, filtros, rascunhos e sinais de carregamento. Nunca é enviado ao servidor.
   const UI = {
     view: 'paineis',
@@ -154,6 +164,8 @@ export function mountMira(root) {
   const me = () => S.me;
   // Busca um risco pelo ID nos dados carregados.
   const rk = id => S.risks.find(r => r.id === id);
+  // Problema (o que já está acontecendo) pelo número, ou undefined.
+  const pb = id => (S.problemas || []).find(p => p.id === id);
   // Decisões da CSGR em vigor (premissas, apetite, priorização), vindas do servidor.
   const cfg = () => S.config || {};
   // Percentuais da probabilidade em vigor: os registrados pela CSGR; sem eles, a premissa do sistema.
@@ -273,12 +285,43 @@ export function mountMira(root) {
             r.titulo,
         });
     });
+    // Problema aberto (algo que já está acontecendo) fica em "Exigem ação agora" até ser resolvido.
+    (S.problemas || []).forEach(p => {
+      if (p.status !== 'aberto') return;
+      const d = daysTo(p.plano.prazo);
+      out.push({
+        k: 'prob-' + p.id,
+        tipo: 'problema',
+        riskId: p.id,
+        crit: true,
+        msg:
+          'Problema acontecendo agora: ' +
+          p.titulo +
+          '. Faça agora: ' +
+          p.plano.acao +
+          ' (responsável: ' +
+          p.plano.responsavel +
+          (d == null
+            ? ''
+            : d < 0
+              ? '; prazo vencido há ' + -d + ' dia(s)'
+              : d === 0
+                ? '; prazo vence hoje'
+                : '; prazo em ' + d + ' dia(s)') +
+          ').',
+      });
+    });
     return out;
   }
   // Quantidade de avisos guardados que a pessoa ainda não leu.
   // Um aviso guardado deixa de pedir atenção quando a situação que o gerou já foi resolvida: o PRR saiu da fila,
   // a métrica voltou ao ideal, o evento foi tratado, o risco foi encerrado... Ele continua em "Resolvidos".
   function resolvido(a) {
+    // Aviso de problema: "acontecendo agora" se resolve quando o problema é resolvido; os outros ficam até a leitura.
+    if (/^P-/.test(a.riskId || '')) {
+      const p = pb(a.riskId);
+      return !p || (a.tipo === 'problema' && p.status !== 'aberto');
+    }
     const r = rk(a.riskId);
     if (!r || r.status === 'encerrado') return true;
     switch (a.tipo) {
@@ -357,7 +400,17 @@ export function mountMira(root) {
     }
     if (!res.ok) {
       if (res.status === 401 && S.me && path !== 'login') {
-        S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [], units: [] };
+        S = {
+          me: null,
+          risks: [],
+          problemas: [],
+          audit: [],
+          alerts: [],
+          ctx: {},
+          team: [],
+          users: [],
+          units: [],
+        };
         render();
       }
       const e = new Error(j.error || 'Não foi possível concluir a ação.');
@@ -1643,6 +1696,8 @@ export function mountMira(root) {
   const FMTV = {
     Situação: v => (STAT[v] || [v])[0],
     Prazo: fd,
+    'Acontece desde': fd,
+    'Prazo para resolver': fd,
     'Custo estimado (R$)': v => brl(Number(v)),
     'Exposição financeira (R$)': v => brl(Number(v)),
     'Forma de tratamento': v => cap(String(v)),
@@ -1919,7 +1974,12 @@ export function mountMira(root) {
     return (
       '<div class="info-box" style="margin-top:10px"><b>Assistente de IA</b><div style="margin-top:4px">' +
       (ia.ehRisco === false
-        ? '<div class="warn-box">Isto parece um problema, não um risco. ' + esc(ia.motivo || '') + '</div>'
+        ? '<div class="warn-box">Isto parece um problema, não um risco. ' +
+          esc(ia.motivo || '') +
+          (UI.rid === 'new'
+            ? ' <button type="button" class="btn sm" data-act="prob-de-texto">Registrar como problema</button>'
+            : '') +
+          '</div>'
         : '<div>' +
           esc(ia.motivo || 'Descrição reescrita no formato do MGR. Confira e ajuste os campos.') +
           '</div>') +
@@ -2073,6 +2133,11 @@ export function mountMira(root) {
       '<span>Risco é um evento <b>futuro e incerto</b>. Se já está acontecendo, é problema, não risco.</span></div></div></aside>';
     return (
       '<div class="card"><h3>Fase 2 · Identificação do risco</h3>' +
+      (isNew && UI.origemProb
+        ? '<div class="info-box">Risco a partir do problema ' +
+          UI.origemProb +
+          ': descreva o que pode fazer o problema voltar a acontecer. Os dois ficam ligados.</div>'
+        : '') +
       (ed ? ctxPeek(isNew ? u.unit : r.unit) : '') +
       ai +
       '<div class="ident"><div class="ident-main">' +
@@ -2601,6 +2666,22 @@ export function mountMira(root) {
   const valorOutra = id => (val(id + '-sel') === '__outra' ? val(id + '-outra').trim() : val(id + '-sel'));
   // Perguntas frequentes sobre cada parte do PRR e do monitoramento, em linguagem simples.
   const FAQ = {
+    problema: [
+      'O que é um problema e por que não é risco?',
+      'Pelo MGR, risco é algo que pode acontecer no futuro. Problema é algo que já está acontecendo. O problema não entra na matriz nem no PRR: ele tem um plano de agora (o que fazer, quem faz e até quando), e a coordenadoria e a Alta Gestão de Riscos são avisadas na hora.',
+    ],
+    problemaLiga: [
+      'Quando ligar o problema a um risco já cadastrado?',
+      'Quando o que está acontecendo é o evento de um risco que já estava no MIRA. Os dois ficam ligados e, se o risco estava em tratamento, ele passa para "Evento ocorreu"; o que o PRR manda fazer nesse caso aparece no plano.',
+    ],
+    problemaPlano: [
+      'O que vai no plano de agora?',
+      'A ação que contém o problema enquanto a solução definitiva não vem, a pessoa responsável e o prazo para resolver. Quem registra já define o responsável e o prazo, porque o problema não espera a validação. O plano pode mudar enquanto o problema está aberto, e cada mudança fica no histórico.',
+    ],
+    problemaRisco: [
+      'Por que cadastrar um risco depois do problema?',
+      'Para que ele não volte a acontecer. O risco novo (por exemplo, "nova queda de energia no protocolo") passa pelas 5 fases do MGR: avaliação, PRR, aprovação e monitoramento. Ele fica ligado ao problema.',
+    ],
     metrica: [
       'O que é a métrica de acompanhamento?',
       'É o número que mostra se a ação está funcionando. Ex.: "horas de indisponibilidade no mês". Ela é medida no monitoramento (fase 5); cada medição mostra se o risco está no ideal, em alerta ou crítico.',
@@ -3096,6 +3177,10 @@ export function mountMira(root) {
       (p.concluidaEm ? '<p>' + toneTag('ok', 'Ação do PRR concluída em ' + fd(p.concluidaEm)) + '</p>' : '') +
       '<div class="field"><label for="t-motivo">Motivo</label><input id="t-motivo" style="width:100%" placeholder="Obrigatório para retomar o tratamento ou reabrir o PRR"></div><div class="actions">' +
       (oc ? '<button class="btn primary" data-act="retomar">Retomar o tratamento</button>' : '') +
+      // Depois do evento: registrar o problema que está acontecendo, com o plano de agora (se ainda não há um aberto).
+      (oc && !(r.problemas || []).some(id => (pb(id) || {}).status === 'aberto')
+        ? '<button class="btn" data-act="prob-de-risco">Registrar o problema e o plano de agora</button>'
+        : '') +
       '<button class="btn" data-act="revisar-prr">Reabrir o PRR para revisão</button>' +
       (p.concluidaEm
         ? ''
@@ -3136,8 +3221,30 @@ export function mountMira(root) {
       (UI.tab === 2 && canEdit(u, r) ? '' : '<p class="preview">' + previewHTML(r) + '</p>') +
       '<div class="facts">' +
       facts +
-      '</div></div>'
+      '</div>' +
+      probLigados(r) +
+      '</div>'
     );
+  }
+  // Problemas ligados ao risco: o que aconteceu com ele (o evento) e o problema de que ele nasceu.
+  function probLigados(r) {
+    const lk = id => {
+      const p = pb(id);
+      return (
+        '<a href="#" data-open="' +
+        id +
+        '">' +
+        id +
+        '</a>' +
+        (p
+          ? ' · ' + esc(p.titulo) + ' (' + (p.status === 'aberto' ? 'acontecendo agora' : 'resolvido') + ')'
+          : '')
+      );
+    };
+    const t = [];
+    if ((r.problemas || []).length) t.push('Problema(s) deste risco: ' + r.problemas.map(lk).join(', '));
+    if (r.origemProblema) t.push('Cadastrado para que não volte a acontecer: ' + lk(r.origemProblema));
+    return t.length ? '<p class="small" style="margin-top:10px">' + t.join('<br>') + '</p>' : '';
   }
   // Tela de um risco (ou de um novo risco), com as etapas das 5 fases e o histórico.
   function viewRisk(u) {
@@ -3230,6 +3337,346 @@ export function mountMira(root) {
       '</div>' +
       tableRisks(list) +
       '</div>'
+    );
+  }
+  /* ===== Problemas: o que já está acontecendo ===== */
+  // Problemas abertos (ainda acontecendo).
+  const probAbertos = () => (S.problemas || []).filter(p => p.status === 'aberto');
+  // Quem registra e conduz um problema: cadastrador ou gestor da coordenadoria (unit: a do problema, se houver).
+  const podeProb = (u, unit) =>
+    (u.papel === 'cadastrador' || u.papel === 'gestor') && (!unit || u.unit === unit);
+  // Etiqueta da situação do problema, com ícone e texto.
+  const probTag = p =>
+    p.status === 'aberto'
+      ? toneTag('crit', 'Acontecendo agora')
+      : toneTag('ok', 'Resolvido em ' + fd(p.resolvidoEm));
+  // Prazo do plano em texto útil (vencido há N dias, vence hoje, faltam N dias); depois de resolvido, só a data.
+  const probPrazo = p => {
+    const z = p.plano && p.plano.prazo;
+    if (!z) return '—';
+    if (p.status !== 'aberto') return fd(z);
+    const d = daysTo(z);
+    const t =
+      d < 0
+        ? ['bad', 'vencido há ' + -d + (d === -1 ? ' dia' : ' dias')]
+        : d === 0
+          ? ['warn', 'vence hoje']
+          : d === 1
+            ? ['warn', 'vence amanhã']
+            : [d <= 3 ? 'warn' : '', 'faltam ' + d + ' dias'];
+    return fd(z) + ' <span class="st ' + t[0] + '">' + t[1] + '</span>';
+  };
+  // Campos do plano de agora: o que fazer, responsável (pessoa da coordenadoria) e prazo para resolver.
+  const probPlanoCampos = (unit, pl) =>
+    '<div class="field"><label for="pb-acao">O que fazer agora</label><textarea id="pb-acao" rows="3" placeholder="Ex.: ligar o gerador e avisar o atendimento">' +
+    esc(pl.acao || '') +
+    '</textarea><div class="hint">A ação que contém o problema enquanto a solução definitiva não vem.</div></div>' +
+    '<div class="g2"><div class="field"><label for="pb-resp">Responsável</label><select id="pb-resp" style="width:100%"><option value="">Escolha uma pessoa da coordenadoria</option>' +
+    responsaveis(unit)
+      .map(
+        t =>
+          '<option value="' +
+          esc(t.id) +
+          '"' +
+          (pl.responsavelId === t.id ? ' selected' : '') +
+          '>' +
+          esc(t.nome) +
+          ' · ' +
+          PAPEL[t.papel] +
+          '</option>',
+      )
+      .join('') +
+    '</select></div><div class="field"><label for="pb-prazo">Prazo para resolver</label><input id="pb-prazo" type="date" value="' +
+    esc(pl.prazo || '') +
+    '" style="width:100%"></div></div>';
+  // Tela Problemas: o que já está acontecendo, com o plano de agora. Abertos primeiro; resolvidos num bloco à parte.
+  function viewProblemas(u) {
+    const all = (S.problemas || [])
+        .slice()
+        .sort((a, b) => String(b.registradoEm).localeCompare(String(a.registradoEm))),
+      ab = all.filter(p => p.status === 'aberto'),
+      rs = all.filter(p => p.status !== 'aberto');
+    const tabela = xs =>
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Código</th><th>Problema</th><th>Desde</th><th>Responsável</th><th>Prazo</th><th>Risco que ocorreu</th><th>Situação</th></tr></thead><tbody>' +
+      xs
+        .map(
+          p =>
+            '<tr class="click" data-open="' +
+            p.id +
+            '"><td class="mono">' +
+            p.id +
+            '</td><td><b>' +
+            esc(p.titulo) +
+            '</b><div class="small muted">' +
+            esc(p.unit) +
+            ' · ' +
+            esc(p.afeta) +
+            '</div></td><td>' +
+            fd(p.desde) +
+            '</td><td>' +
+            esc(p.plano.responsavel) +
+            '</td><td>' +
+            probPrazo(p) +
+            '</td><td>' +
+            (p.riscoId ? '<span class="mono">' + p.riscoId + '</span>' : '<span class="muted">—</span>') +
+            '</td><td>' +
+            probTag(p) +
+            '</td></tr>',
+        )
+        .join('') +
+      '</tbody></table></div>';
+    return (
+      pageHead(
+        'Problemas ' + (u.unit ? 'da ' + esc(u.unit) : 'da SETIC'),
+        ab.length + ' acontecendo agora · ' + rs.length + ' resolvido(s)',
+        podeProb(u) ? '<button class="btn primary" data-act="prob-novo">+ Registrar problema</button>' : '',
+      ) +
+      '<div class="card">' +
+      cardH(
+        'Acontecendo agora' + ajuda('problema'),
+        'Problema é o que já está acontecendo; risco é o que pode acontecer. Cada problema tem o plano do que se faz agora.',
+        '<span class="count">' + ab.length + '</span>',
+      ) +
+      ajudaTxt('problema') +
+      (ab.length
+        ? tabela(ab)
+        : '<div class="empty">' + ICO.ok + '<p>Nenhum problema acontecendo agora.</p></div>') +
+      '</div>' +
+      (rs.length
+        ? '<div class="card">' +
+          cardH(
+            'Resolvidos',
+            'Depois de resolver, cadastre um risco para que o problema não volte a acontecer.',
+            '<span class="count">' + rs.length + '</span>',
+          ) +
+          tabela(rs) +
+          '</div>'
+        : '')
+    );
+  }
+  // Formulário de registro de um problema. Pode vir preenchido (UI.probDraft) com o texto do risco novo que descrevia
+  // algo já acontecendo, ou com o risco cujo evento ocorreu (e o plano do PRR para esse caso).
+  function probForm(u) {
+    const d = UI.probDraft || {},
+      rs = scope().filter(r => r.unit === u.unit && r.status !== 'encerrado');
+    const txt = (id, lab, v, hint, ph, rows) =>
+      '<div class="field"><label for="pb-' +
+      id +
+      '">' +
+      lab +
+      '</label>' +
+      (rows
+        ? '<textarea id="pb-' +
+          id +
+          '" rows="' +
+          rows +
+          '" placeholder="Ex.: ' +
+          esc(ph) +
+          '">' +
+          esc(v || '') +
+          '</textarea>'
+        : '<input id="pb-' +
+          id +
+          '" style="width:100%" placeholder="Ex.: ' +
+          esc(ph) +
+          '" value="' +
+          esc(v || '') +
+          '">') +
+      (hint ? '<div class="hint">' + hint + '</div>' : '') +
+      '</div>';
+    return (
+      pageHead(
+        'Registrar problema',
+        'Algo que já está acontecendo agora. A coordenadoria e a Alta Gestão de Riscos são avisadas na hora.',
+        '<button class="btn" data-nav="problemas">← Problemas</button>',
+      ) +
+      '<div class="prr-grid"><div class="prob-col"><div class="card"><h3>O que está acontecendo</h3>' +
+      txt('titulo', 'Título', d.titulo, '', 'protocolo fora do ar') +
+      txt(
+        'descricao',
+        'O que está acontecendo agora',
+        d.descricao,
+        'Conte o que já está acontecendo, do jeito que está.',
+        'o serviço de protocolo parou por falta de energia no prédio',
+        3,
+      ) +
+      txt(
+        'afeta',
+        'O que está sendo afetado',
+        d.afeta,
+        'Serviço, sistema, pessoas ou o atendimento ao cidadão.',
+        'atendimento ao cidadão no protocolo',
+        2,
+      ) +
+      '<div class="g2"><div class="field"><label for="pb-desde">Acontece desde</label><input id="pb-desde" type="date" value="' +
+      esc(d.desde || diaLocal(new Date().toISOString())) +
+      '" style="width:100%"></div><div class="field"><label for="pb-risco">É um risco já cadastrado que ocorreu?</label><select id="pb-risco" style="width:100%"><option value="">Não: é um problema novo</option>' +
+      rs
+        .map(
+          r =>
+            '<option value="' +
+            r.id +
+            '"' +
+            (d.riscoId === r.id ? ' selected' : '') +
+            '>' +
+            r.id +
+            ' · ' +
+            esc(r.titulo) +
+            ' (' +
+            STAT[r.status][0] +
+            ')</option>',
+        )
+        .join('') +
+      '</select><div class="hint">Se for, os dois ficam ligados e o risco em tratamento passa para "Evento ocorreu".</div></div></div></div>' +
+      '<div class="card"><h3>Plano de agora</h3>' +
+      probPlanoCampos(u.unit, { acao: d.acao }) +
+      '<div class="actions"><button class="btn primary" data-act="prob-salvar">Registrar problema e avisar</button></div></div></div>' +
+      '<aside class="prr-side">' +
+      faq(['problema', 'problemaLiga', 'problemaPlano', 'problemaRisco']) +
+      '</aside></div>'
+    );
+  }
+  // Tela de um problema: o que acontece, o plano de agora, o andamento, a solução, o risco para não voltar e o histórico.
+  function viewProblema(u) {
+    if (UI.pid === 'new') return probForm(u);
+    const p = pb(UI.pid);
+    if (!p)
+      return '<div class="card"><h3>Problema não encontrado</h3><button class="btn" data-nav="problemas">← Problemas</button></div>';
+    const ed = podeProb(u, p.unit),
+      ab = p.status === 'aberto',
+      r = p.riscoId ? rk(p.riscoId) : null,
+      ag = u.papel === 'altagestao';
+    const fact = (l, v) => '<div class="fact"><span>' + l + '</span><b>' + v + '</b></div>';
+    const head =
+      '<div class="card rhead"><div class="rhead-top"><button class="btn sm" data-nav="problemas">← Problemas</button><span class="mono muted">' +
+      p.id +
+      '</span><span class="unit">' +
+      esc(p.unit) +
+      '</span><span class="spacer"></span>' +
+      probTag(p) +
+      '</div><h2>' +
+      esc(p.titulo) +
+      '</h2><p class="preview">' +
+      esc(p.descricao) +
+      '</p><div class="facts">' +
+      fact('Acontece desde', fd(p.desde)) +
+      fact('O que está sendo afetado', esc(p.afeta)) +
+      fact('Responsável', esc(p.plano.responsavel)) +
+      fact('Prazo para resolver', probPrazo(p)) +
+      fact(
+        'Risco que ocorreu',
+        p.riscoId ? '<a href="#" data-open="' + p.riscoId + '">' + p.riscoId + '</a>' : '—',
+      ) +
+      fact('Registrado por', esc(p.registradoPor) + ' · ' + fd(p.registradoEm)) +
+      '</div></div>';
+    const plano =
+      '<div class="card">' +
+      cardH(
+        'Plano de agora' + ajuda('problemaPlano'),
+        ab ? 'O que se faz para conter o problema, quem faz e até quando.' : 'O plano que foi seguido.',
+      ) +
+      ajudaTxt('problemaPlano') +
+      roField('O que fazer agora', p.plano.acao, true) +
+      (r && r.prr && r.prr.contingencia
+        ? '<div class="info-box">No PRR de ' +
+          r.id +
+          ', o que fazer se o evento ocorrer: ' +
+          esc(r.prr.contingencia) +
+          '</div>'
+        : '') +
+      (ed && ab
+        ? '<details class="more"><summary>Mudar o plano</summary>' +
+          probPlanoCampos(p.unit, p.plano) +
+          '<div class="field"><label for="pb-motivo">Por que mudou (opcional)</label><input id="pb-motivo" style="width:100%"></div><div class="actions"><button class="btn primary" data-act="prob-plano">Salvar o plano</button></div></details>'
+        : '') +
+      '</div>';
+    const andamento =
+      '<div class="card">' +
+      cardH('Andamento', 'O que já foi feito e as orientações da Alta Gestão de Riscos.') +
+      ((p.andamento || []).length
+        ? '<ul class="tl-list">' +
+          p.andamento
+            .slice()
+            .reverse()
+            .map(
+              x =>
+                '<li class="tl"><span class="tl-dot" aria-hidden="true"></span><div class="tl-b"><div class="tl-h"><span><b>' +
+                esc(x.por) +
+                '</b> <span class="muted">(' +
+                PAPEL[x.papel] +
+                ')</span></span><span class="when">' +
+                fdt(x.ts) +
+                '</span></div><div>' +
+                esc(x.texto) +
+                '</div></div></li>',
+            )
+            .join('') +
+          '</ul>'
+        : '<div class="empty">Nenhum andamento registrado.</div>') +
+      ((ed || ag) && ab
+        ? '<div class="field" style="margin-top:12px"><label for="pb-andamento">' +
+          (ag ? 'Orientação para a coordenadoria' : 'Novo andamento') +
+          '</label><textarea id="pb-andamento" rows="2"></textarea></div><div class="actions"><button class="btn" data-act="prob-andamento">' +
+          (ag ? 'Enviar orientação' : 'Registrar andamento') +
+          '</button></div>'
+        : '') +
+      '</div>';
+    const fim = ab
+      ? ed
+        ? '<div class="card">' +
+          cardH('Resolver o problema', 'Quando o problema parar de acontecer, conte o que resolveu.') +
+          '<div class="field"><label for="pb-solucao">O que resolveu</label><textarea id="pb-solucao" rows="2"></textarea></div><div class="actions"><button class="btn primary" data-act="prob-resolver">Marcar como resolvido</button></div></div>'
+        : ''
+      : '<div class="card">' +
+        cardH('Como foi resolvido') +
+        roField('O que resolveu', p.solucao, true) +
+        '<p class="small muted">Por ' +
+        esc(p.resolvidoPor) +
+        ' em ' +
+        fdt(p.resolvidoEm) +
+        '.</p>' +
+        (ed
+          ? '<div class="field"><label for="pb-motivo">Motivo para reabrir</label><input id="pb-motivo" style="width:100%" placeholder="Obrigatório para reabrir"></div><div class="actions"><button class="btn" data-act="prob-reabrir">O problema voltou a acontecer</button></div>'
+          : '') +
+        '</div>';
+    const novos = (p.riscosNovos || [])
+      .map(
+        id =>
+          '<a href="#" data-open="' + id + '">' + id + '</a>' + (rk(id) ? ' · ' + esc(rk(id).titulo) : ''),
+      )
+      .join('<br>');
+    const prev =
+      '<div class="card">' +
+      cardH(
+        'Para não voltar a acontecer' + ajuda('problemaRisco'),
+        'Cadastre o risco de o problema voltar e trate pelas 5 fases do MGR.',
+      ) +
+      ajudaTxt('problemaRisco') +
+      (novos
+        ? '<p>' + novos + '</p>'
+        : '<p class="muted">Nenhum risco cadastrado a partir deste problema.</p>') +
+      (ed
+        ? '<div class="actions"><button class="btn" data-act="prob-risco">Cadastrar risco a partir do problema</button></div>'
+        : '') +
+      '</div>';
+    const hist =
+      '<div class="card"><h3>Histórico do problema</h3>' +
+      historyList(
+        S.audit.filter(a => a.riskId === p.id),
+        false,
+      ) +
+      '</div>';
+    return (
+      head +
+      '<div class="prr-grid"><div class="prob-col">' +
+      plano +
+      andamento +
+      fim +
+      prev +
+      hist +
+      '</div><aside class="prr-side">' +
+      faq(['problema', 'problemaLiga', 'problemaPlano', 'problemaRisco']) +
+      '</aside></div>'
     );
   }
   // Tela Matriz: distribuição por nível e riscos da célula escolhida.
@@ -3545,6 +3992,9 @@ export function mountMira(root) {
       delegado: 'Delegação',
       revisao: 'Revisão do PRR',
       extremo: 'Sem tratamento aprovado',
+      problema: 'Problema acontecendo',
+      'problema-orientacao': 'Orientação da Alta Gestão',
+      'problema-resolvido': 'Problema resolvido',
     };
     // Faixa do nível do risco do aviso (-1 sem avaliação): pinta a lateral do aviso e entra escrita no tipo.
     const bandOf = id => {
@@ -3577,7 +4027,7 @@ export function mountMira(root) {
       (extra ? '<span class="acao-al">' + extra + '</span>' : '') +
       '</li>';
     // Quem já está ciente de um alerta de ação (o alerta não some: fica até a situação ser resolvida).
-    const cientes = d => ((rk(d.riskId) || {}).ciencias || []).filter(c => c.chave === d.k);
+    const cientes = d => ((rk(d.riskId) || pb(d.riskId) || {}).ciencias || []).filter(c => c.chave === d.k);
     const act = dv
       .slice()
       .sort((a, b) => (b.crit ? 1 : 0) - (a.crit ? 1 : 0) || bandOf(b.riskId) - bandOf(a.riskId))
@@ -3609,11 +4059,11 @@ export function mountMira(root) {
         ? /crítico/.test(a.msg)
           ? 'crit'
           : 'warn'
-        : a.tipo === 'evento'
+        : a.tipo === 'evento' || a.tipo === 'problema'
           ? 'crit'
           : a.tipo === 'devolvido' || a.tipo === 'nivel'
             ? 'warn'
-            : a.tipo === 'aprovado'
+            : a.tipo === 'aprovado' || a.tipo === 'problema-resolvido'
               ? 'ok'
               : 'info';
     const TOM = { crit: 0, warn: 1, info: 2, ok: 3 };
@@ -3658,7 +4108,7 @@ export function mountMira(root) {
       ) +
       sec(
         'Exigem ação agora',
-        'Riscos extremos sem tratamento aprovado, prazos próximos ou vencidos e métricas em alerta ou críticas. "Estou ciente" registra a ciência no histórico e no relatório; o alerta continua aqui até a situação ser resolvida.',
+        'Problemas acontecendo agora, riscos extremos sem tratamento aprovado, prazos próximos ou vencidos e métricas em alerta ou críticas. "Estou ciente" registra a ciência no histórico e no relatório; o alerta continua aqui até a situação ser resolvida.',
         dv.length,
         act,
         'Nenhum prazo ou métrica exige ação agora.',
@@ -3748,7 +4198,14 @@ export function mountMira(root) {
       encer: R.filter(r => noPer(quando(r, 'encerradoEm', 'Encerrou o risco'), P)),
       inv: aprov.reduce((s, x) => s + (Number(x.r.prr.custo) || 0), 0),
       // "Estou ciente" registrado nos alertas que exigem ação.
-      ciencias: R.flatMap(r => (r.ciencias || []).filter(c => noPer(c.ts, P)).map(c => ({ r, c }))),
+      ciencias: R.flatMap(r => (r.ciencias || []).filter(c => noPer(c.ts, P)).map(c => ({ r, c }))).concat(
+        (S.problemas || []).flatMap(p =>
+          (p.ciencias || []).filter(c => noPer(c.ts, P)).map(c => ({ r: p, c })),
+        ),
+      ),
+      // Problemas (o que já estava acontecendo) registrados e resolvidos no período.
+      probNovos: (S.problemas || []).filter(p => noPer(p.registradoEm, P)),
+      probResolv: (S.problemas || []).filter(p => noPer(p.resolvidoEm, P)),
     };
   }
   // Seletor do período na tela Relatório: tipo (semanal a anual) e setas para os períodos anteriores.
@@ -3866,6 +4323,12 @@ export function mountMira(root) {
       '- Medições registradas: ' + F.meds.length + ' (' + nAl + ' em alerta, ' + nCr + ' críticas)',
       '- Eventos que ocorreram: ' + F.ocorr.length + ' · riscos encerrados: ' + F.encer.length,
       '- Ciência registrada em alertas que exigem ação: ' + F.ciencias.length,
+      '- Problemas registrados (já acontecendo): ' +
+        F.probNovos.length +
+        ' · resolvidos: ' +
+        F.probResolv.length +
+        ' · acontecendo hoje: ' +
+        probAbertos().length,
       '',
       '## 2. Por coordenadoria',
       un,
@@ -3901,6 +4364,25 @@ export function mountMira(root) {
             fdt(x.c.ts),
         )
         .join('\n') || '- nenhuma',
+      '',
+      '## 8. Problemas registrados no período (o que já estava acontecendo)',
+      F.probNovos
+        .map(
+          p =>
+            '- **' +
+            p.id +
+            '** ' +
+            mdc(p.titulo) +
+            ' (' +
+            p.unit +
+            ') · desde ' +
+            fd(p.desde) +
+            ' · ' +
+            (p.status === 'aberto' ? 'acontecendo agora' : 'resolvido em ' + fd(p.resolvidoEm)) +
+            (p.riscoId ? ' · risco que ocorreu: ' + p.riscoId : '') +
+            ((p.riscosNovos || []).length ? ' · risco para não voltar: ' + p.riscosNovos.join(', ') : ''),
+        )
+        .join('\n') || '- nenhum',
       '',
       'Os números do período vêm das datas registradas em cada risco (cadastro, decisões do PRR, medições, evento e encerramento). A situação atual é a de hoje, não a do fim do período. Todas as alterações estão no histórico do MIRA.',
     ].join('\n');
@@ -4870,7 +5352,8 @@ export function mountMira(root) {
             ['riscos', 'Riscos'],
           ];
     if (u.papel !== 'admin') {
-      nav.push(['quadro', 'Quadro'], ['matriz', 'Matriz']);
+      // Problemas: o que já está acontecendo; o número mostra quantos ainda estão abertos.
+      nav.push(['problemas', 'Problemas', probAbertos().length], ['quadro', 'Quadro'], ['matriz', 'Matriz']);
       // CGGE e empresa terceirizada só acompanham: sem fila de pendências.
       if (u.papel !== 'cgge' && u.papel !== 'terceirizado')
         nav.push(['aprov', 'Pendências', pendingFor(u).length]);
@@ -4880,7 +5363,12 @@ export function mountMira(root) {
       if (u.papel === 'altagestao' || u.papel === 'cgge') nav.push(['decisoes', 'Decisões']);
     }
     // O risco aberto e o contexto da coordenadoria fazem parte de Riscos no menu.
-    const cur = UI.view === 'risco' || UI.view === 'contexto' ? 'riscos' : UI.view;
+    const cur =
+      UI.view === 'risco' || UI.view === 'contexto'
+        ? 'riscos'
+        : UI.view === 'problema'
+          ? 'problemas'
+          : UI.view;
     let v;
     try {
       if (UI.view === 'paineis') v = panelHead(u) + (UI.panel === 'op' ? renderOp(u) : renderAlta(u));
@@ -4896,6 +5384,8 @@ export function mountMira(root) {
       else if (UI.view === 'unidades') v = viewUnits(u);
       else if (UI.view === 'config') v = viewConfig(u);
       else if (UI.view === 'decisoes') v = viewDecisoes(u);
+      else if (UI.view === 'problemas') v = viewProblemas(u);
+      else if (UI.view === 'problema') v = viewProblema(u);
       else v = viewRel(u);
     } catch (e) {
       v =
@@ -5003,7 +5493,12 @@ export function mountMira(root) {
       });
       checkRisk(f).forEach(x => {
         const w = document.getElementById('w-' + x[0]);
-        if (w) w.innerHTML = '<div class="warn-box">' + esc(x[1]) + '</div>';
+        // Texto de algo que já acontece: no risco novo, oferece registrar como problema, com o plano de agora.
+        const vira =
+          UI.rid === 'new' && x[0] === 'evento' && /problema/.test(x[1])
+            ? ' <button type="button" class="btn sm" data-act="prob-de-texto">Registrar como problema</button>'
+            : '';
+        if (w) w.innerHTML = '<div class="warn-box">' + esc(x[1]) + vira + '</div>';
       });
       const sm = similar(f, UI.rid === 'new' ? null : UI.rid);
       document.getElementById('sim').innerHTML = sm.length
@@ -5078,6 +5573,8 @@ export function mountMira(root) {
   }
   // Abre um risco na fase em que ele está (no mínimo a identificação).
   function openRisk(id) {
+    // O número de um problema (P-...) abre a tela do problema; os links do histórico e dos alertas usam a mesma via.
+    if (/^P-/.test(String(id))) return openProb(id);
     const r = rk(id);
     if (!r) return;
     UI.view = 'risco';
@@ -5085,6 +5582,14 @@ export function mountMira(root) {
     UI.tab = Math.max(2, curPhase(r));
     UI.draft = null;
     UI.warnAck = false;
+    render();
+  }
+  // Abre a tela de um problema.
+  function openProb(id) {
+    if (!pb(id)) return;
+    UI.view = 'problema';
+    UI.pid = id;
+    UI.probDraft = null;
     render();
   }
   // Nome do estado da métrica na exportação.
@@ -5544,8 +6049,106 @@ export function mountMira(root) {
         UI.tab = (S.ctx[me().unit] || {}).escopo ? 2 : 1;
         UI.draft = null;
         UI.warnAck = false;
+        UI.origemProb = null;
         render();
         break;
+      // Problemas: registrar, conduzir e transformar em risco para não voltar a acontecer.
+      case 'prob-novo':
+        UI.view = 'problema';
+        UI.pid = 'new';
+        UI.probDraft = null;
+        render();
+        break;
+      // O texto do risco novo descreve algo que já está acontecendo: vira o registro de um problema.
+      case 'prob-de-texto': {
+        const f = readIdent();
+        UI.probDraft = { titulo: f.titulo, descricao: f.evento, afeta: f.impacto };
+        UI.view = 'problema';
+        UI.pid = 'new';
+        UI.rid = null;
+        UI.draft = null;
+        render();
+        break;
+      }
+      // O evento do risco ocorreu: o problema já vem ligado ao risco, com o que o PRR manda fazer nesse caso.
+      case 'prob-de-risco':
+        UI.probDraft = {
+          riscoId: r.id,
+          titulo: r.titulo,
+          afeta: r.impacto,
+          acao: (r.prr && r.prr.contingencia) || '',
+        };
+        UI.view = 'problema';
+        UI.pid = 'new';
+        render();
+        break;
+      case 'prob-salvar': {
+        const j = await api('POST', 'problemas', {
+          titulo: val('pb-titulo').trim(),
+          descricao: val('pb-descricao').trim(),
+          afeta: val('pb-afeta').trim(),
+          desde: val('pb-desde'),
+          riscoId: val('pb-risco'),
+          acao: val('pb-acao').trim(),
+          responsavelId: val('pb-resp'),
+          prazo: val('pb-prazo'),
+        });
+        UI.probDraft = null;
+        await load();
+        UI.pid = j.problema.id;
+        render();
+        toast(
+          'Problema ' +
+            j.problema.id +
+            ' registrado. A coordenadoria e a Alta Gestão de Riscos foram avisadas.',
+        );
+        break;
+      }
+      case 'prob-andamento':
+      case 'prob-plano':
+      case 'prob-resolver':
+      case 'prob-reabrir': {
+        const corpo = {
+          'prob-andamento': { action: 'andamento', texto: val('pb-andamento').trim() },
+          'prob-plano': {
+            action: 'plano',
+            acao: val('pb-acao').trim(),
+            responsavelId: val('pb-resp'),
+            prazo: val('pb-prazo'),
+            motivo: val('pb-motivo').trim(),
+          },
+          'prob-resolver': { action: 'resolver', solucao: val('pb-solucao').trim() },
+          'prob-reabrir': { action: 'reabrir', motivo: val('pb-motivo').trim() },
+        }[a];
+        await api('POST', 'problemas/' + UI.pid + '/action', corpo);
+        await refresh(true);
+        const pr = pb(UI.pid) || {};
+        toast(
+          {
+            'prob-andamento':
+              u.papel === 'altagestao' ? 'Orientação enviada à coordenadoria.' : 'Andamento registrado.',
+            'prob-plano': 'Plano atualizado.',
+            'prob-resolver': (pr.riscosNovos || []).length
+              ? 'Problema resolvido.'
+              : 'Problema resolvido. Cadastre um risco para que ele não volte a acontecer.',
+            'prob-reabrir': 'Problema reaberto. A coordenadoria e a Alta Gestão de Riscos foram avisadas.',
+          }[a],
+        );
+        break;
+      }
+      // Risco novo a partir do problema, para que ele não volte a acontecer (fica ligado ao problema).
+      case 'prob-risco': {
+        const pr = pb(UI.pid);
+        if (!pr) break;
+        UI.view = 'risco';
+        UI.rid = 'new';
+        UI.tab = (S.ctx[u.unit] || {}).escopo ? 2 : 1;
+        UI.warnAck = false;
+        UI.origemProb = pr.id;
+        UI.draft = { _rid: 'new', titulo: '', causa: '', evento: '', impacto: pr.afeta, objetivo: '' };
+        render();
+        break;
+      }
       case 'hist-limpa':
         UI.hist = { de: '', ate: '', lista: null };
         render(true);
@@ -5556,7 +6159,17 @@ export function mountMira(root) {
         break;
       case 'logout':
         await api('POST', 'logout');
-        S = { me: null, risks: [], audit: [], alerts: [], ctx: {}, team: [], users: [], units: [] };
+        S = {
+          me: null,
+          risks: [],
+          problemas: [],
+          audit: [],
+          alerts: [],
+          ctx: {},
+          team: [],
+          users: [],
+          units: [],
+        };
         UI.view = 'paineis';
         UI.authErr = '';
         render();
@@ -5603,7 +6216,12 @@ export function mountMira(root) {
           break;
         }
         if (UI.rid === 'new') {
-          const j = await api('POST', 'risks', f);
+          const j = await api(
+            'POST',
+            'risks',
+            UI.origemProb ? Object.assign({ origemProblema: UI.origemProb }, f) : f,
+          );
+          UI.origemProb = null;
           await load();
           UI.rid = j.risk.id;
           UI.tab = 3;
@@ -5785,7 +6403,12 @@ export function mountMira(root) {
       case 'ciente': {
         const d = derived(u).find(x => x.k === el.dataset.chave);
         if (!d) break;
-        await api('POST', 'risks/' + d.riskId + '/action', { action: 'ciente', chave: d.k, msg: d.msg });
+        // O alerta de um problema vai para a rota do problema; os outros, para a do risco.
+        await api('POST', (/^P-/.test(d.riskId) ? 'problemas/' : 'risks/') + d.riskId + '/action', {
+          action: 'ciente',
+          chave: d.k,
+          msg: d.msg,
+        });
         await refresh(true);
         toast('Ciência registrada. O alerta continua aqui até a situação ser resolvida.');
         break;
@@ -5970,6 +6593,15 @@ export function mountMira(root) {
   // Campo de cada mensagem de erro: [texto da mensagem, campos possíveis na tela]. A primeira regra que casa
   // com a mensagem e tem o campo na tela é a usada. As regras do PRR vêm antes das da identificação.
   const ERR_CAMPO = [
+    // Formulário do problema (prefixo pb-): só vale quando o campo está na tela.
+    [/agora para conter/i, '#pb-acao'],
+    [/responsável entre/i, '#pb-resp'],
+    [/prazo/i, '#pb-prazo'],
+    [/desde quando|data de início/i, '#pb-desde'],
+    [/o que está acontecendo/i, '#pb-titulo'],
+    [/o que resolveu/i, '#pb-solucao'],
+    [/andamento/i, '#pb-andamento'],
+    [/motivo/i, '#pb-motivo'],
     [/evento ocorrer/i, '#p-conting'],
     [/ação proposta|risco é aceito/i, '#p-acao'],
     [/viabilidade/i, '#p-viab'],
@@ -6180,6 +6812,8 @@ export function mountMira(root) {
       const n = t.dataset.nav;
       UI.rid = null;
       UI.draft = null;
+      UI.origemProb = null;
+      UI.probDraft = null;
       UI.warnAck = false;
       if (n === 'novo') {
         act('novo');
@@ -6267,6 +6901,15 @@ export function mountMira(root) {
     if (t.dataset.qfilt !== undefined) {
       UI.qfilt = t.value;
       render(true);
+      return;
+    }
+    // Ao escolher o risco que ocorreu, o plano de agora vem com o que o PRR manda fazer nesse caso (se estiver vazio).
+    if (t.id === 'pb-risco') {
+      const r = rk(t.value),
+        ac = document.getElementById('pb-acao'),
+        ti = document.getElementById('pb-titulo');
+      if (r && ac && !ac.value.trim() && r.prr && r.prr.contingencia) ac.value = r.prr.contingencia;
+      if (r && ti && !ti.value.trim()) ti.value = r.titulo;
       return;
     }
     if (t.dataset.ctxunit !== undefined) {
