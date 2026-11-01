@@ -22,7 +22,7 @@ Roteiro para apresentar o projeto em cerca de 5 minutos: o que falar, o que most
 "Gerir risco de TIC no governo costuma ser uma planilha por coordenadoria. Cada pessoa descreve o risco de um jeito, muitas vezes descreve um problema que já está acontecendo, e o plano de resposta é aprovado por e-mail. Quando a alta gestão precisa decidir onde investir, não tem como comparar: quanto esse risco custa? Quanto o tratamento reduz?"
 
 **Solução (40 s).**
-"O MIRA conduz as 5 fases do MGR: contexto, identificação, avaliação, tratamento e monitoramento. O cadastrador escreve o risco guiado pelo formato do MGR; o gestor valida; a CSGR aprova; a métrica é acompanhada contra limites definidos. Tudo fica registrado: quem, quando e o que mudou. E os dados viram dois painéis, um para a TI agir e outro para a alta gestão decidir."
+"O MIRA conduz as 5 fases do MGR: contexto, identificação, avaliação, tratamento e monitoramento. O cadastrador escreve o risco guiado pelo formato do MGR; o gestor valida; a Alta Gestão de Riscos aprova; a métrica é acompanhada contra limites definidos. Tudo fica registrado: quem, quando e o que mudou. E os dados viram dois painéis, um para a TI agir e outro para a alta gestão decidir."
 
 **Diferenciais (40 s).**
 - "O formulário avisa na hora quando o texto descreve um problema e não um risco."
@@ -35,7 +35,7 @@ Roteiro para apresentar o projeto em cerca de 5 minutos: o que falar, o que most
 
 ## Demonstração (2 min 30 s)
 
-Contas de demonstração: `testeusuario` (cadastrador da Cosegi) e `altagestao1` (CSGR). A senha é a definida na instalação de demonstração.
+Contas de demonstração: `criadordeusuario` (administrador), `altagestao1` (Alta Gestão de Riscos), `testeusuario` (cadastrador da Cosegi) e `supervisortesteusuario` (gestor da Cosegi). A senha é a definida na instalação de demonstração.
 
 | # | Conta | O que fazer | O que dizer |
 |---|---|---|---|
@@ -48,9 +48,9 @@ Contas de demonstração: `testeusuario` (cadastrador da Cosegi) e `altagestao1`
 | 7 | `testeusuario` | Enviar para o gestor | "O plano segue para validação, sem e-mail." |
 | 8 | `altagestao1` | Entrar, abrir **Alta gestão** | "A alta gestão vê a exposição em reais e o que os planos reduzem." |
 | 9 | `altagestao1` | Abrir **Histórico** | "Toda alteração fica aqui: quem, quando e o valor anterior." |
-| 10 | `altagestao1` | Abrir **Usuários** | "A CSGR vê quais coordenadorias ainda não indicaram as pessoas." |
+| 10 | `criadordeusuario` | Abrir **Usuários** | "O administrador vê quais coordenadorias ainda não indicaram as pessoas e o relatório de pedido de cada acesso." |
 
-**A aprovação não aparece neste roteiro.** Validar o PRR é papel do gestor de riscos da coordenadoria, e as duas contas de demonstração são um cadastrador e a CSGR. Se a equipe decidir criar uma conta de gestor da Cosegi, entre os passos 7 e 8 entram: o gestor abre **Pendências** e valida o PRR; a CSGR abre **Pendências**, vê o cartão de decisão com custo, redução e retorno e aprova; o cadastrador registra uma medição e mostra o gráfico com as faixas.
+**A aprovação não aparece neste roteiro.** Validar o PRR é papel do gestor de riscos da coordenadoria. Para mostrar, entre os passos 7 e 8 entram: o `supervisortesteusuario` abre **Pendências** e valida o PRR; a Alta Gestão de Riscos abre **Pendências**, vê o cartão de decisão com custo, redução e retorno e aprova; o cadastrador registra uma medição e mostra o gráfico com as faixas.
 
 ### Antes de subir no palco
 

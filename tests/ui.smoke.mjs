@@ -89,39 +89,79 @@ const html = () => root.innerHTML;
 // Sinais de tela quebrada: mensagem de erro de tela ou valores que não deviam aparecer.
 const bad = () => /Não foi possível abrir esta tela|undefined|NaN|\[object/.test(html());
 
-// --- Primeiro acesso pela tela: cria a CSGR e cadastra uma pessoa ---
+// --- Implantação: o administrador é criado pelo comando no servidor; pela tela ele cria uma
+// coordenadoria e uma pessoa com o PDF do SEI ---
+(await import('../lib/service.js')).default.createAdmin({
+  username: 'admin.teste',
+  password: 'senha-forte-0',
+});
 const stop = mountMira(root);
 await sleep(150);
-ok(html().includes('Primeiro acesso'), 'tela de primeiro acesso quando o sistema está vazio');
-setVals({ 'a-nome': 'Administrador CSGR', 'a-user': 'csgr.admin', 'a-pw': 'senha-forte-1' });
+ok(
+  html().includes('Entrar') && !html().includes('Primeiro acesso') && !html().includes('a-nome'),
+  'tela de entrada só com usuário e senha',
+);
+setVals({ 'a-user': 'admin.teste', 'a-pw': 'senha-forte-0' });
 await submit('auth-form');
 ok(
-  html().includes('Painel Alta Gestão') && html().includes('Usuários'),
-  'após o setup, CSGR entra no painel de alta gestão e vê Usuários',
+  html().includes('Cadastrar pessoa') && html().includes('Coordenadorias') && !html().includes('Painéis'),
+  'o administrador entra em Usuários e não vê os painéis',
 );
-ok(
-  !html().includes('R$ NaN') && html().includes('Exposição esperada hoje'),
-  'painel de alta gestão vazio renderiza sem NaN',
-);
-await click({ panel: 'op' });
-ok(html().includes('Riscos ativos') && !bad(), 'painel operacional vazio renderiza');
+ok(html().includes('Nenhuma coordenadoria criada') && !bad(), 'sistema começa sem coordenadorias');
+await click({ nav: 'unidades' });
+setVals({ 'u-sigla': 'Cosegi', 'u-nome': 'Coordenadoria de teste' });
+await submit('unit-form');
+ok(html().includes('Coordenadoria de teste') && !bad(), 'cria coordenadoria pela tela');
 await click({ nav: 'usuarios' });
 setVals({
-  'n-nome': 'Pessoa Cad',
   'n-user': 'cad.cosegi',
   'n-papel': 'cadastrador',
   'n-unit': 'Cosegi',
   'n-pw': 'senha-forte-2',
+  'n-ped-tipo': 'sei',
+  'n-ped-nome': 'Portaria de designação',
+  'n-ped-num': '0045123401',
+  'n-ped-data': '2026-10-30',
 });
 await submit('user-form');
-ok(html().includes('cad.cosegi'), 'cadastra pessoa pela tela de usuários');
-await call('csgr', 'POST', 'login', { username: 'csgr.admin', password: 'senha-forte-1' });
-for (const [nome, username, papel, unit] of [
-  ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi'],
-  ['Consulta', 'cgge.user', 'cgge', null],
-  ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra'],
+ok(!html().includes('cad.cosegi'), 'tipo SEI sem PDF: a pessoa não é cadastrada');
+els['n-ped-pdf'] = {
+  files: [new File([Buffer.from('%PDF-1.4\n%%EOF\n')], 'portaria.pdf', { type: 'application/pdf' })],
+};
+await submit('user-form');
+ok(
+  html().includes('cad.cosegi') &&
+    html().includes('SEI nº 0045123401') &&
+    html().includes('/sei" download') &&
+    html().includes('Relatório de pedido'),
+  'cadastra pessoa pela tela com o relatório de pedido',
+);
+await call('adm', 'POST', 'login', { username: 'admin.teste', password: 'senha-forte-0' });
+await call('adm', 'POST', 'units', { sigla: 'Coinfra' });
+// PDF mínimo de teste para os cadastros feitos direto pela API.
+const sei = n => ({
+  tipo: 'sei',
+  data: '2026-10-30',
+  nome: 'Portaria de designação',
+  numero: '00451234' + n,
+  arquivo: 'portaria.pdf',
+  pdf: Buffer.from('%PDF-1.4\n%%EOF\n').toString('base64'),
+});
+for (const [nome, username, papel, unit, n] of [
+  ['Alta gestão teste', 'altagestao.teste', 'altagestao', null, 10],
+  ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi', 11],
+  ['Consulta', 'cgge.user', 'cgge', null, 12],
+  ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra', 13],
 ])
-  await call('csgr', 'POST', 'users', { nome, username, papel, unit, password: 'senha-forte-2' });
+  await call('adm', 'POST', 'users', {
+    nome,
+    username,
+    papel,
+    unit,
+    password: 'senha-forte-2',
+    pedido: sei(n),
+  });
+await call('altagestao', 'POST', 'login', { username: 'altagestao.teste', password: 'senha-forte-2' });
 // dados via API
 for (const [k, u] of [
   ['cad', 'cad.cosegi'],
@@ -133,6 +173,10 @@ const prr = {
   tratamento: 'mitigar',
   controles: 'x',
   acao: 'Análise periódica de vulnerabilidades',
+  contingencia: 'Isolar o sistema afetado',
+  viabilidade: 'Viável com a equipe atual',
+  restricoes: 'Nenhuma',
+  recursos: 'Equipe e ferramenta já disponíveis',
   responsavel: 'Pessoa Cad',
   prazo: '2026-11-05',
   custo: 85000,
@@ -154,9 +198,19 @@ async function mkRisk(who, f, prob, imp, exp, upTo) {
   await call(who, 'POST', `risks/${r.id}/prr`, { prr });
   await call(who, 'POST', `risks/${r.id}/action`, { action: 'send-prr' });
   if (upTo === 'gestor') return r;
-  await call('ges', 'POST', `risks/${r.id}/action`, { action: 'gestor-ok' });
-  if (upTo === 'csgr') return r;
-  await call('csgr', 'POST', `risks/${r.id}/action`, { action: 'csgr-ok' });
+  // O gestor completa responsável e prazo ao validar (o cadastrador de teste não tem essa permissão).
+  const gesId = (await call('ges', 'GET', 'state')).team.find(t => t.papel === 'gestor').id;
+  await call('ges', 'POST', `risks/${r.id}/action`, {
+    action: 'gestor-ok',
+    responsavelId: gesId,
+    prazo: prr.prazo,
+    custo: prr.custo,
+  });
+  if (upTo === 'altagestao') return r;
+  await call('altagestao', 'POST', `risks/${r.id}/action`, {
+    action: 'altagestao-ok',
+    motivo: 'Parecer favorável.',
+  });
   await call(who, 'POST', `risks/${r.id}/action`, { action: 'add-med', valor: 7 });
   return r;
 }
@@ -168,10 +222,15 @@ const F = (t, c) => ({
   impacto: 'indisponibilidade de serviços',
   objetivo: 'a continuidade dos serviços',
 });
+// O contexto vem antes do primeiro risco de cada coordenadoria.
+await call('cad', 'POST', 'ctx/escopo', { escopo: 'Sistemas da Cosegi' });
+await call('cad2', 'POST', 'ctx/escopo', { escopo: 'Sistemas da Coinfra' });
 await mkRisk('cad', F('Risco A', 'falha sem redundância no servidor principal'), 2, 5, 4000000, 'ativo');
 await mkRisk('cad', F('Risco B', 'ausência de rotina de backup testada'), 3, 5, 6000000, 'gestor');
-await mkRisk('cad', F('Risco C', 'dependência de fornecedor único de licenças'), 3, 3, 250000, 'csgr');
+await mkRisk('cad', F('Risco C', 'dependência de fornecedor único de licenças'), 3, 3, 250000, 'altagestao');
 await mkRisk('cad', F('Risco D', 'equipe pequena para a demanda de suporte'), 0);
+// Risco Extremo ainda sem tratamento aprovado: precisa aparecer na fila de ação sem quebrar os painéis.
+await mkRisk('cad', F('Risco F', 'servidor de banco de dados sem suporte do fabricante'), 5, 5, 1000000, 'gestor');
 await mkRisk('cad2', F('Risco E', 'link de internet sem contingência definida'), 4, 4, 900000, 'ativo');
 // navegação por perfil
 // Entra com um perfil e abre todas as telas do menu, os dois painéis e as 5 fases de cada risco.
@@ -190,6 +249,13 @@ async function browse(label, user, pw, nameChk) {
       ok(false, label + ': tela ' + n + ' quebrou');
     }
   }
+  // O contexto saiu do menu de cima e abre pela aba Riscos.
+  if (label !== 'Administrador') {
+    await click({ nav: 'riscos' });
+    ok(html().includes('data-nav="contexto"'), label + ': aba Riscos tem o botão Contexto');
+    await click({ nav: 'contexto' });
+    if (bad()) ok(false, label + ': tela contexto quebrou');
+  }
   await click({ nav: 'paineis' });
   await click({ panel: 'alta' });
   ok(!bad(), label + ': painel alta gestão');
@@ -198,7 +264,11 @@ async function browse(label, user, pw, nameChk) {
   );
   if (t) {
     await click({ tce: t[1] });
-    ok(html().includes('JUSTIFICATIVA DE DESPESA'), label + ': gera justificativa para o TCE');
+    ok(
+      html().includes('Justificativa de despesa · gestão de riscos de TIC') &&
+        html().includes('<h4>Descrição</h4>'),
+      label + ': gera justificativa para o TCE em Markdown',
+    );
   }
   await click({ panel: 'op' });
   ok(!bad(), label + ': painel operacional');
@@ -217,11 +287,14 @@ async function browse(label, user, pw, nameChk) {
     label + ': abriu ' + ids.length + ' riscos em todas as fases',
   );
 }
-await browse('CSGR', 'csgr.admin', 'senha-forte-1', 'Administrador CSGR');
-await browse('Cadastrador Cosegi', 'cad.cosegi', 'senha-forte-2', 'Pessoa Cad');
-await browse('Gestor Cosegi', 'ges.cosegi', 'senha-forte-2', 'Pessoa Ges');
-await browse('CGGE', 'cgge.user', 'senha-forte-2', 'Consulta');
-await browse('Cadastrador Coinfra', 'cad.coinfra', 'senha-forte-2', 'Outra Cad');
+await browse('Administrador', 'admin.teste', 'senha-forte-0', 'admin.teste');
+ok(!/data-open="R-/.test(html()), 'Administrador: não vê nenhum risco');
+await browse('Alta Gestão', 'altagestao.teste', 'senha-forte-2', 'altagestao.teste');
+ok(!html().includes('data-nav="usuarios"'), 'Alta Gestão: não tem mais a tela Usuários');
+await browse('Cadastrador Cosegi', 'cad.cosegi', 'senha-forte-2', 'cad.cosegi');
+await browse('Gestor Cosegi', 'ges.cosegi', 'senha-forte-2', 'ges.cosegi');
+await browse('CGGE', 'cgge.user', 'senha-forte-2', 'cgge.user');
+await browse('Cadastrador Coinfra', 'cad.coinfra', 'senha-forte-2', 'cad.coinfra');
 // ação de tela: cadastrador registra medição
 await click({ act: 'logout' });
 setVals({ 'a-user': 'cad.cosegi', 'a-pw': 'senha-forte-2' });
@@ -235,6 +308,47 @@ ok(
   st.risks.find(r => r.id === 'R-001').prr.medicoes.length === 2,
   'medição registrada pela tela chega ao banco',
 );
+// Quadro: o gestor delega o risco a um cadastrador pela tela; o cabeçalho mostra a coordenadoria
+await call('adm', 'POST', 'units/nome', { sigla: 'Cosegi', nome: 'Nome por extenso de teste' });
+await click({ act: 'logout' });
+setVals({ 'a-user': 'ges.cosegi', 'a-pw': 'senha-forte-2' });
+await submit('auth-form');
+ok(
+  html().includes('COSEGI · Nome por extenso de teste'),
+  'cabeçalho mostra a sigla em maiúsculas e o nome por extenso',
+);
+await click({ nav: 'quadro' });
+ok(
+  html().includes('Elaborar o PRR') && html().includes('data-act="deleg-ask"') && !bad(),
+  'gestor vê o quadro com o botão Delegar',
+);
+await click({ act: 'deleg-ask', id: 'R-001' });
+const cadTeam = (await call('ges', 'GET', 'state')).team.find(t => t.nome === 'cad.cosegi');
+setVals({ 'dg-para': cadTeam.id, 'dg-nota': 'Resolver a medição crítica' });
+await click({ act: 'deleg-save', id: 'R-001' });
+ok(
+  html().includes('delegado por ges.cosegi') && html().includes('Resolver a medição crítica'),
+  'delegação feita pela tela aparece no cartão',
+);
+await click({ nav: 'relatorio' });
+ok(
+  html().includes('Relatório mensal da Alta Gestão de Riscos') &&
+    html().includes('<h4>1. No período</h4>') &&
+    html().includes('data-act="dl-rep-md"'),
+  'relatório mensal em Markdown com opções para baixar',
+);
+for (const [v, t] of [
+  ['semana', 'semanal'],
+  ['semestre', 'semestral'],
+  ['ano', 'anual'],
+  ['mes', 'mensal'],
+]) {
+  await click({ act: 'per-tipo', v });
+  ok(html().includes('Relatório ' + t + ' da Alta Gestão de Riscos') && !bad(), 'relatório ' + t);
+}
+await click({ act: 'per-tipo', v: 'ano' });
+await click({ act: 'per-off', v: '-1' });
+ok(html().includes(String(new Date().getFullYear() - 1)) && !bad(), 'relatório do ano anterior pela seta');
 await click({ act: 'logout' });
 setVals({ 'a-user': 'cad.cosegi', 'a-pw': 'errada' });
 await submit('auth-form');
