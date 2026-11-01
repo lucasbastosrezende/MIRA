@@ -272,7 +272,7 @@ async function browse(label, user, pw, nameChk) {
   await click({ nav: 'paineis' });
   await click({ panel: 'alta' });
   ok(!bad(), label + ': painel alta gestão');
-  const t = [...html().matchAll(/data-tce="(R-\d+)"/g)].find(
+  const t = [...html().matchAll(/data-tce="(R-[\d-]+)"/g)].find(
     m => !html().includes('data-tce="' + m[1] + '" disabled'),
   );
   if (t) {
@@ -285,7 +285,7 @@ async function browse(label, user, pw, nameChk) {
   }
   await click({ panel: 'op' });
   ok(!bad(), label + ': painel operacional');
-  const ids = [...html().matchAll(/data-open="(R-\d+)"/g)]
+  const ids = [...html().matchAll(/data-open="(R-[\d-]+)"/g)]
     .map(m => m[1])
     .filter((v, i, a) => a.indexOf(v) === i);
   for (const id of ids) {
@@ -312,15 +312,14 @@ await browse('Cadastrador Coinfra', 'cad.coinfra', 'senha-forte-2', 'cad.coinfra
 await click({ act: 'logout' });
 setVals({ 'a-user': 'cad.cosegi', 'a-pw': 'senha-forte-2' });
 await submit('auth-form');
-await click({ open: 'R-001' });
+// Primeiro risco cadastrado: número no formato R-0001-MM-AAAA.
+const R1 = (await call('cad', 'GET', 'state')).risks.find(r => /^R-0001-\d{2}-\d{4}$/.test(r.id)).id;
+await click({ open: R1 });
 await click({ tab: '5' });
 setVals({ 'm-valor': '12' });
 await click({ act: 'add-med' });
 const st = await call('cad', 'GET', 'state');
-ok(
-  st.risks.find(r => r.id === 'R-001').prr.medicoes.length === 2,
-  'medição registrada pela tela chega ao banco',
-);
+ok(st.risks.find(r => r.id === R1).prr.medicoes.length === 2, 'medição registrada pela tela chega ao banco');
 // Quadro: o gestor delega o risco a um cadastrador pela tela; o cabeçalho mostra a coordenadoria
 await call('adm', 'POST', 'units/nome', { sigla: 'Cosegi', nome: 'Nome por extenso de teste' });
 await click({ act: 'logout' });
@@ -335,10 +334,10 @@ ok(
   html().includes('Elaborar o PRR') && html().includes('data-act="deleg-ask"') && !bad(),
   'gestor vê o quadro com o botão Delegar',
 );
-await click({ act: 'deleg-ask', id: 'R-001' });
+await click({ act: 'deleg-ask', id: R1 });
 const cadTeam = (await call('ges', 'GET', 'state')).team.find(t => t.nome === 'cad.cosegi');
 setVals({ 'dg-para': cadTeam.id, 'dg-nota': 'Resolver a medição crítica' });
-await click({ act: 'deleg-save', id: 'R-001' });
+await click({ act: 'deleg-save', id: R1 });
 ok(
   html().includes('delegado por ges.cosegi') && html().includes('Resolver a medição crítica'),
   'delegação feita pela tela aparece no cartão',

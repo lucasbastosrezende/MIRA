@@ -39,6 +39,17 @@ const ok = (c, m) => {
   console.log((c ? 'OK   ' : 'FAIL ') + m);
   if (!c) process.exitCode = 1;
 };
+// Fim do número de um risco cadastrado neste mês: "-MM-AAAA" (horário de Brasília).
+const FIM_ID = (() => {
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date());
+  return '-' + p.find(x => x.type === 'month').value + '-' + p.find(x => x.type === 'year').value;
+})();
+// Número esperado do primeiro risco do teste.
+const R1 = 'R-0001' + FIM_ID;
 (async () => {
   // Regra do MGR (p. 17–18, Figura 5): matriz 5 × 5, 25 células, nível = probabilidade × impacto (1 a 25)
   const Lg = require('../lib/logic.js');
@@ -334,7 +345,10 @@ const ok = (c, m) => {
     impacto: 'sanções ao Estado',
     objetivo: 'a segurança dos sistemas da Setic',
   });
-  ok(r.s === 200 && r.risk.id === 'R-001' && r.risk.status === 'rascunho', 'cria R-001');
+  ok(
+    r.s === 200 && r.risk.id === R1 && r.risk.status === 'rascunho',
+    'cria o primeiro risco com o número R-0001-MM-AAAA',
+  );
   r = await call('cgge', 'POST', 'risks', {
     titulo: 'T',
     causa: 'xxxxxxxxxxxxx',
@@ -345,16 +359,16 @@ const ok = (c, m) => {
   ok(r.s === 403, 'CGGE não cadastra');
   r = await call('cad2', 'GET', 'state');
   ok(r.risks.length === 0, 'outra coordenadoria não vê o risco');
-  r = await call('cad2', 'POST', 'risks/R-001/aval', { prob: 2, imp: 5 });
+  r = await call('cad2', 'POST', 'risks/' + R1 + '/aval', { prob: 2, imp: 5 });
   ok(r.s === 404, 'outra coordenadoria não acessa por id');
 
   // Avaliação (fase 3) e PRR (fase 4)
   // Regra do MGR (p. 14–15): controles existentes e linha do tempo vêm antes das notas e são obrigatórios
-  r = await call('cad', 'POST', 'risks/R-001/aval', { prob: 2, imp: 5, linhaTempo: 'últimos 12 meses' });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/aval', { prob: 2, imp: 5, linhaTempo: 'últimos 12 meses' });
   ok(r.s === 422 && /controles/i.test(r.error || ''), 'avaliação sem controles existentes é recusada');
-  r = await call('cad', 'POST', 'risks/R-001/aval', { prob: 2, imp: 5, controles: 'Nenhum' });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/aval', { prob: 2, imp: 5, controles: 'Nenhum' });
   ok(r.s === 422 && /linha do tempo/i.test(r.error || ''), 'avaliação sem linha do tempo é recusada');
-  r = await call('cad', 'POST', 'risks/R-001/aval', {
+  r = await call('cad', 'POST', 'risks/' + R1 + '/aval', {
     prob: 2,
     imp: 5,
     exposicao: 4000000,
@@ -369,7 +383,7 @@ const ok = (c, m) => {
       r.risk.controles === 'Antivírus e atualizações mensais',
     'avalia nível 10 com controles e linha do tempo',
   );
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'send-prr' });
   ok(r.s === 422, 'enviar PRR vazio é barrado');
   const prr = {
     tratamento: 'mitigar',
@@ -391,56 +405,59 @@ const ok = (c, m) => {
     probRes: 1,
     impRes: 5,
   };
-  r = await call('cad', 'POST', 'risks/R-001/prr', { prr: { ...prr, responsavelId: cadCosegi.id } });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/prr', { prr: { ...prr, responsavelId: cadCosegi.id } });
   // Cadastrador sem a permissão do cadastro não define responsável, prazo e custo: quem define é o gestor
   ok(
     r.s === 200 && r.risk.prr.custo === 0 && !r.risk.prr.prazo && !r.risk.prr.responsavelId,
     'salva PRR; sem permissão, responsável, prazo e custo ficam para o gestor',
   );
-  r = await call('cad', 'POST', 'risks/R-001/prr', { prr: { ...prr, ideal: 7 } });
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/prr', { prr: { ...prr, ideal: 7 } });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'send-prr' });
   ok(r.s === 422 && r.errors && r.errors.length, 'parâmetros incoerentes barrados');
-  await call('cad', 'POST', 'risks/R-001/prr', { prr });
+  await call('cad', 'POST', 'risks/' + R1 + '/prr', { prr });
 
   // Tramitação do PRR: cada perfil só decide na sua vez; devolver exige motivo
   // Todo PRR diz o que fazer se o evento ocorrer; sem isso o envio é recusado
-  await call('cad', 'POST', 'risks/R-001/prr', { prr: { ...prr, contingencia: '' } });
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  await call('cad', 'POST', 'risks/' + R1 + '/prr', { prr: { ...prr, contingencia: '' } });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'send-prr' });
   ok(
     r.s === 422 && /evento ocorrer/.test(r.error || JSON.stringify(r)),
     'PRR sem plano para o evento é recusado',
   );
   // Regra do MGR (p. 21): restrições legais e recursos fazem parte do tratamento
-  await call('cad', 'POST', 'risks/R-001/prr', { prr: { ...prr, restricoes: '' } });
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  await call('cad', 'POST', 'risks/' + R1 + '/prr', { prr: { ...prr, restricoes: '' } });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'send-prr' });
   ok(r.s === 422, 'PRR sem restrições legais é recusado');
-  await call('cad', 'POST', 'risks/R-001/prr', { prr });
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  await call('cad', 'POST', 'risks/' + R1 + '/prr', { prr });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'send-prr' });
   ok(r.s === 200 && r.risk.status === 'ag_gestor', 'envia ao gestor');
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'altagestao-ok' });
   ok(r.s === 403, 'cadastrador não aprova');
-  r = await call('altagestao', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
+  r = await call('altagestao', 'POST', 'risks/' + R1 + '/action', { action: 'altagestao-ok' });
   ok(r.s === 403, 'Alta Gestão não aprova antes do gestor');
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-dev' });
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', { action: 'gestor-dev' });
   ok(r.s === 422, 'devolver exige motivo');
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-dev', motivo: 'Detalhar a ação' });
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', {
+    action: 'gestor-dev',
+    motivo: 'Detalhar a ação',
+  });
   ok(r.s === 200 && r.risk.status === 'devolvido', 'gestor devolve');
-  r = await call('cad', 'POST', 'risks/R-001/prr', {
+  r = await call('cad', 'POST', 'risks/' + R1 + '/prr', {
     prr: { ...prr, acao: 'Análise periódica e correção em 15 dias' },
   });
   ok(r.s === 200, 'cadastrador ajusta após devolução');
-  await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'send-prr' });
   // Gestor não valida sem responsável e prazo; o responsável tem de ser do time da coordenadoria
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-ok' });
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', { action: 'gestor-ok' });
   ok(r.s === 422 && /responsável/.test(r.error || ''), 'gestor não encaminha sem responsável');
   const fora = st.users.find(x => x.username === 'cad.coinfra');
-  r = await call('ges', 'POST', 'risks/R-001/action', {
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', {
     action: 'gestor-ok',
     responsavelId: fora.id,
     prazo: '2026-12-30',
   });
   ok(r.s === 422, 'gestor não delega a alguém fora do time');
-  r = await call('ges', 'POST', 'risks/R-001/action', {
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', {
     action: 'gestor-ok',
     responsavelId: cadCosegi.id,
     prazo: '2026-12-30',
@@ -448,13 +465,13 @@ const ok = (c, m) => {
   });
   ok(r.s === 200 && r.risk.status === 'ag_altagestao', 'gestor encaminha');
   // Na devolução, a Alta Gestão pode indicar uma empresa terceirizada como responsável (e só empresa)
-  r = await call('altagestao', 'POST', 'risks/R-001/action', {
+  r = await call('altagestao', 'POST', 'risks/' + R1 + '/action', {
     action: 'altagestao-dev',
     motivo: 'Ação exige empresa especializada',
     responsavelId: cadCosegi.id,
   });
   ok(r.s === 422, 'Alta Gestão só indica empresa terceirizada');
-  r = await call('altagestao', 'POST', 'risks/R-001/action', {
+  r = await call('altagestao', 'POST', 'risks/' + R1 + '/action', {
     action: 'altagestao-dev',
     motivo: 'Ação exige empresa especializada',
     responsavelId: emp.id,
@@ -465,7 +482,7 @@ const ok = (c, m) => {
   );
   // O supervisor ajusta e reenvia o PRR devolvido pela Alta Gestão: o envio dele já é a validação,
   // e o PRR volta à Alta Gestão em vez de parar na fila do próprio gestor.
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'send-prr' });
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', { action: 'send-prr' });
   ok(
     r.s === 200 && r.risk.status === 'ag_altagestao',
     'gestor reenvia o PRR devolvido e ele volta à Alta Gestão',
@@ -473,14 +490,14 @@ const ok = (c, m) => {
   ok(r.risk.prr.responsavelId === emp.id, 'empresa indicada segue como responsável');
   st = await call('altagestao', 'GET', 'state');
   ok(
-    st.risks.some(x => x.id === 'R-001' && x.status === 'ag_altagestao') &&
-      st.alerts.filter(a => a.tipo === 'aprovacao' && a.riskId === 'R-001').length >= 2,
+    st.risks.some(x => x.id === R1 && x.status === 'ag_altagestao') &&
+      st.alerts.filter(a => a.tipo === 'aprovacao' && a.riskId === R1).length >= 2,
     'Alta Gestão vê o PRR reenviado e recebe o aviso de novo',
   );
   // Regra do MGR (p. 21): a CSGR emite parecer; aprovar sem parecer é recusado
-  r = await call('altagestao', 'POST', 'risks/R-001/action', { action: 'altagestao-ok' });
+  r = await call('altagestao', 'POST', 'risks/' + R1 + '/action', { action: 'altagestao-ok' });
   ok(r.s === 422, 'aprovar sem parecer é recusado');
-  r = await call('altagestao', 'POST', 'risks/R-001/action', {
+  r = await call('altagestao', 'POST', 'risks/' + R1 + '/action', {
     action: 'altagestao-ok',
     motivo: 'Parecer favorável: ação adequada ao risco.',
   });
@@ -490,7 +507,7 @@ const ok = (c, m) => {
   const hoje0 = new Date(Date.now() - 864e5).toISOString(),
     hoje1 = new Date(Date.now() + 864e5).toISOString();
   r = await call('altagestao', 'GET', 'audit?ini=' + hoje0 + '&fim=' + hoje1);
-  ok(r.s === 200 && r.audit.some(a => a.riskId === 'R-001'), 'histórico do período traz o que aconteceu');
+  ok(r.s === 200 && r.audit.some(a => a.riskId === R1), 'histórico do período traz o que aconteceu');
   r = await call('cad2', 'GET', 'audit?ini=' + hoje0 + '&fim=' + hoje1);
   ok(
     r.s === 200 && !r.audit.some(a => a.unit === 'Cosegi'),
@@ -503,9 +520,9 @@ const ok = (c, m) => {
 
   // "Estou ciente" num alerta que exige ação: registra quem e quando, sem mudar a situação do risco
   const msgPrazo = 'Prazo da ação em 5 dia(s): risco de teste';
-  r = await call('ges', 'POST', 'risks/R-001/action', {
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', {
     action: 'ciente',
-    chave: 'prazo-R-001',
+    chave: 'prazo-' + R1,
     msg: msgPrazo,
   });
   ok(
@@ -515,27 +532,27 @@ const ok = (c, m) => {
       r.risk.status === 'em_tratamento',
     'ciência registrada e o risco continua como estava',
   );
-  r = await call('ges', 'POST', 'risks/R-001/action', {
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', {
     action: 'ciente',
-    chave: 'prazo-R-001',
+    chave: 'prazo-' + R1,
     msg: msgPrazo,
   });
   ok(r.s === 200 && r.risk.ciencias.length === 1, 'ciência repetida não duplica');
-  r = await call('ges', 'POST', 'risks/R-001/action', {
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', {
     action: 'ciente',
     chave: 'prazo-R-999',
     msg: msgPrazo,
   });
   ok(r.s === 422, 'ciência de alerta de outro risco é recusada');
-  r = await call('cad2', 'POST', 'risks/R-001/action', {
+  r = await call('cad2', 'POST', 'risks/' + R1 + '/action', {
     action: 'ciente',
-    chave: 'prazo-R-001',
+    chave: 'prazo-' + R1,
     msg: msgPrazo,
   });
   ok(r.s === 404, 'outra coordenadoria não registra ciência');
   st = await call('ges', 'GET', 'state');
   ok(
-    st.audit.some(a => a.riskId === 'R-001' && a.action === 'Registrou ciência do alerta'),
+    st.audit.some(a => a.riskId === R1 && a.action === 'Registrou ciência do alerta'),
     'ciência vai para o histórico',
   );
   // Marcar um aviso só como lido
@@ -550,14 +567,14 @@ const ok = (c, m) => {
   );
 
   // Monitoramento (fase 5) e trilha de auditoria
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'add-med', valor: 12 });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'add-med', valor: 12 });
   ok(r.s === 200, 'medição 12 (crítico)');
   st = await call('altagestao', 'GET', 'state');
   ok(
     st.alerts.some(a => a.tipo === 'metrica'),
     'alerta de métrica gerado',
   );
-  r = await call('cad', 'POST', 'risks/R-001/action', {
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', {
     action: 'reaval',
     prob: 3,
     imp: 5,
@@ -570,7 +587,7 @@ const ok = (c, m) => {
     st.alerts.some(a => a.tipo === 'nivel' && a.msg.includes('subiu de 10 para 15')),
     'aviso quando o nível sobe',
   );
-  r = await call('cad', 'POST', 'risks/R-001/action', {
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', {
     action: 'reaval',
     prob: 2,
     imp: 5,
@@ -582,7 +599,7 @@ const ok = (c, m) => {
     'aviso quando o nível baixa',
   );
   st = await call('cad', 'GET', 'state');
-  const ch = st.audit.filter(a => a.riskId === 'R-001');
+  const ch = st.audit.filter(a => a.riskId === R1);
   ok(
     ch.length >= 10 && ch.every(a => a.user && a.ts && a.action),
     'auditoria: ' + ch.length + ' registros do risco',
@@ -596,18 +613,18 @@ const ok = (c, m) => {
     st.risks.length === 0 && st.audit.length > 0 && st.audit.every(a => a.role === 'admin'),
     'administrador não recebe riscos e só vê na trilha o que ele fez',
   );
-  r = await call('adm', 'POST', 'risks/R-001/aval', { prob: 1, imp: 1 });
+  r = await call('adm', 'POST', 'risks/' + R1 + '/aval', { prob: 1, imp: 1 });
   ok(r.s === 404, 'administrador não acessa risco por id');
 
   // Quadro: só o gestor da coordenadoria delega quem resolve, e só para gente da própria coordenadoria
   st = await call('ges', 'GET', 'state');
   const cadId = st.team.find(t => t.nome === 'cad.cosegi').id;
   const outraId = (await call('adm', 'GET', 'state')).users.find(x => x.username === 'cad.coinfra').id;
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'delegar', para: cadId });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'delegar', para: cadId });
   ok(r.s === 403, 'cadastrador não delega');
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'delegar', para: outraId });
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', { action: 'delegar', para: outraId });
   ok(r.s === 422, 'não delega a pessoa de outra coordenadoria');
-  r = await call('ges', 'POST', 'risks/R-001/action', {
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', {
     action: 'delegar',
     para: cadId,
     nota: 'Corrigir as vulnerabilidades críticas',
@@ -622,7 +639,7 @@ const ok = (c, m) => {
       st.audit.some(a => a.action === 'Delegou o risco' && a.changes[0].para === 'cad.cosegi'),
     'delegação gera aviso e fica na auditoria',
   );
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'delegar', para: '' });
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', { action: 'delegar', para: '' });
   ok(r.s === 200 && r.risk.delegado === null, 'gestor retira o responsável');
 
   // Coordenadoria: nome por extenso editável pelo administrador; pessoa apagada de vez (menos o administrador)
@@ -659,40 +676,40 @@ const ok = (c, m) => {
   ok(r.s === 401, 'pessoa apagada não entra mais');
 
   // Depois do evento: retomar o tratamento ou reabrir o PRR (com motivo); o gestor também pode agir
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'evento' });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'evento' });
   ok(r.s === 200 && r.risk.status === 'ocorrido', 'cadastrador registra que o evento ocorreu');
   st = await call('ges', 'GET', 'state');
   ok(
     st.alerts.some(a => a.tipo === 'evento' && a.msg.includes('Faça agora: Isolar o sistema afetado')),
     'aviso de evento traz o que fazer (plano do PRR)',
   );
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'retomar' });
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', { action: 'retomar' });
   ok(r.s === 422, 'retomar o tratamento exige motivo');
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'retomar', motivo: 'Evento contido' });
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', { action: 'retomar', motivo: 'Evento contido' });
   ok(r.s === 200 && r.risk.status === 'em_tratamento', 'gestor retoma o tratamento depois do evento');
-  r = await call('ges', 'POST', 'risks/R-001/action', { action: 'add-med', valor: 3 });
+  r = await call('ges', 'POST', 'risks/' + R1 + '/action', { action: 'add-med', valor: 3 });
   ok(r.s === 200, 'gestor registra medição');
-  r = await call('cad', 'POST', 'risks/R-001/action', {
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', {
     action: 'revisar-prr',
     motivo: 'Ação precisa mudar',
   });
   ok(r.s === 200 && r.risk.status === 'avaliado', 'PRR reaberto para revisão');
-  r = await call('cad', 'POST', 'risks/R-001/prr', {
+  r = await call('cad', 'POST', 'risks/' + R1 + '/prr', {
     prr: { ...prr, acao: 'Ação revisada depois do evento' },
   });
   ok(r.s === 200, 'PRR reaberto pode ser editado');
-  await call('cad', 'POST', 'risks/R-001/action', { action: 'send-prr' });
-  await call('ges', 'POST', 'risks/R-001/action', { action: 'gestor-ok' });
-  r = await call('altagestao', 'POST', 'risks/R-001/action', {
+  await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'send-prr' });
+  await call('ges', 'POST', 'risks/' + R1 + '/action', { action: 'gestor-ok' });
+  r = await call('altagestao', 'POST', 'risks/' + R1 + '/action', {
     action: 'altagestao-ok',
     motivo: 'Parecer favorável à revisão.',
   });
   ok(r.s === 200 && r.risk.status === 'em_tratamento', 'PRR revisado passa de novo pelas aprovações');
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'concluir-acao' });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'concluir-acao' });
   ok(r.s === 200 && !!r.risk.prr.concluidaEm, 'ação do PRR marcada como concluída');
-  r = await call('cad', 'POST', 'risks/R-001/action', { action: 'concluir-acao' });
+  r = await call('cad', 'POST', 'risks/' + R1 + '/action', { action: 'concluir-acao' });
   ok(r.s === 403, 'ação já concluída não é concluída de novo');
-  r = await call('cad2', 'POST', 'risks/R-001/action', { action: 'revisar-prr', motivo: 'tentativa' });
+  r = await call('cad2', 'POST', 'risks/' + R1 + '/action', { action: 'revisar-prr', motivo: 'tentativa' });
   ok(r.s === 404, 'outra coordenadoria não reabre o PRR');
   r = await call('ges', 'POST', 'ctx/escopo', { escopo: 'Sistemas da coordenadoria, revisado pelo gestor' });
   ok(r.s === 200, 'gestor edita o contexto da coordenadoria');
@@ -701,6 +718,23 @@ const ok = (c, m) => {
     r.s === 200 && r.risk.unit === 'Cosegi' && r.risk.criadoPor === 'ges.cosegi',
     'gestor cria risco na coordenadoria',
   );
+  ok(r.risk.id === 'R-0002' + FIM_ID, 'o segundo risco do mês recebe R-0002-MM-AAAA');
+  // Risco com o número antigo (R-007), de antes do formato com mês e ano: continua abrindo e sendo editado,
+  // e não entra na conta do próximo número.
+  open()
+    .prepare('INSERT INTO risks(id,unit,data) VALUES (?,?,?)')
+    .run(
+      'R-007',
+      'Cosegi',
+      JSON.stringify({ ...ident, id: 'R-007', unit: 'Cosegi', status: 'rascunho', niveis: [], prr: null }),
+    );
+  r = await call('cad', 'POST', 'risks/R-007/ident', { ...ident, titulo: 'Risco de número antigo' });
+  ok(
+    r.s === 200 && r.risk.titulo === 'Risco de número antigo',
+    'risco com o número antigo continua editável',
+  );
+  r = await call('ges', 'POST', 'risks', { ...ident, titulo: 'Terceiro risco do mês' });
+  ok(r.risk.id === 'R-0003' + FIM_ID, 'o número antigo não muda a contagem do mês');
 
   // Contexto (fase 1), assistente de IA sem chave, avisos e segurança da sessão
   r = await call('cad', 'POST', 'ctx/escopo', { escopo: 'Riscos de segurança da informação' });

@@ -102,7 +102,7 @@ Todos os perfis alternam entre os dois painéis. Alta Gestão de Riscos e CGGE a
 
 | Tela | Para quê | Quem vê |
 |---|---|---|
-| Riscos | Lista com pesquisa (código, título, causa, evento, impacto ou quem abriu; acentos não importam) e filtros por coordenadoria, nível e situação; menu Baixar com Excel e os CSVs | Todos |
+| Riscos | Lista com pesquisa (código, título, causa, evento, impacto ou quem abriu; acentos não importam; o código aceita `R-0001-10-2026`, `R-0001/10/2026` ou só `10/2026`) e filtros por coordenadoria, nível e situação; menu Baixar com Excel e os CSVs | Todos |
 | Quadro | Colunas pelas etapas do processo (identificar e avaliar, elaborar o PRR, em validação, em tratamento, evento ocorreu, encerrado), com quem resolve cada risco e filtro por responsável. O gestor da coordenadoria delega a um cadastrador ou a si mesmo, com uma observação; a delegação vai para o histórico e gera um aviso | Todos menos o administrador; delega o gestor |
 | Matriz | Matriz 5 × 5 com a distribuição por nível e a lista da célula escolhida | Todos |
 | Pendências | O que depende do perfil: rascunhos e devoluções (cadastrador), validações (gestor), aprovações com custo e retorno (Alta Gestão de Riscos) | Todos, menos CGGE |
@@ -119,6 +119,7 @@ Quem é de uma coordenadoria vê no cabeçalho a sigla em maiúsculas e o nome p
 
 ## Facilidades de uso
 
+- **Número do risco com mês e ano:** cada risco novo recebe `R-` + 4 dígitos + mês + ano do cadastro (ex.: `R-0001-10-2026`), no horário de Brasília (`MIRA_TZ` muda o fuso). Os 4 dígitos recomeçam a cada mês, até 9.999 por mês. Os riscos cadastrados antes desse formato mantêm o número antigo (`R-001`), porque o histórico nunca é reescrito.
 - **Nada digitado se perde sem aviso:** quem digitou algo e tenta sair da tela antes de salvar (outro menu, outra aba do risco, outro risco, Configurações ou Sair) recebe uma pergunta; "Cancelar" mantém tudo como estava. Fechar ou recarregar a página também pergunta. Filtros e pesquisas não contam como algo a salvar.
 - **O que falta para enviar o PRR:** o resumo ao lado do PRR lista, enquanto se preenche, o que ainda impede o envio, pela mesma regra do servidor. Cada item leva ao campo. Com tudo preenchido, aparece "Pronto para enviar ao gestor".
 - **Encolher blocos:** cada bloco com título tem o botão "Encolher / Mostrar". Encolher só esconde o conteúdo (o que foi digitado continua no lugar) e a escolha fica guardada no navegador de quem usa.

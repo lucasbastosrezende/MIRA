@@ -455,9 +455,15 @@ export function mountMira(root) {
       .normalize('NFD')
       .replace(/[̀-ͯ]/g, '')
       .toLowerCase();
+  // Formas do número do risco aceitas na pesquisa: "R-0001-10-2026", "R-0001/10/2026" e "R-0001.10.2026"
+  // (assim também acha por "0001", "10/2026" ou "10-2026"). O número antigo ("R-001") fica como está.
+  const idBusca = id => {
+    const m = String(id).match(/^(R-\d+)-(\d{2})-(\d{4})$/);
+    return m ? [id, m[1] + '/' + m[2] + '/' + m[3], m[1] + '.' + m[2] + '.' + m[3]].join(' ') : id;
+  };
   // Texto pesquisável de um risco: código, título, causa, evento, impacto, coordenadoria e quem abriu.
   const buscaRisco = r =>
-    semAcento([r.id, r.titulo, r.causa, r.evento, r.impacto, r.unit, r.criadoPor].join(' '));
+    semAcento([idBusca(r.id), r.titulo, r.causa, r.evento, r.impacto, r.unit, r.criadoPor].join(' '));
   // Aplica os filtros da lista de riscos (pesquisa, coordenadoria, faixa, situação e célula do mapa).
   function filtered(list) {
     const f = UI.filt,
