@@ -152,6 +152,7 @@ for (const [nome, username, papel, unit, n] of [
   ['Pessoa Ges', 'ges.cosegi', 'gestor', 'Cosegi', 11],
   ['Consulta', 'cgge.user', 'cgge', null, 12],
   ['Outra Cad', 'cad.coinfra', 'cadastrador', 'Coinfra', 13],
+  ['Conformidade', 'ascf.user', 'ascf', null, 14],
 ])
   await call('adm', 'POST', 'users', {
     nome,
@@ -245,6 +246,18 @@ await mkRisk(
   'gestor',
 );
 await mkRisk('cad2', F('Risco E', 'link de internet sem contingência definida'), 4, 4, 900000, 'ativo');
+// Problema acontecendo agora (não é risco), com o plano de agora: precisa abrir na lista, no detalhe e nos alertas.
+const respProb = (await call('cad', 'GET', 'state')).team.find(t => t.nome === 'cad.cosegi').id;
+const probR = await call('cad', 'POST', 'problemas', {
+  titulo: 'Protocolo fora do ar',
+  descricao: 'O serviço de protocolo parou por falta de energia.',
+  afeta: 'atendimento ao cidadão',
+  desde: '2020-01-01',
+  acao: 'Ligar o gerador e avisar o atendimento.',
+  responsavelId: respProb,
+  prazo: '2099-12-31',
+});
+ok(probR.s === 200, 'problema registrado para a navegação');
 // navegação por perfil
 // Entra com um perfil e abre todas as telas do menu, os dois painéis e as 5 fases de cada risco.
 async function browse(label, user, pw, nameChk) {
@@ -272,7 +285,7 @@ async function browse(label, user, pw, nameChk) {
   await click({ nav: 'paineis' });
   await click({ panel: 'alta' });
   ok(!bad(), label + ': painel alta gestão');
-  const t = [...html().matchAll(/data-tce="(R-\d+)"/g)].find(
+  const t = [...html().matchAll(/data-tce="(R-[\d-]+)"/g)].find(
     m => !html().includes('data-tce="' + m[1] + '" disabled'),
   );
   if (t) {
@@ -285,7 +298,7 @@ async function browse(label, user, pw, nameChk) {
   }
   await click({ panel: 'op' });
   ok(!bad(), label + ': painel operacional');
-  const ids = [...html().matchAll(/data-open="(R-\d+)"/g)]
+  const ids = [...html().matchAll(/data-open="(R-[\d-]+)"/g)]
     .map(m => m[1])
     .filter((v, i, a) => a.indexOf(v) === i);
   for (const id of ids) {
@@ -299,6 +312,17 @@ async function browse(label, user, pw, nameChk) {
     ids.length > 0 || label.startsWith('CGGE') === false,
     label + ': abriu ' + ids.length + ' riscos em todas as fases',
   );
+  if (label === 'Administrador') return;
+  await click({ nav: 'problemas' });
+  const pids = [...html().matchAll(/data-open="(P-[\d-]+)"/g)].map(m => m[1]);
+  for (const id of new Set(pids)) {
+    await click({ open: id });
+    if (bad() || !html().includes('Plano de agora')) ok(false, label + ': problema ' + id + ' quebrou');
+  }
+  ok(
+    label === 'Cadastrador Coinfra' ? pids.length === 0 : pids.length > 0,
+    label + ': lista de problemas mostra só o que o perfil pode ver',
+  );
 }
 await browse('Administrador', 'admin.teste', 'senha-forte-0', 'admin.teste');
 ok(!/data-open="R-/.test(html()), 'Administrador: não vê nenhum risco');
@@ -307,20 +331,24 @@ ok(!html().includes('data-nav="usuarios"'), 'Alta Gestão: não tem mais a tela 
 await browse('Cadastrador Cosegi', 'cad.cosegi', 'senha-forte-2', 'cad.cosegi');
 await browse('Gestor Cosegi', 'ges.cosegi', 'senha-forte-2', 'ges.cosegi');
 await browse('CGGE', 'cgge.user', 'senha-forte-2', 'cgge.user');
+await browse('ASCF', 'ascf.user', 'senha-forte-2', 'ascf.user');
+ok(
+  html().includes('data-nav="mgr"') && !html().includes('data-nav="aprov"'),
+  'ASCF: tem MGR e não tem Pendências',
+);
 await browse('Cadastrador Coinfra', 'cad.coinfra', 'senha-forte-2', 'cad.coinfra');
 // ação de tela: cadastrador registra medição
 await click({ act: 'logout' });
 setVals({ 'a-user': 'cad.cosegi', 'a-pw': 'senha-forte-2' });
 await submit('auth-form');
-await click({ open: 'R-001' });
+// Primeiro risco cadastrado: número no formato R-0001-MM-AAAA.
+const R1 = (await call('cad', 'GET', 'state')).risks.find(r => /^R-0001-\d{2}-\d{4}$/.test(r.id)).id;
+await click({ open: R1 });
 await click({ tab: '5' });
 setVals({ 'm-valor': '12' });
 await click({ act: 'add-med' });
 const st = await call('cad', 'GET', 'state');
-ok(
-  st.risks.find(r => r.id === 'R-001').prr.medicoes.length === 2,
-  'medição registrada pela tela chega ao banco',
-);
+ok(st.risks.find(r => r.id === R1).prr.medicoes.length === 2, 'medição registrada pela tela chega ao banco');
 // Quadro: o gestor delega o risco a um cadastrador pela tela; o cabeçalho mostra a coordenadoria
 await call('adm', 'POST', 'units/nome', { sigla: 'Cosegi', nome: 'Nome por extenso de teste' });
 await click({ act: 'logout' });
@@ -335,10 +363,10 @@ ok(
   html().includes('Elaborar o PRR') && html().includes('data-act="deleg-ask"') && !bad(),
   'gestor vê o quadro com o botão Delegar',
 );
-await click({ act: 'deleg-ask', id: 'R-001' });
+await click({ act: 'deleg-ask', id: R1 });
 const cadTeam = (await call('ges', 'GET', 'state')).team.find(t => t.nome === 'cad.cosegi');
 setVals({ 'dg-para': cadTeam.id, 'dg-nota': 'Resolver a medição crítica' });
-await click({ act: 'deleg-save', id: 'R-001' });
+await click({ act: 'deleg-save', id: R1 });
 ok(
   html().includes('delegado por ges.cosegi') && html().includes('Resolver a medição crítica'),
   'delegação feita pela tela aparece no cartão',
@@ -362,6 +390,17 @@ for (const [v, t] of [
 await click({ act: 'per-tipo', v: 'ano' });
 await click({ act: 'per-off', v: '-1' });
 ok(html().includes(String(new Date().getFullYear() - 1)) && !bad(), 'relatório do ano anterior pela seta');
+// Duas recomendações da CSGR seguidas: as duas aparecem nos Alertas da coordenadoria (não só a mais recente).
+for (const texto of ['Primeira recomendação da CSGR.', 'Segunda recomendação da CSGR.'])
+  await call('altagestao', 'POST', 'recs', { action: 'recomendar', unit: 'Cosegi', texto });
+await click({ act: 'logout' });
+setVals({ 'a-user': 'ges.cosegi', 'a-pw': 'senha-forte-2' });
+await submit('auth-form');
+await click({ nav: 'alertas' });
+ok(
+  html().includes('Primeira recomendação da CSGR') && html().includes('Segunda recomendação da CSGR'),
+  'duas recomendações seguidas aparecem nos Alertas',
+);
 await click({ act: 'logout' });
 setVals({ 'a-user': 'cad.cosegi', 'a-pw': 'errada' });
 await submit('auth-form');
