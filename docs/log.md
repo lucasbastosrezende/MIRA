@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 210 verificações, todas passando |
+| API | 212 verificações, todas passando |
 | Interface (smoke) | 67 verificações, incluindo o perfil ASCF e a tela MGR, todas passando, incluindo a tela Problemas em cada perfil, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
@@ -254,7 +254,8 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 ### 34. Gestor aprova o que está dentro da alçada
 - **Pedido:** só os PRRs acima da alçada do gestor sobem à CSGR (decisão do usuário).
 - **Feito:** dentro da alçada que a CSGR definiu para a coordenadoria, o gestor aprova o PRR com parecer obrigatório e o monitoramento começa; o cadastrador e a CSGR são avisados. Acima da alçada, ou sem alçada definida, o PRR sobe à CSGR como antes (`dentroAlcada` em `lib/logic.js`, usada em `encaminhaAlta`). Na tela, o gestor vê "Dentro da sua alçada" e o botão "Aprovar o PRR".
-- **Conferido:** 2 verificações novas na API (sem parecer é recusado; com parecer aprova e avisa a CSGR). No navegador, a 390 px no tema escuro e no computador no tema claro: aviso, botão, recusa sem parecer, aprovação com parecer e aviso à CSGR, sem rolagem lateral.
+- **Achado na verificação:** o gestor que envia o próprio PRR dentro da alçada recebia o pedido de parecer, mas o formulário do PRR não tinha onde escrever; ficaria travado. O formulário ganhou o campo de parecer e o botão "Aprovar o PRR" nesse caso.
+- **Conferido:** 4 verificações novas na API (sem parecer é recusado e com parecer aprova, na validação e no envio pelo próprio gestor; a CSGR é avisada). No navegador, a 390 px no tema escuro e no computador no tema claro: aviso, botão, recusa sem parecer, aprovação com parecer e aviso à CSGR, sem rolagem lateral.
 
 ## Visual
 

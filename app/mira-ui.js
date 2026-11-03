@@ -2999,10 +2999,20 @@ export function mountMira(root) {
       '</div>' +
       faq(['metrica', 'parametros', 'residual', 'contingencia', 'criterios', 'responsavel']) +
       '</aside></div>' +
+      // Gestor que envia um PRR dentro da alçada já o aprova: o parecer é obrigatório (mesma regra do servidor).
+      (u.papel === 'gestor' && MIRA.dentroAlcada(S.config, r)
+        ? '<div class="info-box" style="margin-top:10px">' +
+          toneTag('ok', 'Dentro da sua alçada') +
+          ' Ao enviar, você aprova este PRR sem passar pela Alta Gestão de Riscos, que é avisada.' +
+          ajuda('alcada') +
+          '</div><div class="field"><label for="prr-parecer">Parecer (obrigatório para aprovar)</label><textarea id="prr-parecer" rows="3"></textarea></div>'
+        : '') +
       '<div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">' +
-      // O gestor que envia já valida: o PRR vai direto à Alta Gestão (mesma regra do servidor).
+      // O gestor que envia já valida: o PRR vai direto à Alta Gestão, ou é aprovado se está dentro da alçada.
       (u.papel === 'gestor'
-        ? 'Validar e enviar à Alta Gestão de Riscos'
+        ? MIRA.dentroAlcada(S.config, r)
+          ? 'Aprovar o PRR'
+          : 'Validar e enviar à Alta Gestão de Riscos'
         : 'Enviar para validação do gestor') +
       '</button></div>';
     const ro =
@@ -6629,16 +6639,18 @@ export function mountMira(root) {
           break;
         }
         try {
-          await act2('send-prr');
+          await act2('send-prr', { motivo: val('prr-parecer').trim() });
         } catch (e) {
           showPrrErrors((e.data && e.data.errors) || [e.message]);
           break;
         }
         await refresh(true);
         toast(
-          u.papel === 'gestor'
-            ? 'PRR validado e enviado à Alta Gestão de Riscos.'
-            : 'PRR enviado ao gestor da ' + r.unit + '.',
+          u.papel !== 'gestor'
+            ? 'PRR enviado ao gestor da ' + r.unit + '.'
+            : rk(r.id) && rk(r.id).status === 'em_tratamento'
+              ? 'PRR aprovado dentro da sua alçada. A Alta Gestão de Riscos foi avisada.'
+              : 'PRR validado e enviado à Alta Gestão de Riscos.',
         );
         break;
       }

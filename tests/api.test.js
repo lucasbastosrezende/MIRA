@@ -866,6 +866,28 @@ const R1 = 'R-0001' + FIM_ID;
       st.alerts.some(a => a.tipo === 'aprovado' && a.riskId === ral),
     'dentro da alçada o gestor aprova e a CSGR é avisada',
   );
+  // O gestor que envia o próprio PRR dentro da alçada também aprova, e também precisa do parecer
+  r = await call('ges', 'POST', 'risks', {
+    titulo: 'Impressora da recepção parada',
+    causa: 'peça desgastada na impressora',
+    evento: 'parada da impressora da recepção',
+    impacto: 'atraso na entrega de documentos',
+    objetivo: 'manter o atendimento da recepção',
+  });
+  const rge = r.risk.id;
+  await call('ges', 'POST', 'risks/' + rge + '/aval', {
+    prob: 2,
+    imp: 2,
+    controles: 'Nenhum',
+    linhaTempo: 'últimos 12 meses',
+  });
+  await call('ges', 'POST', 'risks/' + rge + '/prr', {
+    prr: { ...prr, probRes: 1, impRes: 2, responsavelId: cadCosegi.id },
+  });
+  r = await call('ges', 'POST', 'risks/' + rge + '/action', { action: 'send-prr' });
+  ok(r.s === 422 && /parecer/.test(r.error || ''), 'gestor que envia dentro da alçada precisa do parecer');
+  r = await call('ges', 'POST', 'risks/' + rge + '/action', { action: 'send-prr', motivo: 'Troca simples.' });
+  ok(r.s === 200 && r.risk.status === 'em_tratamento', 'gestor que envia dentro da alçada aprova');
   // Problemas: o que já está acontecendo, com o plano de agora, ligado ao risco que ocorreu
   r = await call('altagestao', 'POST', 'risks/' + rap + '/action', {
     action: 'altagestao-ok',
