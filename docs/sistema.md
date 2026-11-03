@@ -19,8 +19,10 @@ As coordenadorias não vêm prontas: o administrador cria cada uma na hora, com 
 | Administrador · implantação | Conta criada na implantação, no servidor (`npm run admin -- <usuario>`). Cria e renomeia as coordenadorias e é o único que cadastra pessoas, sempre com o relatório de pedido (SEI ou pedido formal, com número SEI e data). Redefine senhas, desativa e apaga contas; a conta dele não pode ser apagada. Não tem coordenadoria e não vê riscos; no histórico vê só o que ele fez. |
 | Cadastrador(a) | Registra e edita os riscos da própria coordenadoria, elabora o PRR, registra medições, reavalia o nível e informa quando o evento ocorreu. |
 | Gestor(a) de riscos | Titular (supervisor) da coordenadoria. Valida o PRR e o encaminha à Alta Gestão de Riscos, ou devolve com motivo. Delega no Quadro quem resolve cada risco. Também pode fazer o que o cadastrador faz na própria coordenadoria: cadastrar riscos, editar o contexto e acompanhar o tratamento. Encerra riscos. |
-| Alta Gestão de Riscos | Aprova ou devolve PRRs e gera o relatório anual. Vê todas as coordenadorias. No código e no banco, o perfil é `altagestao` (antes se chamava CSGR; bancos antigos são migrados sozinhos). |
-| CGGE | Só consulta, em todas as coordenadorias. |
+| Alta Gestão de Riscos | É a CSGR. Aprova ou devolve PRRs, registra as decisões da CSGR, orienta nos problemas, emite recomendações às coordenadorias (tela Decisões; o gestor responde no Contexto) e responde às propostas de ajuste ao MGR da ASCF, sempre com parecer. Gera o relatório. Vê todas as coordenadorias. No código e no banco, o perfil é `altagestao` (antes se chamava CSGR; bancos antigos são migrados sozinhos). |
+| Empresa terceirizada | Contratada por uma coordenadoria. Acompanha os riscos dela sem editar. Quando é a responsável pela ação de um PRR, informa a execução: registra as medições e marca a ação como concluída (não reavalia o nível). |
+| CGGE | Só consulta, em todas as coordenadorias. Acompanha as propostas de ajuste ao MGR. |
+| ASCF · Assessoria de Conformidade | Elabora o MGR em articulação com a CSGR (tela MGR): propõe ajustes, corrige e reenvia o que a CSGR pedir e registra a versão em vigor. Sem coordenadoria: consulta riscos, problemas, painéis, histórico, relatório e decisões de todas, sem cadastrar nem aprovar. |
 
 Quem é de uma coordenadoria não enxerga nem acessa por endereço os riscos de outra. A regra é conferida no servidor, não só escondida na tela.
 
@@ -102,14 +104,15 @@ Todos os perfis alternam entre os dois painéis. Alta Gestão de Riscos e CGGE a
 
 | Tela | Para quê | Quem vê |
 |---|---|---|
-| Riscos | Lista com pesquisa (código, título, causa, evento, impacto ou quem abriu; acentos não importam) e filtros por coordenadoria, nível e situação; menu Baixar com Excel e os CSVs | Todos |
+| Riscos | Lista com pesquisa (código, título, causa, evento, impacto ou quem abriu; acentos não importam; o código aceita `R-0001-10-2026`, `R-0001/10/2026` ou só `10/2026`) e filtros por coordenadoria, nível e situação; menu Baixar com Excel e os CSVs | Todos |
+| Problemas | O que já está acontecendo (não é risco, pelo MGR), com o plano de agora: o que fazer, responsável e prazo para resolver. Ver a seção "Problemas" | Todos menos o administrador; registra e conduz o cadastrador ou o gestor da coordenadoria; a Alta Gestão de Riscos orienta |
 | Quadro | Colunas pelas etapas do processo (identificar e avaliar, elaborar o PRR, em validação, em tratamento, evento ocorreu, encerrado), com quem resolve cada risco e filtro por responsável. O gestor da coordenadoria delega a um cadastrador ou a si mesmo, com uma observação; a delegação vai para o histórico e gera um aviso | Todos menos o administrador; delega o gestor |
 | Matriz | Matriz 5 × 5 com a distribuição por nível e a lista da célula escolhida | Todos |
 | Pendências | O que depende do perfil: rascunhos e devoluções (cadastrador), validações (gestor), aprovações com custo e retorno (Alta Gestão de Riscos) | Todos, menos CGGE |
 | Contexto | Fase 1 da coordenadoria; abre pelo botão Contexto na aba Riscos. É o primeiro passo do Novo risco enquanto a coordenadoria não tem contexto salvo; depois disso, o Novo risco abre direto na identificação e o contexto continua na fase 1 | Todos; edita o cadastrador |
 | Histórico | Linha do tempo de todas as alterações, com valor anterior e novo. Pesquisa por data (de / até): o período é buscado no servidor, inteiro, e não só entre os registros mais recentes. A mesma pesquisa existe no histórico de cada risco | Todos, filtrado pela coordenadoria |
 | Alertas | Avisos do momento e avisos guardados | Todos |
-| Relatório | Relatório da Alta Gestão de Riscos por período: semanal, mensal (o padrão), semestral ou anual, com setas para os períodos anteriores. Mostra o que aconteceu no período (riscos cadastrados, PRRs aprovados e devolvidos, investimento aprovado, medições, eventos e encerramentos, pelas datas guardadas em cada risco) e a situação de hoje. Lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, Alta Gestão de Riscos e CGGE |
+| Relatório | Relatório da Alta Gestão de Riscos por período: semanal, mensal (o padrão), semestral ou anual, com setas para os períodos anteriores. Mostra o que aconteceu no período (riscos cadastrados, PRRs aprovados e devolvidos, investimento aprovado, medições, eventos e encerramentos, pelas datas guardadas em cada risco), os problemas registrados e resolvidos no período e a situação de hoje. Lido na tela em Markdown e baixado em .md, .txt, CSV ou Excel | Gestor, Alta Gestão de Riscos e CGGE |
 | Usuários | Cadastro de pessoas com o relatório de pedido (SEI ou pedido formal, número SEI, data e PDF), registro de pedido de quem já tem conta, busca por nome ou número SEI, download do PDF e do relatório de pedido (.md ou .txt), redefinição de senha, desativação, exclusão e cobertura de cada coordenadoria | Administrador |
 | Coordenadorias | Criação das coordenadorias, edição do nome por extenso e remoção enquanto não têm pessoas, riscos nem contexto | Administrador |
 
@@ -119,11 +122,35 @@ Quem é de uma coordenadoria vê no cabeçalho a sigla em maiúsculas e o nome p
 
 ## Facilidades de uso
 
+- **Número do risco com mês e ano:** cada risco novo recebe `R-` + 4 dígitos + mês + ano do cadastro (ex.: `R-0001-10-2026`), no horário de Brasília (`MIRA_TZ` muda o fuso). Os 4 dígitos recomeçam a cada mês, até 9.999 por mês. Os riscos cadastrados antes desse formato mantêm o número antigo (`R-001`), porque o histórico nunca é reescrito.
 - **Nada digitado se perde sem aviso:** quem digitou algo e tenta sair da tela antes de salvar (outro menu, outra aba do risco, outro risco, Configurações ou Sair) recebe uma pergunta; "Cancelar" mantém tudo como estava. Fechar ou recarregar a página também pergunta. Filtros e pesquisas não contam como algo a salvar.
 - **O que falta para enviar o PRR:** o resumo ao lado do PRR lista, enquanto se preenche, o que ainda impede o envio, pela mesma regra do servidor. Cada item leva ao campo. Com tudo preenchido, aparece "Pronto para enviar ao gestor".
 - **Encolher blocos:** cada bloco com título tem o botão "Encolher / Mostrar". Encolher só esconde o conteúdo (o que foi digitado continua no lugar) e a escolha fica guardada no navegador de quem usa.
 - **Erro repetido:** se o mesmo erro aparece duas vezes seguidas, a tela vai até o campo que falta e o destaca.
 - **Celular:** o menu quebra em linhas para Pendências e Alertas ficarem sempre à vista; na matriz, cada célula mostra só a contagem (o nível fica na dica).
+
+## Problemas: o que já está acontecendo
+
+Pelo MGR, risco é um evento futuro e incerto. O que já está acontecendo é **problema**: não entra na matriz nem no PRR, mas também não fica sem caminho. A tela **Problemas** registra cada um com o número `P-0001-10-2026` (mesma regra do número do risco) e o **plano de agora**.
+
+- **Registrar:** cadastrador ou gestor da coordenadoria, sem depender do contexto (o problema não espera). Campos: título, o que está acontecendo, o que está sendo afetado, desde quando (não pode ser no futuro) e o plano de agora: o que fazer, responsável (pessoa ativa da coordenadoria, inclusive empresa terceirizada) e prazo para resolver. Quem registra já define responsável e prazo.
+- **Aviso na hora:** cadastrador, gestor e Alta Gestão de Riscos recebem o aviso, e o problema fica em "Exigem ação agora" (com "Estou ciente") até ser resolvido.
+- **Risco que já ocorreu:** o problema pode ser ligado a um risco já cadastrado da coordenadoria. Se o risco estava em tratamento, passa para "Evento ocorreu" e o que o PRR manda fazer nesse caso aparece no plano. No risco que já está em "Evento ocorreu", o botão "Registrar o problema e o plano de agora" abre o registro já ligado.
+- **Texto que descreve um problema:** no risco novo, o aviso "isso é um problema, não um risco" (e o do assistente de IA) traz o botão "Registrar como problema", que leva o texto para o registro.
+- **Andamento:** a coordenadoria registra o que já foi feito; a Alta Gestão de Riscos escreve orientações, que chegam como aviso à coordenadoria.
+- **Mudar o plano, resolver e reabrir:** pela coordenadoria. Resolver pede o que resolveu; reabrir pede o motivo e avisa de novo.
+- **Para não voltar a acontecer:** "Cadastrar risco a partir do problema" abre o risco novo ligado ao problema; ele segue as 5 fases do MGR.
+- Tudo vai para o histórico, e o relatório da Alta Gestão traz os problemas do período.
+
+## MGR: versão em vigor e ajustes (ASCF e CSGR)
+
+A ASCF elabora o Modelo de Gestão de Riscos em articulação com a CSGR. A tela **MGR** (ASCF, Alta Gestão de Riscos e CGGE) mostra:
+
+- **Versão em vigor:** a última registrada pela ASCF (versão, data de aprovação, documento e o que mudou), com as anteriores. Sem registro, vale o MGR v1.0, que é o que o sistema aplica.
+- **Propostas de ajuste:** a ASCF propõe (título, o que muda, por quê e onde no MGR). A CSGR responde "de acordo" ou "pedir ajuste", sempre com parecer; o que volta para ajuste a ASCF corrige e reenvia. Cada passo gera aviso para quem responde e vai para o histórico.
+- **Regras do MGR v1.0 aplicadas pelo sistema**, com a página do MGR, para conferir a conformidade.
+
+As regras ficam no código: uma versão nova do MGR que mude uma regra também pede mudança no sistema.
 
 ## Decisões da CSGR
 
@@ -180,7 +207,7 @@ lib/logic.js: regras do MGR usadas tanto no servidor quanto no navegador
 
 - **Next.js 15 (App Router) e React 19**, com Node 22.13 ou mais novo. O banco é o `node:sqlite`, que já vem no Node, sem dependências extras.
 - **Interface:** `mira-ui.js` monta todas as telas como HTML e conversa só com a API. O mesmo arquivo de regras (`logic.js`) decide no navegador o que mostrar e no servidor o que permitir.
-- **Banco:** um arquivo `./data/mira.db` (a pasta muda com `MIRA_DATA_DIR`). As tabelas são `users`, `sessions`, `risks` (cada risco em JSON), `audit`, `alerts` , `ctx` (contexto por coordenadoria), `units` (coordenadorias criadas) e `user_docs` (relatório de pedido de cada cadastro: tipo, documento, número SEI, data e o PDF quando houver, indexado pelo número SEI). O backup é a cópia desse arquivo.
+- **Banco:** um arquivo `./data/mira.db` (a pasta muda com `MIRA_DATA_DIR`). As tabelas são `users`, `sessions`, `risks` (cada risco em JSON), `audit`, `alerts` , `ctx` (contexto por coordenadoria), `units` (coordenadorias criadas), `config` (decisões da CSGR), `problemas` (cada problema em JSON; a tabela `config` guarda também as versões e propostas do MGR, na chave `mgr`) e `user_docs` (relatório de pedido de cada cadastro: tipo, documento, número SEI, data e o PDF quando houver, indexado pelo número SEI). O backup é a cópia desse arquivo.
 - **Começa vazio:** sem pessoas, sem coordenadorias e sem dados de exemplo. A conta do administrador é criada na implantação com `npm run admin -- <usuario>`; não existe rota da API que crie conta sem login. Num banco anterior a este perfil, as coordenadorias que já têm dados entram na lista e as pessoas continuam entrando; basta criar o administrador com o mesmo comando.
 - **Conta só pelo usuário:** não há campo de nome. O usuário de acesso é o que aparece nas telas e na trilha de auditoria.
 

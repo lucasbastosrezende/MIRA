@@ -14,11 +14,12 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 153 verificações, todas passando |
-| Interface (smoke) | 53 verificações, todas passando, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
+| API | 208 verificações, todas passando |
+| Interface (smoke) | 67 verificações, incluindo o perfil ASCF e a tela MGR, todas passando, incluindo a tela Problemas em cada perfil, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
 | Navegador (roteiro de UX) | 9 de 9 cenários das melhorias de uso, fora do repositório (ver item 21) |
+| Navegador (problemas) | 27 de 27 conferências da tela Problemas, fora do repositório (ver item 30) |
 | Visual | capturas no computador e a 390 px, temas claro e escuro, sem rolagem lateral e sem erro na página |
 
 ## Problemas encontrados e como foram resolvidos
@@ -222,6 +223,34 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Feito:** título, coluna, botão, aviso, explicação do "?" e a mensagem do servidor quando um PRR com "Aceitar" passa do limite. No histórico, as decisões da CSGR saíam com a chave interna ("…: apetite") e valores em JSON; agora saem com o nome e os valores por extenso. Registros antigos do histórico não são reescritos.
 - **Conferido:** teste de API ajustado ao nome novo e um teste novo de valores sem JSON (153 verificações). No navegador: título, botão "Registrar limite", aviso e as três decisões legíveis no histórico.
 
+### 29. Número do risco com 4 dígitos, mês e ano
+- **Pedido:** número do risco com 4 dígitos, mês e ano.
+- **Decisão do usuário:** `R-0001-10-2026`, com hífen, e os 4 dígitos recomeçando a cada mês.
+- **Feito:** o mês e o ano são os do cadastro, no horário de Brasília (`MIRA_TZ` muda o fuso). Os riscos já cadastrados mantêm o número antigo (`R-001`), porque o histórico nunca é reescrito; as rotas e as chaves do "Estou ciente" aceitam os dois formatos. A pesquisa da lista acha o número escrito com hífen, barra ou ponto. Nas tabelas, o número fica numa linha só (no celular quebrava nos hífens).
+- **Conferido:** testes de API do primeiro e do segundo risco do mês e de um risco de número antigo, que continua editável e não entra na contagem.
+
+### 30. Problemas: o que já está acontecendo
+- **Pedido:** um plano para os problemas que estão acontecendo agora.
+- **Decisão do usuário:** registrar o problema com o plano e também ligá-lo ao risco que já ocorreu.
+- **Feito:** tela Problemas (ver `docs/sistema.md`, seção "Problemas"), tabela `problemas`, rotas `POST /api/problemas` e `POST /api/problemas/<número>/action` (andamento, plano, resolver, reabrir, ciente). O risco em tratamento ligado ao problema passa para "Evento ocorreu". O aviso "isso é um problema" do risco novo leva o texto para o registro. Depois de resolvido, o problema vira risco novo para não voltar a acontecer. Relatório com a seção 8.
+- **Conferido:** 21 verificações novas na API (permissões, campos obrigatórios, data no futuro, responsável de fora, ligação com o risco, outra coordenadoria, orientação, ciência sem repetir, resolver, reabrir, risco a partir do problema). No navegador, com banco limpo: registro pela tela, alerta e "Estou ciente", orientação da Alta Gestão, resolver, risco a partir do problema, texto que vira problema, risco em tratamento cujo evento ocorreu, relatório e histórico; a 390 px nos temas claro e escuro, sem rolagem lateral e sem erro na página.
+
+### 31. Tabela nova sem reiniciar o servidor
+- **Achado:** o servidor guarda o banco aberto na memória. Com o código novo recarregado sem reinício (Next em modo de desenvolvimento), as tabelas e colunas novas (`config`, `users.pode_definir`, `problemas`) só eram criadas depois de reiniciar, e até lá as telas quebravam.
+- **Feito:** `lib/db.js` marca a versão do esquema (`ESQUEMA`). Se o código traz uma versão mais nova, a conexão já aberta recebe o que falta; as criações já podiam rodar de novo sem efeito.
+- **Conferido:** teste de API que tira a tabela de um banco já aberto e confere que ela volta. Na 3100, sem reiniciar, o banco ganhou `problemas`, `config` e `pode_definir`, só com uma chamada sem login.
+
+### 32. Perfil ASCF e tela MGR
+- **Pedido:** fazer o papel da ASCF (Assessoria de Conformidade), que elabora o MGR em articulação com a CSGR.
+- **Feito:** perfil `ascf`, cadastrado pelo administrador, sem coordenadoria. Consulta tudo como o CGGE e não cadastra nem aprova. Tela MGR: versão em vigor, propostas de ajuste (a ASCF propõe, a CSGR responde com parecer, a ASCF corrige e reenvia) e as regras do MGR v1.0 aplicadas pelo sistema, com a página. Os perfis sem coordenadoria (CSGR, CGGE e ASCF) passaram a sair de uma regra só (`geral` em `lib/logic.js`).
+- **Conferido:** 20 verificações novas na API (permissões, parecer obrigatório, reenvio, versão no futuro ou repetida, avisos, histórico, cadastrador sem acesso). No navegador: conta criada pelo administrador, proposta, pedido de ajuste da CSGR, aviso que abre a tela MGR, reenvio e versão registrada; a 390 px nos temas claro e escuro, sem rolagem lateral e sem erro.
+
+### 33. Empresa terceirizada informa a execução e recomendações da CSGR
+- **Origem:** comparação dos papéis do texto de governança com o MIRA. O responsável designado no PRR "executa as ações e fornece informações sobre a execução"; a CSGR "orienta e emite recomendações".
+- **Feito:** a empresa terceirizada que é a responsável pela ação de um PRR registra medições e conclui a ação (regra `canExec` em `lib/logic.js`); não reavalia, não informa evento e não reabre o PRR. A Alta Gestão de Riscos emite recomendação para uma coordenadoria ou para todas, na tela Decisões; a coordenadoria recebe o aviso e vê no Contexto, e o gestor responde uma vez. Tudo no histórico.
+- **Achado no caminho:** a tabela do cronograma no Contexto passava 3 px da tela a 390 px (já acontecia antes); passou a rolar dentro da própria área.
+- **Conferido:** 10 verificações novas na API. No navegador: recomendação emitida, aviso que abre o Contexto, resposta do gestor que aparece em Decisões, a 390 px sem rolagem lateral. A execução pela empresa foi conferida só na API.
+
 ## Visual
 
 - Cores, fontes (Sora nos títulos, IBM Plex Sans no texto), cantos e pesos seguem o canvas aprovado pelo usuário ("MIRA · cores e tipografia").
@@ -230,6 +259,5 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 
 ## Pendências
 
-- Reiniciar a 3100 para a coluna `users.pode_definir` (item 10).
 - Criar a conta de demonstração `empresateste` na 3100 depois que o usuário confirmar que o fluxo funciona.
 - Passar outras peças repetidas para componentes React aos poucos (cartão, indicador, célula da matriz).
