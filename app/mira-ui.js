@@ -2307,14 +2307,25 @@ export function mountMira(root) {
   function prrActions(u, r) {
     const mot =
       '<div class="field"><label for="ap-motivo">Observação (obrigatória para devolver)</label><textarea id="ap-motivo" rows="3"></textarea></div>';
-    if (canGes(u, r))
+    // Dentro da alçada que a CSGR definiu, o gestor aprova sozinho e o parecer é obrigatório (MGR p. 8 e 21).
+    if (canGes(u, r)) {
+      const dentro = MIRA.dentroAlcada(S.config, r);
       return (
         '<div class="fs"><h4>Responsável, prazo e custo</h4>' +
         respCampos('g', r, r.prr || {}) +
         '</div>' +
-        mot +
-        '<div class="actions"><button class="btn primary" data-act="gestor-ok">Validar e encaminhar à Alta Gestão</button><button class="btn danger" data-act="gestor-dev">Devolver ao cadastrador</button></div>'
+        (dentro
+          ? '<div class="info-box" style="margin-bottom:10px">' +
+            toneTag('ok', 'Dentro da sua alçada') +
+            ' Você aprova este PRR sem passar pela Alta Gestão de Riscos, que é avisada.' +
+            ajuda('alcada') +
+            '</div><div class="field"><label for="ap-motivo">Parecer (obrigatório para aprovar)</label><textarea id="ap-motivo" rows="3"></textarea></div>'
+          : mot) +
+        '<div class="actions"><button class="btn primary" data-act="gestor-ok">' +
+        (dentro ? 'Aprovar o PRR' : 'Validar e encaminhar à Alta Gestão') +
+        '</button><button class="btn danger" data-act="gestor-dev">Devolver ao cadastrador</button></div>'
       );
+    }
     // Regra do MGR (p. 21): a CSGR emite parecer favorável ou não, por isso o campo é obrigatório para ela.
     if (canAlta(u, r))
       return (
@@ -2753,15 +2764,15 @@ export function mountMira(root) {
     ],
     alcada: [
       'O que é a alçada do gestor?',
-      'É o limite até onde o supervisor (gestor) da coordenadoria pode decidir sozinho. O que passa desse limite é submetido à instância superior, a Alta Gestão / CSGR (MGR p. 8). No MIRA, todo PRR continua passando pela Alta Gestão (MGR p. 21); o que passa do limite chega marcado como "acima da alçada do gestor" e vai para o topo da fila.',
+      'É o limite até onde o supervisor (gestor) da coordenadoria pode decidir sozinho. O que passa desse limite é submetido à instância superior, a Alta Gestão / CSGR (MGR p. 8). No MIRA, o gestor aprova sozinho, com parecer, o PRR que está dentro da alçada, e a Alta Gestão é avisada; o que passa do limite sobe à Alta Gestão marcado como "acima da alçada do gestor". Sem alçada definida para a coordenadoria, todo PRR sobe à Alta Gestão.',
     ],
     nivelMax: [
       'O que é o nível máximo da alçada?',
-      'O maior nível de risco (probabilidade × impacto, de 1 a 25) que o gestor valida sem marca. Ex.: com "até 9 · Médio", um PRR de risco nível 12 chega à Alta Gestão marcado. "Sem limite" = nenhum PRR é marcado pelo nível.',
+      'O maior nível de risco (probabilidade × impacto, de 1 a 25) que o gestor aprova sozinho. Ex.: com "até 9 · Médio", um PRR de risco nível 12 sobe à Alta Gestão. "Sem limite" = o nível não faz o PRR subir.',
     ],
     exposicaoMax: [
       'O que é a exposição máxima da alçada?',
-      'O maior valor em reais em risco (exposição esperada) que o gestor valida sem marca. Ex.: com "até R$ 500.000", um risco com exposição de R$ 800.000 chega à Alta Gestão marcado. Vazio = sem limite.',
+      'O maior valor em reais em risco (exposição esperada) que o gestor aprova sozinho. Ex.: com "até R$ 500.000", um risco com exposição de R$ 800.000 sobe à Alta Gestão. Vazio = sem limite.',
     ],
     priorizacao: [
       'O que é a priorização?',
@@ -2988,10 +2999,20 @@ export function mountMira(root) {
       '</div>' +
       faq(['metrica', 'parametros', 'residual', 'contingencia', 'criterios', 'responsavel']) +
       '</aside></div>' +
+      // Gestor que envia um PRR dentro da alçada já o aprova: o parecer é obrigatório (mesma regra do servidor).
+      (u.papel === 'gestor' && MIRA.dentroAlcada(S.config, r)
+        ? '<div class="info-box" style="margin-top:10px">' +
+          toneTag('ok', 'Dentro da sua alçada') +
+          ' Ao enviar, você aprova este PRR sem passar pela Alta Gestão de Riscos, que é avisada.' +
+          ajuda('alcada') +
+          '</div><div class="field"><label for="prr-parecer">Parecer (obrigatório para aprovar)</label><textarea id="prr-parecer" rows="3"></textarea></div>'
+        : '') +
       '<div id="p-err"></div><div class="actions"><button class="btn" data-act="save-prr">Salvar rascunho</button><button class="btn primary" data-act="send-prr">' +
-      // O gestor que envia já valida: o PRR vai direto à Alta Gestão (mesma regra do servidor).
+      // O gestor que envia já valida: o PRR vai direto à Alta Gestão, ou é aprovado se está dentro da alçada.
       (u.papel === 'gestor'
-        ? 'Validar e enviar à Alta Gestão de Riscos'
+        ? MIRA.dentroAlcada(S.config, r)
+          ? 'Aprovar o PRR'
+          : 'Validar e enviar à Alta Gestão de Riscos'
         : 'Enviar para validação do gestor') +
       '</button></div>';
     const ro =
@@ -3022,7 +3043,9 @@ export function mountMira(root) {
     const decide =
       '<div class="card decide"><div class="card-h"><div><h3>Decisão do PRR</h3><p>' +
       (canGes(u, r)
-        ? 'Valide e encaminhe à Alta Gestão de Riscos, ou devolva com o motivo.'
+        ? MIRA.dentroAlcada(S.config, r)
+          ? 'Dentro da sua alçada: aprove com parecer, ou devolva com o motivo.'
+          : 'Valide e encaminhe à Alta Gestão de Riscos, ou devolva com o motivo.'
         : 'Aprove para iniciar o monitoramento, ou devolva com o motivo.') +
       '</p></div>' +
       stat +
@@ -5245,7 +5268,7 @@ export function mountMira(root) {
       '</div><div class="card">' +
       cardH(
         'Alçada do gestor' + ajuda('alcada'),
-        'Acima destes limites, o PRR chega à CSGR marcado como fora da alçada do gestor (MGR p. 8). ' +
+        'Até estes limites, o gestor aprova o PRR sozinho, com parecer; acima deles, o PRR sobe à CSGR (MGR p. 8). Coordenadoria sem limite: todo PRR sobe. ' +
           quemDecidiu(c.alcada),
       ) +
       ajudaTxt('alcada') +
@@ -6616,16 +6639,18 @@ export function mountMira(root) {
           break;
         }
         try {
-          await act2('send-prr');
+          await act2('send-prr', { motivo: val('prr-parecer').trim() });
         } catch (e) {
           showPrrErrors((e.data && e.data.errors) || [e.message]);
           break;
         }
         await refresh(true);
         toast(
-          u.papel === 'gestor'
-            ? 'PRR validado e enviado à Alta Gestão de Riscos.'
-            : 'PRR enviado ao gestor da ' + r.unit + '.',
+          u.papel !== 'gestor'
+            ? 'PRR enviado ao gestor da ' + r.unit + '.'
+            : rk(r.id) && rk(r.id).status === 'em_tratamento'
+              ? 'PRR aprovado dentro da sua alçada. A Alta Gestão de Riscos foi avisada.'
+              : 'PRR validado e enviado à Alta Gestão de Riscos.',
         );
         break;
       }
@@ -6638,7 +6663,11 @@ export function mountMira(root) {
           custo: parseBRL(val('g-custo')) || 0,
         });
         await refresh(true);
-        toast('PRR encaminhado à Alta Gestão de Riscos.');
+        toast(
+          rk(UI.rid) && rk(UI.rid).status === 'em_tratamento'
+            ? 'PRR aprovado dentro da sua alçada. A Alta Gestão de Riscos foi avisada.'
+            : 'PRR encaminhado à Alta Gestão de Riscos.',
+        );
         break;
       case 'altagestao-ok':
         await act2('altagestao-ok', { motivo: val('ap-motivo') });
