@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 208 verificações, todas passando |
+| API | 212 verificações, todas passando |
 | Interface (smoke) | 67 verificações, incluindo o perfil ASCF e a tela MGR, todas passando, incluindo a tela Problemas em cada perfil, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
@@ -250,6 +250,12 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Feito:** a empresa terceirizada que é a responsável pela ação de um PRR registra medições e conclui a ação (regra `canExec` em `lib/logic.js`); não reavalia, não informa evento e não reabre o PRR. A Alta Gestão de Riscos emite recomendação para uma coordenadoria ou para todas, na tela Decisões; a coordenadoria recebe o aviso e vê no Contexto, e o gestor responde uma vez. Tudo no histórico.
 - **Achado no caminho:** a tabela do cronograma no Contexto passava 3 px da tela a 390 px (já acontecia antes); passou a rolar dentro da própria área.
 - **Conferido:** 10 verificações novas na API. No navegador: recomendação emitida, aviso que abre o Contexto, resposta do gestor que aparece em Decisões, a 390 px sem rolagem lateral. A execução pela empresa foi conferida só na API.
+
+### 34. Gestor aprova o que está dentro da alçada
+- **Pedido:** só os PRRs acima da alçada do gestor sobem à CSGR (decisão do usuário).
+- **Feito:** dentro da alçada que a CSGR definiu para a coordenadoria, o gestor aprova o PRR com parecer obrigatório e o monitoramento começa; o cadastrador e a CSGR são avisados. Acima da alçada, ou sem alçada definida, o PRR sobe à CSGR como antes (`dentroAlcada` em `lib/logic.js`, usada em `encaminhaAlta`). Na tela, o gestor vê "Dentro da sua alçada" e o botão "Aprovar o PRR".
+- **Achado na verificação:** o gestor que envia o próprio PRR dentro da alçada recebia o pedido de parecer, mas o formulário do PRR não tinha onde escrever; ficaria travado. O formulário ganhou o campo de parecer e o botão "Aprovar o PRR" nesse caso.
+- **Conferido:** 4 verificações novas na API (sem parecer é recusado e com parecer aprova, na validação e no envio pelo próprio gestor; a CSGR é avisada). No navegador, a 390 px no tema escuro e no computador no tema claro: aviso, botão, recusa sem parecer, aprovação com parecer e aviso à CSGR, sem rolagem lateral.
 
 ## Visual
 

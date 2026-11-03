@@ -162,7 +162,7 @@ Tela **Decisões** (a Alta Gestão registra; o CGGE consulta). Cada termo tem um
 - **Limite por coordenadoria:** pode ser definido para cada coordenadoria e vale sobre o geral.
 
 No histórico, cada decisão aparece com o nome legível e os valores por extenso (por exemplo, "Cosegi: até nível 5, até R$ 500.000,00").
-- **Alçada do gestor:** nível e exposição máximos por coordenadoria; o PRR acima deles chega à CSGR marcado como fora da alçada do gestor e no topo da fila (MGR p. 8). Todo PRR continua passando pela CSGR.
+- **Alçada do gestor:** nível e exposição máximos por coordenadoria (MGR p. 8). Dentro deles, o gestor aprova o PRR sozinho, com parecer obrigatório, e a CSGR recebe o aviso. Acima deles, o PRR sobe à CSGR marcado como fora da alçada do gestor e no topo da fila. Coordenadoria sem alçada definida: todo PRR sobe à CSGR.
 
 ## Configurações, temas e mascote
 
