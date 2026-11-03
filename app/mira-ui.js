@@ -324,8 +324,8 @@ export function mountMira(root) {
   // Um aviso guardado deixa de pedir atenção quando a situação que o gerou já foi resolvida: o PRR saiu da fila,
   // a métrica voltou ao ideal, o evento foi tratado, o risco foi encerrado... Ele continua em "Resolvidos".
   function resolvido(a) {
-    // Avisos do MGR (proposta, resposta, versão) ficam até serem lidos.
-    if (a.riskId === 'MGR') return false;
+    // Avisos do MGR e das recomendações da CSGR ficam até serem lidos.
+    if (a.riskId === 'MGR' || a.riskId === 'REC') return false;
     // Aviso de problema: "acontecendo agora" se resolve quando o problema é resolvido; os outros ficam até a leitura.
     if (/^P-/.test(a.riskId || '')) {
       const p = pb(a.riskId);
@@ -3056,7 +3056,9 @@ export function mountMira(root) {
     const p = r.prr,
       m = lastMed(r),
       ms = metricSt(r),
-      mon = canMon(u, r);
+      mon = canMon(u, r),
+      // Empresa terceirizada responsável pela ação: registra medição e conclui a ação, sem reavaliar.
+      exe = MIRA.canExec(u, r);
     const lh = r.niveis
       .slice()
       .reverse()
@@ -3123,7 +3125,7 @@ export function mountMira(root) {
       ajudaTxt('grafico') +
       (ms === 'alerta' || ms === 'critico' ? ajudaTxt('medicaoRuim') : '') +
       chartHTML(r) +
-      (mon
+      (exe
         ? '<div class="row" style="align-items:flex-end;margin-top:12px"><div><label for="m-valor">Nova medição (' +
           esc(p.unidadeMetrica) +
           ')</label><input id="m-valor" type="number" step="any" style="width:140px"></div><button class="btn primary" data-act="add-med">Registrar medição</button>' +
@@ -3156,6 +3158,13 @@ export function mountMira(root) {
         : '') +
       '</div>' +
       (mon ? acoesTratamento(r) : '') +
+      (exe && !mon
+        ? '<div class="card"><h3>Execução da ação</h3><p class="muted">Você é a responsável pela ação deste PRR: registre as medições acima e marque a ação como concluída quando terminar.</p>' +
+          (r.prr.concluidaEm
+            ? '<p>' + toneTag('ok', 'Ação do PRR concluída em ' + fd(r.prr.concluidaEm)) + '</p>'
+            : '<div class="actions"><button class="btn" data-act="concluir-acao">Marcar a ação como concluída</button></div>') +
+          '</div>'
+        : '') +
       faq([
         'metrica',
         'medicao',
@@ -4149,6 +4158,8 @@ export function mountMira(root) {
       'mgr-proposta': 'Ajuste ao MGR',
       'mgr-resposta': 'Resposta da CSGR',
       'mgr-versao': 'Versão do MGR',
+      recomendacao: 'Recomendação da CSGR',
+      'recomendacao-resposta': 'Resposta à recomendação',
     };
     // Faixa do nível do risco do aviso (-1 sem avaliação): pinta a lateral do aviso e entra escrita no tipo.
     const bandOf = id => {
@@ -4627,7 +4638,7 @@ export function mountMira(root) {
   // Tabela do cronograma de um contexto; com ed, cada marco pode ser concluído ou removido.
   const ctxMarcos = (c, ed) =>
     c.marcos.length
-      ? '<table class="tbl"><tbody>' +
+      ? '<div class="scroll"><table class="tbl"><tbody>' +
         c.marcos
           .map(
             (m, i) =>
@@ -4656,7 +4667,7 @@ export function mountMira(root) {
               '</tr>',
           )
           .join('') +
-        '</tbody></table>'
+        '</tbody></table></div>'
       : '<div class="empty">Nenhum marco no cronograma ainda.</div>';
   // Passo 1 do novo risco: o contexto da coordenadoria, que precisa estar salvo antes da identificação.
   const ctxNovo = u =>
@@ -4684,7 +4695,99 @@ export function mountMira(root) {
               '</select>'
           : '',
         'Fase 1',
-      ) + ctxCards(u, un)
+      ) +
+      recsCard(u, un) +
+      ctxCards(u, un)
+    );
+  }
+  // Recomendações da CSGR para a coordenadoria (e as gerais), com a resposta do gestor.
+  function recsCard(u, un) {
+    const l = (S.recs || []).filter(x => !x.unit || x.unit === un);
+    if (!l.length) return '';
+    return (
+      '<div class="card">' +
+      cardH(
+        'Recomendações da CSGR',
+        'Orientações da Alta Gestão de Riscos; o gestor responde o que a coordenadoria vai fazer.',
+      ) +
+      l
+        .slice()
+        .reverse()
+        .map(x => {
+          const resp = x.respostas.find(y => y.unit === un);
+          return (
+            '<div class="info-box" style="margin-top:8px"><b>' +
+            esc(x.por) +
+            ', ' +
+            fd(x.em) +
+            (x.unit ? '' : ' · para todas as coordenadorias') +
+            ':</b> ' +
+            esc(x.texto) +
+            (resp
+              ? '<div class="small" style="margin-top:6px">' +
+                toneTag('ok', 'Respondida') +
+                ' ' +
+                esc(resp.por) +
+                ': ' +
+                esc(resp.texto) +
+                '</div>'
+              : u.papel === 'gestor' && u.unit === un
+                ? '<div class="field" style="margin-top:8px"><label for="rc-resp-' +
+                  x.n +
+                  '">Resposta da coordenadoria</label><textarea id="rc-resp-' +
+                  x.n +
+                  '" rows="2"></textarea></div><div class="actions"><button class="btn" data-act="rec-responder" data-n="' +
+                  x.n +
+                  '">Responder</button></div>'
+                : '<div class="small muted" style="margin-top:6px">Aguardando a resposta do gestor.</div>') +
+            '</div>'
+          );
+        })
+        .join('') +
+      '</div>'
+    );
+  }
+  // Bloco da tela Decisões para a CSGR emitir recomendação e ver as respostas de cada coordenadoria.
+  function recsDecisoes(u) {
+    const l = S.recs || [];
+    return (
+      '<div class="card">' +
+      cardH(
+        'Recomendações às coordenadorias',
+        'A CSGR orienta e emite recomendações; o gestor de cada coordenadoria responde.',
+      ) +
+      (u.papel === 'altagestao'
+        ? '<div class="field"><label for="rc-unit">Para</label><select id="rc-unit" style="width:100%"><option value="">Todas as coordenadorias</option>' +
+          units()
+            .map(x => '<option value="' + esc(x) + '">' + esc(x) + '</option>')
+            .join('') +
+          '</select></div><div class="field"><label for="rc-texto">Recomendação</label><textarea id="rc-texto" rows="3"></textarea></div><div class="actions"><button class="btn primary" data-act="rec-emitir">Emitir recomendação</button></div>'
+        : '') +
+      (l.length
+        ? '<div class="scroll"><table class="tbl"><thead><tr><th>Para</th><th>Recomendação</th><th>Respostas</th></tr></thead><tbody>' +
+          l
+            .slice()
+            .reverse()
+            .map(
+              x =>
+                '<tr><td>' +
+                esc(x.unit || 'Todas') +
+                '</td><td>' +
+                esc(x.texto) +
+                '<div class="small muted">' +
+                esc(x.por) +
+                ', ' +
+                fd(x.em) +
+                '</div></td><td>' +
+                (x.respostas.length
+                  ? x.respostas.map(y => '<b>' + esc(y.unit) + ':</b> ' + esc(y.texto)).join('<br>')
+                  : '<span class="muted">Nenhuma ainda</span>') +
+                '</td></tr>',
+            )
+            .join('') +
+          '</tbody></table></div>'
+        : '<div class="empty">Nenhuma recomendação emitida.</div>') +
+      '</div>'
     );
   }
   // Cartões do contexto de uma coordenadoria: escopo, responsáveis e cronograma. Editáveis pelo cadastrador
@@ -5071,7 +5174,9 @@ export function mountMira(root) {
         'Decisões da CSGR',
         'O que a CSGR decide e o sistema aplica. Cada alteração fica no histórico.',
       ) +
-      '<div class="prr-grid"><div class="decisoes-col"><div class="card">' +
+      '<div class="prr-grid"><div class="decisoes-col">' +
+      recsDecisoes(u) +
+      '<div class="card">' +
       cardH(
         'Premissas financeiras' + ajuda('premissas'),
         'Percentual de cada nota de probabilidade na exposição esperada. ' + quemDecidiu(pr),
@@ -5737,6 +5842,11 @@ export function mountMira(root) {
       UI.view = 'mgr';
       return render();
     }
+    // Avisos de recomendação levam ao contexto (coordenadoria) ou às Decisões (CSGR).
+    if (id === 'REC') {
+      UI.view = MIRA.geral(me()) ? 'decisoes' : 'contexto';
+      return render();
+    }
     const r = rk(id);
     if (!r) return;
     UI.view = 'risco';
@@ -6260,6 +6370,25 @@ export function mountMira(root) {
         );
         break;
       }
+      // Recomendações da CSGR: emitir (Alta Gestão) e responder (gestor da coordenadoria).
+      case 'rec-emitir':
+        await api('POST', 'recs', {
+          action: 'recomendar',
+          unit: val('rc-unit'),
+          texto: val('rc-texto').trim(),
+        });
+        await refresh(true);
+        toast('Recomendação emitida. A coordenadoria foi avisada.');
+        break;
+      case 'rec-responder':
+        await api('POST', 'recs', {
+          action: 'responder',
+          n: el.dataset.n,
+          texto: val('rc-resp-' + el.dataset.n).trim(),
+        });
+        await refresh(true);
+        toast('Resposta enviada à Alta Gestão de Riscos.');
+        break;
       case 'prob-novo':
         UI.view = 'problema';
         UI.pid = 'new';

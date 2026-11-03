@@ -505,6 +505,17 @@ const R1 = 'R-0001' + FIM_ID;
     motivo: 'Parecer favorável: ação adequada ao risco.',
   });
   ok(r.s === 200 && r.risk.status === 'em_tratamento', 'Alta Gestão aprova');
+  // A empresa terceirizada responsável pela ação informa a execução (medição), mas não reavalia o nível
+  r = await call('emp', 'POST', 'login', { username: 'empresateste', password: 'senha-forte-2' });
+  r = await call('emp', 'POST', 'risks/' + R1 + '/action', { action: 'add-med', valor: '' });
+  ok(r.s === 422 && /numérico/.test(r.error), 'empresa responsável pela ação pode registrar medição');
+  r = await call('emp', 'POST', 'risks/' + R1 + '/action', {
+    action: 'reaval',
+    prob: 1,
+    imp: 1,
+    motivo: 'x',
+  });
+  ok(r.s === 403, 'empresa responsável não reavalia o nível');
 
   // Pesquisa do histórico por data: o período vem do servidor, com as mesmas regras de quem vê o quê
   const hoje0 = new Date(Date.now() - 864e5).toISOString(),
@@ -1018,6 +1029,41 @@ const R1 = 'R-0001' + FIM_ID;
   );
   r = await call('cad', 'GET', 'state');
   ok(r.mgr === null, 'cadastrador não recebe as propostas do MGR');
+  // Recomendações da CSGR: a Alta Gestão emite, o gestor da coordenadoria responde
+  r = await call('ascf', 'POST', 'recs', {
+    action: 'recomendar',
+    unit: 'Cosegi',
+    texto: 'Revisar os controles existentes.',
+  });
+  ok(r.s === 403, 'só a CSGR emite recomendação');
+  r = await call('altagestao', 'POST', 'recs', {
+    action: 'recomendar',
+    unit: 'Cosegi',
+    texto: 'Revisar os controles existentes.',
+  });
+  ok(r.s === 200 && r.recs.length === 1, 'CSGR emite recomendação para a coordenadoria');
+  st = await call('cad', 'GET', 'state');
+  ok(
+    st.recs.length === 1 && st.alerts.some(a => a.tipo === 'recomendacao'),
+    'coordenadoria vê a recomendação e o aviso',
+  );
+  st = await call('cad2', 'GET', 'state');
+  ok(st.recs.length === 0, 'outra coordenadoria não vê a recomendação');
+  r = await call('cad', 'POST', 'recs', { action: 'responder', n: 1, texto: 'Vamos revisar.' });
+  ok(r.s === 403, 'só o gestor responde à recomendação');
+  r = await call('ges', 'POST', 'recs', {
+    action: 'responder',
+    n: 1,
+    texto: 'Revisão marcada para o mês que vem.',
+  });
+  ok(r.s === 200 && r.recs[0].respostas.length === 1, 'gestor responde à recomendação');
+  r = await call('ges', 'POST', 'recs', { action: 'responder', n: 1, texto: 'De novo.' });
+  ok(r.s === 422, 'a coordenadoria responde uma vez só');
+  st = await call('altagestao', 'GET', 'state');
+  ok(
+    st.alerts.some(a => a.tipo === 'recomendacao-resposta'),
+    'CSGR recebe o aviso da resposta',
+  );
   r = await call('cad', 'POST', 'alerts/read', {});
   ok(r.s === 200, 'marca avisos como lidos');
   // Servidor no ar que recebe código com esquema novo (o Next recarrega o código e mantém a conexão aberta):

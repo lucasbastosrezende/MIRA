@@ -14,7 +14,7 @@ Registro do que foi testado na branch `desenvolvimento-resolvendo-problemas` (PR
 
 | Teste | Resultado |
 |---|---|
-| API | 198 verificações, todas passando |
+| API | 208 verificações, todas passando |
 | Interface (smoke) | 67 verificações, incluindo o perfil ASCF e a tela MGR, todas passando, incluindo a tela Problemas em cada perfil, incluindo um risco Extremo (5 × 5) ainda sem PRR aprovado |
 | Navegador | 49 de 49 cenários passando (última rodada em banco limpo) |
 | Navegador (roteiro extra) | 13 de 13 cenários das partes novas, fora do repositório (ver item 20) |
@@ -244,6 +244,12 @@ No roteiro extra, o X02 falhou uma vez num banco recém-zerado: o botão de just
 - **Pedido:** fazer o papel da ASCF (Assessoria de Conformidade), que elabora o MGR em articulação com a CSGR.
 - **Feito:** perfil `ascf`, cadastrado pelo administrador, sem coordenadoria. Consulta tudo como o CGGE e não cadastra nem aprova. Tela MGR: versão em vigor, propostas de ajuste (a ASCF propõe, a CSGR responde com parecer, a ASCF corrige e reenvia) e as regras do MGR v1.0 aplicadas pelo sistema, com a página. Os perfis sem coordenadoria (CSGR, CGGE e ASCF) passaram a sair de uma regra só (`geral` em `lib/logic.js`).
 - **Conferido:** 20 verificações novas na API (permissões, parecer obrigatório, reenvio, versão no futuro ou repetida, avisos, histórico, cadastrador sem acesso). No navegador: conta criada pelo administrador, proposta, pedido de ajuste da CSGR, aviso que abre a tela MGR, reenvio e versão registrada; a 390 px nos temas claro e escuro, sem rolagem lateral e sem erro.
+
+### 33. Empresa terceirizada informa a execução e recomendações da CSGR
+- **Origem:** comparação dos papéis do texto de governança com o MIRA. O responsável designado no PRR "executa as ações e fornece informações sobre a execução"; a CSGR "orienta e emite recomendações".
+- **Feito:** a empresa terceirizada que é a responsável pela ação de um PRR registra medições e conclui a ação (regra `canExec` em `lib/logic.js`); não reavalia, não informa evento e não reabre o PRR. A Alta Gestão de Riscos emite recomendação para uma coordenadoria ou para todas, na tela Decisões; a coordenadoria recebe o aviso e vê no Contexto, e o gestor responde uma vez. Tudo no histórico.
+- **Achado no caminho:** a tabela do cronograma no Contexto passava 3 px da tela a 390 px (já acontecia antes); passou a rolar dentro da própria área.
+- **Conferido:** 10 verificações novas na API. No navegador: recomendação emitida, aviso que abre o Contexto, resposta do gestor que aparece em Decisões, a 390 px sem rolagem lateral. A execução pela empresa foi conferida só na API.
 
 ## Visual
 
