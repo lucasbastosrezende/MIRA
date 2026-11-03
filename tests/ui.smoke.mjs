@@ -390,6 +390,17 @@ for (const [v, t] of [
 await click({ act: 'per-tipo', v: 'ano' });
 await click({ act: 'per-off', v: '-1' });
 ok(html().includes(String(new Date().getFullYear() - 1)) && !bad(), 'relatório do ano anterior pela seta');
+// Duas recomendações da CSGR seguidas: as duas aparecem nos Alertas da coordenadoria (não só a mais recente).
+for (const texto of ['Primeira recomendação da CSGR.', 'Segunda recomendação da CSGR.'])
+  await call('altagestao', 'POST', 'recs', { action: 'recomendar', unit: 'Cosegi', texto });
+await click({ act: 'logout' });
+setVals({ 'a-user': 'ges.cosegi', 'a-pw': 'senha-forte-2' });
+await submit('auth-form');
+await click({ nav: 'alertas' });
+ok(
+  html().includes('Primeira recomendação da CSGR') && html().includes('Segunda recomendação da CSGR'),
+  'duas recomendações seguidas aparecem nos Alertas',
+);
 await click({ act: 'logout' });
 setVals({ 'a-user': 'cad.cosegi', 'a-pw': 'errada' });
 await submit('auth-form');

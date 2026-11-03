@@ -357,7 +357,8 @@ export function mountMira(root) {
     const visto = new Set();
     return S.alerts.filter(a => {
       if (resolvido(a)) return false;
-      const k = a.riskId + '|' + a.tipo;
+      // Avisos do MGR e das recomendações da CSGR não são de um risco: cada um conta sozinho (senão o mais antigo sumia).
+      const k = a.riskId === 'MGR' || a.riskId === 'REC' ? a.id : a.riskId + '|' + a.tipo;
       if (visto.has(k)) return false;
       visto.add(k);
       return true;
